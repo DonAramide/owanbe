@@ -1,0 +1,1435 @@
+openapi: 3.0.3
+info:
+  title: Owanbe API
+  version: 1.0.0
+  description: |
+    REST API for the Owanbe multi-sided event marketplace.
+
+    **Conventions**
+    - Base path: `/v1`
+    - JSON bodies and responses: `application/json`
+    - **Tenant:** `X-Tenant-Id` (UUID) on every request unless tenant is implied by host.
+    - **Auth:** `Authorization: Bearer <access_token>` except registration, login, refresh, and inbound webhooks.
+    - **Idempotency:** `Idempotency-Key` (UUID or unique string, 8–128 chars) on POST that creates money or booking-side effects.
+    - **RBAC:** Each operation lists allowed roles; the server still enforces **resource ownership** (e.g. client only own bookings).
+
+servers:
+  - url: https://api.owanbe.com/v1
+    description: Production
+  - url: http://localhost:8080/v1
+    description: Local
+
+tags:
+  - name: Auth
+  - name: Vendors
+  - name: Bookings
+  - name: Payments
+  - name: Chat
+  - name: Admin
+  - name: Webhooks
+
+# Bearer AND tenant header required for protected routes (override with security: [] on public ops).
+security:
+  - bearerAuth: []
+    tenantHeader: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token from `POST /auth/login` or `POST /auth/refresh`.
+    tenantHeader:
+      type: apiKey
+      in: header
+      name: X-Tenant-Id
+    webhookSignature:
+      type: apiKey
+      in: header
+      name: X-Quaser-Signature
+      description: Router/webhook verification (implementation-specific).
+
+  parameters:
+    TenantId:
+      name: X-Tenant-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+    PageCursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    PageLimit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: FORBIDDEN
+        message:
+          type: string
+        details:
+          type: object
+
+    AuthTokens:
+      type: object
+      required: [accessToken, accessExpiresAt, refreshToken, refreshExpiresAt]
+      properties:
+        accessToken:
+          type: string
+        accessExpiresAt:
+          type: string
+          format: date-time
+        refreshToken:
+          type: string
+        refreshExpiresAt:
+          type: string
+          format: date-time
+        tokenType:
+          type: string
+          example: Bearer
+
+    MeResponse:
+      type: object
+      required: [userId, email, roles, tenantId]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        tenantId:
+          type: string
+          format: uuid
+        roles:
+          type: array
+          items:
+            type: string
+            enum: [admin, client, vendor, guest]
+
+    VendorSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        businessName: { type: string }
+        city: { type: string, nullable: true }
+        countryCode: { type: string }
+        status:
+          type: string
+          enum: [draft, pending_review, active, suspended, rejected]
+        ratingAverage: { type: number, format: float, nullable: true }
+        reviewCount: { type: integer, nullable: true }
+        priceFromMinor: { type: integer, nullable: true }
+        currency: { type: string, nullable: true }
+
+    VendorDetail:
+      allOf:
+        - $ref: '#/components/schemas/VendorSummary'
+        - type: object
+          properties:
+            description: { type: string, nullable: true }
+            ownerUserId: { type: string, format: uuid }
+
+    VendorPackage:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        billingUnit:
+          type: string
+          enum: [per_guest, fixed, hourly, custom_quote]
+        currency: { type: string }
+        unitAmountMinor: { type: integer }
+        isActive: { type: boolean }
+
+    Booking:
+      type: object
+      required:
+        - id
+        - tenantId
+        - clientUserId
+        - vendorId
+        - packageId
+        - status
+        - currency
+        - guestCount
+        - eventStartsAt
+        - totalMinor
+        - version
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        clientUserId: { type: string, format: uuid }
+        vendorId: { type: string, format: uuid }
+        packageId: { type: string, format: uuid }
+        status:
+          type: string
+          enum:
+            - draft
+            - pending_payment
+            - confirmed
+            - in_progress
+            - completed
+            - cancelled
+            - refunded
+            - disputed
+        currency: { type: string }
+        guestCount: { type: integer }
+        eventStartsAt: { type: string, format: date-time }
+        eventEndsAt: { type: string, format: date-time, nullable: true }
+        locationText: { type: string, nullable: true }
+        clientNotes: { type: string, nullable: true }
+        subtotalMinor: { type: integer }
+        platformFeeMinor: { type: integer }
+        totalMinor: { type: integer }
+        version: { type: integer }
+        createdAt: { type: string, format: date-time }
+
+    Payment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        bookingId: { type: string, format: uuid }
+        provider:
+          type: string
+          enum: [paystack, flutterwave, internal]
+        status:
+          type: string
+          enum:
+            - initiated
+            - requires_action
+            - authorized
+            - captured
+            - partially_refunded
+            - refunded
+            - voided
+            - failed
+        currency: { type: string }
+        amountCapturedMinor: { type: integer }
+        amountRefundedMinor: { type: integer }
+        providerIntentRef: { type: string, nullable: true }
+        providerChargeRef: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    ChatThread:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        bookingId: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+
+    ChatMessage:
+      type: object
+      properties:
+        id: { type: string, format: integer }
+        threadId: { type: string, format: uuid }
+        senderId: { type: string, format: uuid }
+        body: { type: string }
+        attachments:
+          type: array
+          items: { type: object }
+        clientMsgId: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+paths:
+  # ---------------------------------------------------------------------------
+  # Auth — public: login/register/refresh; protected: me, logout
+  # ---------------------------------------------------------------------------
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user (client by default)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, displayName]
+              properties:
+                email: { type: string, format: email }
+                password:
+                  type: string
+                  format: password
+                  minLength: 10
+                displayName: { type: string }
+            examples:
+              default:
+                value:
+                  email: temi@example.com
+                  password: "hunter2-hunter2"
+                  displayName: Temi
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId: { type: string, format: uuid }
+                  tokens:
+                    $ref: '#/components/schemas/AuthTokens'
+              examples:
+                default:
+                  value:
+                    userId: 550e8400-e29b-41d4-a716-446655440000
+                    tokens:
+                      accessToken: eyJhbGciOi...
+                      accessExpiresAt: '2026-04-19T12:00:00Z'
+                      refreshToken: rt_abc123
+                      refreshExpiresAt: '2026-05-19T12:00:00Z'
+                      tokenType: Bearer
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Obtain tokens
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, tenantId]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+                tenantId: { type: string, format: uuid }
+            examples:
+              default:
+                value:
+                  email: temi@example.com
+                  password: secret
+                  tenantId: 660e8400-e29b-41d4-a716-446655440001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId: { type: string, format: uuid }
+                  roles:
+                    type: array
+                    items: { type: string }
+                  tokens:
+                    $ref: '#/components/schemas/AuthTokens'
+              examples:
+                default:
+                  value:
+                    userId: 550e8400-e29b-41d4-a716-446655440000
+                    roles: [client]
+                    tokens:
+                      accessToken: eyJhbGciOi...
+                      accessExpiresAt: '2026-04-19T12:00:00Z'
+                      refreshToken: rt_xyz
+                      refreshExpiresAt: '2026-05-19T12:00:00Z'
+                      tokenType: Bearer
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Rotate access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+            examples:
+              default:
+                value:
+                  refreshToken: rt_xyz
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokens'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Invalidate refresh token (server-side revoke when implemented)
+      description: **Roles:** authenticated (any).
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '204':
+          description: No content
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Current user profile and roles
+      description: **Roles:** authenticated (any).
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+              examples:
+                default:
+                  value:
+                    userId: 550e8400-e29b-41d4-a716-446655440000
+                    email: temi@example.com
+                    displayName: Temi
+                    tenantId: 660e8400-e29b-41d4-a716-446655440001
+                    roles: [client, vendor]
+
+  # ---------------------------------------------------------------------------
+  # Vendors — discovery (public/partially public), profile management (vendor)
+  # ---------------------------------------------------------------------------
+  /vendors:
+    get:
+      tags: [Vendors]
+      summary: Discover vendors (catalog)
+      description: **Roles:** optional auth; returns only **active** vendors for anonymous. Admin may see more with query flags.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: city
+          in: query
+          schema: { type: string }
+        - name: category
+          in: query
+          schema: { type: string }
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/PageLimit'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/VendorSummary'
+                  nextCursor:
+                    type: string
+                    nullable: true
+              examples:
+                default:
+                  value:
+                    items:
+                      - id: 770e8400-e29b-41d4-a716-446655440010
+                        slug: dkings-catering
+                        businessName: D'Kings Catering
+                        city: Lagos
+                        countryCode: NG
+                        status: active
+                        ratingAverage: 4.8
+                        reviewCount: 120
+                        priceFromMinor: 1500000
+                        currency: NGN
+                    nextCursor: eyJpZCI6IjEwIn0
+
+    post:
+      tags: [Vendors]
+      summary: Create vendor profile (draft)
+      description: **Roles:** authenticated user becomes vendor owner; typically **client** or new **vendor** role granted after create.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [businessName, slug, countryCode]
+              properties:
+                businessName: { type: string }
+                slug: { type: string }
+                countryCode: { type: string, minLength: 2, maxLength: 2 }
+                city: { type: string }
+                description: { type: string }
+            examples:
+              default:
+                value:
+                  businessName: D'Kings Catering
+                  slug: dkings-catering
+                  countryCode: NG
+                  city: Lagos
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VendorDetail'
+              examples:
+                default:
+                  value:
+                    id: 770e8400-e29b-41d4-a716-446655440010
+                    slug: dkings-catering
+                    businessName: D'Kings Catering
+                    city: Lagos
+                    countryCode: NG
+                    status: draft
+                    ownerUserId: 550e8400-e29b-41d4-a716-446655440000
+
+  /vendors/{vendorId}:
+    parameters:
+      - name: vendorId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Vendors]
+      summary: Get vendor by id
+      description: **Roles:** any authenticated for non-sensitive fields; **public** subset if you expose public catalog without token.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VendorDetail'
+        '404':
+          description: Not found
+
+    patch:
+      tags: [Vendors]
+      summary: Update vendor profile
+      description: **Roles:** **vendor** (owner or staff) for own `vendorId`; **admin** for moderation fields.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                businessName: { type: string }
+                description: { type: string }
+                city: { type: string }
+            examples:
+              default:
+                value:
+                  description: Premium catering across Lagos.
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VendorDetail'
+
+  /vendors/{vendorId}/packages:
+    parameters:
+      - name: vendorId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Vendors]
+      summary: List packages for vendor
+      description: **Roles:** any for **active** vendor; **vendor**/**admin** see inactive too.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/VendorPackage'
+              examples:
+                default:
+                  value:
+                    items:
+                      - id: 880e8400-e29b-41d4-a716-446655440020
+                        code: silver
+                        name: Silver
+                        billingUnit: per_guest
+                        currency: NGN
+                        unitAmountMinor: 1500000
+                        isActive: true
+
+    post:
+      tags: [Vendors]
+      summary: Create package
+      description: **Roles:** **vendor** (own vendor) or **admin**.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name, billingUnit, currency, unitAmountMinor]
+              properties:
+                code: { type: string }
+                name: { type: string }
+                description: { type: string }
+                billingUnit:
+                  type: string
+                  enum: [per_guest, fixed, hourly, custom_quote]
+                currency: { type: string }
+                unitAmountMinor: { type: integer }
+                minGuests: { type: integer }
+                maxGuests: { type: integer }
+            examples:
+              default:
+                value:
+                  code: gold
+                  name: Gold
+                  billingUnit: per_guest
+                  currency: NGN
+                  unitAmountMinor: 2500000
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VendorPackage'
+
+  /vendors/{vendorId}/onboarding/applications:
+    parameters:
+      - name: vendorId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Vendors]
+      summary: Create onboarding application
+      description: **Roles:** **vendor** (own vendor).
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                idempotencyKey: { type: string }
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  vendorId: { type: string, format: uuid }
+                  status:
+                    type: string
+                    enum: [applied, under_review, approved, rejected]
+
+  # ---------------------------------------------------------------------------
+  # Bookings
+  # ---------------------------------------------------------------------------
+  /bookings:
+    post:
+      tags: [Bookings]
+      summary: Create booking (draft or pending_payment)
+      description: **Roles:** **client** (owns booking as `clientUserId` = self).
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [vendorId, packageId, guestCount, eventStartsAt, currency]
+              properties:
+                vendorId: { type: string, format: uuid }
+                packageId: { type: string, format: uuid }
+                guestCount: { type: integer, minimum: 1 }
+                eventStartsAt: { type: string, format: date-time }
+                eventEndsAt: { type: string, format: date-time }
+                locationText: { type: string }
+                clientNotes: { type: string }
+            examples:
+              default:
+                value:
+                  vendorId: 770e8400-e29b-41d4-a716-446655440010
+                  packageId: 880e8400-e29b-41d4-a716-446655440020
+                  guestCount: 150
+                  eventStartsAt: '2026-06-01T18:00:00Z'
+                  currency: NGN
+                  locationText: Victoria Island, Lagos
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+              examples:
+                default:
+                  value:
+                    id: aa0e8400-e29b-41d4-a716-446655440030
+                    tenantId: 660e8400-e29b-41d4-a716-446655440001
+                    clientUserId: 550e8400-e29b-41d4-a716-446655440000
+                    vendorId: 770e8400-e29b-41d4-a716-446655440010
+                    packageId: 880e8400-e29b-41d4-a716-446655440020
+                    status: pending_payment
+                    currency: NGN
+                    guestCount: 150
+                    eventStartsAt: '2026-06-01T18:00:00Z'
+                    subtotalMinor: 225000000
+                    platformFeeMinor: 5000000
+                    totalMinor: 230000000
+                    version: 1
+                    createdAt: '2026-04-19T10:00:00Z'
+
+    get:
+      tags: [Bookings]
+      summary: List bookings for current principal
+      description: **Roles:** **client** — own bookings; **vendor** — vendor scope; **admin** — filter by query.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: status
+          in: query
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/PageLimit'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Booking'
+                  nextCursor:
+                    type: string
+                    nullable: true
+
+  /bookings/{bookingId}:
+    parameters:
+      - name: bookingId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Bookings]
+      summary: Get booking
+      description: **Roles:** **client** (owner), **vendor** (assigned vendor), **admin**.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '404':
+          description: Not found or no access
+
+    patch:
+      tags: [Bookings]
+      summary: Update booking (non-payment fields, state transitions per policy)
+      description: **Roles:** **client** / **vendor** / **admin** per field policy; send `If-Match` with `version` for optimistic concurrency.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: If-Match
+          in: header
+          schema:
+            type: integer
+            description: Must equal current booking `version`
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                version: { type: integer }
+                status: { type: string }
+                clientNotes: { type: string }
+            examples:
+              default:
+                value:
+                  version: 1
+                  status: in_progress
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '409':
+          description: Version conflict
+
+  # ---------------------------------------------------------------------------
+  # Payments
+  # ---------------------------------------------------------------------------
+  /bookings/{bookingId}/payments:
+    parameters:
+      - name: bookingId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Payments]
+      summary: Initiate payment for booking
+      description: **Roles:** **client** (booking owner). Creates internal `payments` row and returns Quaser/client payload for completion.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider]
+              properties:
+                provider:
+                  type: string
+                  enum: [paystack, flutterwave]
+                returnUrl:
+                  type: string
+                  format: uri
+                  description: Web/mobile return URL after PSP flow
+            examples:
+              default:
+                value:
+                  provider: paystack
+                  returnUrl: https://app.owanbe.com/pay/return
+      responses:
+        '201':
+          description: Payment initiated — client completes charge via returned instructions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payment:
+                    $ref: '#/components/schemas/Payment'
+                  quaser:
+                    type: object
+                    description: Opaque router payload (redirect URL, reference, client secret token, etc.)
+                    additionalProperties: true
+              examples:
+                default:
+                  value:
+                    payment:
+                      id: bb0e8400-e29b-41d4-a716-446655440040
+                      bookingId: aa0e8400-e29b-41d4-a716-446655440030
+                      provider: paystack
+                      status: initiated
+                      currency: NGN
+                      amountCapturedMinor: 0
+                      amountRefundedMinor: 0
+                      providerIntentRef: intent_quaser_123
+                      createdAt: '2026-04-19T10:05:00Z'
+                    quaser:
+                      redirectUrl: https://checkout.quaser.example/pay_xyz
+                      reference: OWB-bb0e8400
+
+  /payments/{paymentId}:
+    parameters:
+      - name: paymentId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Payments]
+      summary: Get payment status
+      description: **Roles:** **client** (owner of booking), **vendor**, **admin**.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+
+  /webhooks/quaser:
+    post:
+      tags: [Webhooks]
+      summary: Quaser router webhook (async payment / payout events)
+      description: |
+        **Auth:** `webhookSignature` (or mTLS), not Bearer.
+        Handler must be **idempotent** (dedupe by event id).
+      security:
+        - webhookSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+            examples:
+              default:
+                value:
+                  eventId: evt_quaser_001
+                  type: payment.captured
+                  data:
+                    reference: OWB-bb0e8400
+                    amountMinor: 230000000
+                    currency: NGN
+      responses:
+        '200':
+          description: Acknowledged (body optional)
+
+  # ---------------------------------------------------------------------------
+  # Chat (booking-scoped)
+  # ---------------------------------------------------------------------------
+  /bookings/{bookingId}/chat/thread:
+    parameters:
+      - name: bookingId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Chat]
+      summary: Get or create chat thread for booking
+      description: **Roles:** **client** (booking owner), **vendor** (assigned vendor), **admin** (support).
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatThread'
+              examples:
+                default:
+                  value:
+                    id: cc0e8400-e29b-41d4-a716-446655440050
+                    bookingId: aa0e8400-e29b-41d4-a716-446655440030
+                    createdAt: '2026-04-19T10:10:00Z'
+
+  /chat/threads/{threadId}/messages:
+    parameters:
+      - name: threadId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Chat]
+      summary: List messages (keyset pagination)
+      description: **Roles:** **participant** only.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: afterSeq
+          in: query
+          schema: { type: string }
+        - $ref: '#/components/parameters/PageLimit'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChatMessage'
+                  nextCursor:
+                    type: string
+                    nullable: true
+
+    post:
+      tags: [Chat]
+      summary: Send message
+      description: **Roles:** **participant**. Idempotent via `clientMsgId`.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string }
+                clientMsgId:
+                  type: string
+                  format: uuid
+                attachments:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      storageKey: { type: string }
+                      mimeType: { type: string }
+            examples:
+              default:
+                value:
+                  body: Hello — confirming guest count 150.
+                  clientMsgId: dd0e8400-e29b-41d4-a716-446655440060
+                  attachments: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatMessage'
+
+  /chat/uploads:
+    post:
+      tags: [Chat]
+      summary: Request signed upload for attachment
+      description: **Roles:** **participant** (must pass `threadId` query or body after authz check).
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [threadId, fileName, contentType]
+              properties:
+                threadId: { type: string, format: uuid }
+                fileName: { type: string }
+                contentType: { type: string }
+            examples:
+              default:
+                value:
+                  threadId: cc0e8400-e29b-41d4-a716-446655440050
+                  fileName: floorplan.jpg
+                  contentType: image/jpeg
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uploadUrl: { type: string, format: uri }
+                  storageKey: { type: string }
+                  headers:
+                    type: object
+                    additionalProperties: { type: string }
+
+  # ---------------------------------------------------------------------------
+  # Admin
+  # ---------------------------------------------------------------------------
+  /admin/onboarding/queue:
+    get:
+      tags: [Admin]
+      summary: Vendor onboarding queue
+      description: **Roles:** **admin** only.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [applied, under_review]
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/PageLimit'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        applicationId: { type: string, format: uuid }
+                        vendorId: { type: string, format: uuid }
+                        businessName: { type: string }
+                        status: { type: string }
+                  nextCursor:
+                    type: string
+                    nullable: true
+
+  /admin/onboarding/applications/{applicationId}/approve:
+    parameters:
+      - name: applicationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Admin]
+      summary: Approve vendor application
+      description: **Roles:** **admin** only.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reviewNotes: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  applicationStatus: { type: string, example: approved }
+                  vendorStatus: { type: string, example: active }
+
+  /admin/onboarding/applications/{applicationId}/reject:
+    parameters:
+      - name: applicationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Admin]
+      summary: Reject vendor application
+      description: **Roles:** **admin** only.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rejectionReason]
+              properties:
+                rejectionReason: { type: string }
+                reviewNotes: { type: string }
+            examples:
+              default:
+                value:
+                  rejectionReason: Business registration could not be verified.
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  applicationStatus: { type: string, example: rejected }
+
+  /admin/vendors/{vendorId}/suspend:
+    parameters:
+      - name: vendorId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Admin]
+      summary: Suspend vendor
+      description: **Roles:** **admin** only.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string }
+            examples:
+              default:
+                value:
+                  reason: Chargeback spike — manual review.
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vendorId: { type: string, format: uuid }
+                  status: { type: string, example: suspended }
+
+  /admin/onboarding/applications/{applicationId}:
+    parameters:
+      - name: applicationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Admin]
+      summary: Onboarding application detail (masked bank, doc metadata)
+      description: **Roles:** **admin** only.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  applicationId: { type: string, format: uuid }
+                  vendorId: { type: string, format: uuid }
+                  status: { type: string }
+                  business:
+                    type: object
+                    additionalProperties: true
+                  bankAccountsMasked:
+                    type: array
+                    items: { type: object }
+                  kycSubmissionIds:
+                    type: array
+                    items: { type: string, format: uuid }
+                  portfolioItemCount: { type: integer }
+
+  /admin/onboarding/applications/{applicationId}/claim:
+    parameters:
+      - name: applicationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Admin]
+      summary: Move application to under_review and assign reviewer
+      description: **Roles:** **admin** only.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: under_review }
+                  reviewerUserId: { type: string, format: uuid }
+
+  /vendors/{vendorId}/onboarding/applications/{applicationId}/submit:
+    parameters:
+      - name: vendorId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: applicationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Vendors]
+      summary: Submit onboarding for review (validates required sections)
+      description: **Roles:** **vendor** (own vendor).
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: applied }
+                  submittedAt: { type: string, format: date-time }
+        '422':
+          description: Validation failed
+
+  /vendors/{vendorId}/onboarding/applications/{applicationId}/business:
+    parameters:
+      - name: vendorId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: applicationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      tags: [Vendors]
+      summary: Upsert business block for application
+      description: **Roles:** **vendor** (own vendor).
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [legalName, countryCode]
+              properties:
+                legalName: { type: string }
+                tradingName: { type: string }
+                registrationNumber: { type: string }
+                taxId: { type: string }
+                addressLine1: { type: string }
+                city: { type: string }
+                countryCode: { type: string }
+            examples:
+              default:
+                value:
+                  legalName: D'Kings Catering Ltd
+                  countryCode: NG
+                  city: Lagos
+      responses:
+        '200':
+          description: OK
+
+  /bookings/{bookingId}/cancel:
+    parameters:
+      - name: bookingId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Bookings]
+      summary: Request cancellation (policy-driven refund side effects async)
+      description: **Roles:** **client** (owner) or **admin**.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+            examples:
+              default:
+                value:
+                  reason: Event postponed indefinitely.
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+
+  /vendors/me/payouts:
+    get:
+      tags: [Vendors]
+      summary: List payouts for vendors the caller represents
+      description: **Roles:** **vendor** (own settlements).
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/PageLimit'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        bookingId: { type: string, format: uuid }
+                        amountMinor: { type: integer }
+                        currency: { type: string }
+                        status:
+                          type: string
+                          enum: [pending, processing, completed, failed]
+                  nextCursor:
+                    type: string
+                    nullable: true
+
+  /bookings/{bookingId}/disputes:
+    parameters:
+      - name: bookingId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Bookings]
+      summary: Open dispute on booking
+      description: **Roles:** **client** (owner) or **vendor** (assigned).
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, description]
+              properties:
+                title: { type: string }
+                description: { type: string }
+                amountClaimedMinor: { type: integer }
+            examples:
+              default:
+                value:
+                  title: Service not as described
+                  description: Menu items missing from reception.
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  disputeId: { type: string, format: uuid }
+                  bookingStatus: { type: string, example: disputed }
