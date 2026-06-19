@@ -5,14 +5,26 @@ import '../../auth/auth_notifier.dart';
 import '../../auth/user_role.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.initialRole});
+
+  final UserRole? initialRole;
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
-  UserRole _role = UserRole.client;
+  static const _staffRoles = [UserRole.organizer, UserRole.vendor, UserRole.admin];
+  UserRole _role = UserRole.organizer;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initialRole;
+    if (initial != null && _staffRoles.contains(initial)) {
+      _role = initial;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +53,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               Text('Dev role', style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: 8),
               SegmentedButton<UserRole>(
-                segments: UserRole.values
+                segments: _staffRoles
                     .map(
                       (r) => ButtonSegment<UserRole>(
                         value: r,

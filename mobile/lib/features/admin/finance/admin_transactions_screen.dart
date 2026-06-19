@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/money.dart';
 import '../../../widgets/tables/app_data_table.dart';
 import 'admin_finance_providers.dart';
+import 'finance_status_chip.dart';
 
 class AdminTransactionsScreen extends ConsumerWidget {
   const AdminTransactionsScreen({super.key});
@@ -25,10 +26,14 @@ class AdminTransactionsScreen extends ConsumerWidget {
                 value: q.type,
                 hint: const Text('Type'),
                 items: const [
+                  DropdownMenuItem(value: '', child: Text('all')),
                   DropdownMenuItem(value: 'payment', child: Text('payment')),
                   DropdownMenuItem(value: 'payout', child: Text('payout')),
                   DropdownMenuItem(value: 'refund', child: Text('refund')),
-                  DropdownMenuItem(value: 'chargeback', child: Text('chargeback')),
+                  DropdownMenuItem(
+                    value: 'chargeback',
+                    child: Text('chargeback'),
+                  ),
                 ],
                 onChanged: (v) => ref.read(txQueryProvider.notifier).setType(v),
               ),
@@ -36,13 +41,18 @@ class AdminTransactionsScreen extends ConsumerWidget {
                 value: q.status,
                 hint: const Text('Status'),
                 items: const [
+                  DropdownMenuItem(value: '', child: Text('all')),
                   DropdownMenuItem(value: 'pending', child: Text('pending')),
-                  DropdownMenuItem(value: 'processing', child: Text('processing')),
+                  DropdownMenuItem(
+                    value: 'processing',
+                    child: Text('processing'),
+                  ),
                   DropdownMenuItem(value: 'failed', child: Text('failed')),
                   DropdownMenuItem(value: 'captured', child: Text('captured')),
                   DropdownMenuItem(value: 'posted', child: Text('posted')),
                 ],
-                onChanged: (v) => ref.read(txQueryProvider.notifier).setStatus(v),
+                onChanged: (v) =>
+                    ref.read(txQueryProvider.notifier).setStatus(v),
               ),
               OutlinedButton(
                 onPressed: () async {
@@ -81,43 +91,78 @@ class AdminTransactionsScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 12),
-          if (page.items.isEmpty) const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('No transactions found'))),
+          if (page.items.isEmpty)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('No transactions found'),
+              ),
+            ),
           if (page.items.isNotEmpty)
-          AppDataTable(
-            columns: [
-              DataColumn(label: const Text('ID'), onSort: (columnIndex, ascending) => ref.read(txQueryProvider.notifier).setSort('id')),
-              DataColumn(label: const Text('User'), onSort: (columnIndex, ascending) => ref.read(txQueryProvider.notifier).setSort('user')),
-              DataColumn(label: const Text('Amount'), numeric: true, onSort: (columnIndex, ascending) => ref.read(txQueryProvider.notifier).setSort('amount')),
-              DataColumn(label: const Text('Type'), onSort: (columnIndex, ascending) => ref.read(txQueryProvider.notifier).setSort('type')),
-              DataColumn(label: const Text('Status'), onSort: (columnIndex, ascending) => ref.read(txQueryProvider.notifier).setSort('status')),
-              DataColumn(label: const Text('Date'), onSort: (columnIndex, ascending) => ref.read(txQueryProvider.notifier).setSort('created_at')),
-              const DataColumn(label: Text('Actions')),
-            ],
-            rows: page.items
-                .map(
-                  (e) => DataRow(
-                    cells: [
-                      DataCell(Text(e.id)),
-                      DataCell(Text(e.user)),
-                      DataCell(Text(ngnFromMinor(e.amountMinor))),
-                      DataCell(Text(e.type)),
-                      DataCell(Text(e.status)),
-                      DataCell(Text(e.createdAt.toIso8601String())),
-                      DataCell(
-                        Row(
-                          children: [
-                            IconButton(
-                              onPressed: () => _showDetails(context, e),
-                              icon: const Icon(Icons.visibility),
-                            ),
-                          ],
+            AppDataTable(
+              columns: [
+                DataColumn(
+                  label: const Text('ID'),
+                  onSort: (columnIndex, ascending) =>
+                      ref.read(txQueryProvider.notifier).setSort('id'),
+                ),
+                DataColumn(
+                  label: const Text('User'),
+                  onSort: (columnIndex, ascending) =>
+                      ref.read(txQueryProvider.notifier).setSort('user'),
+                ),
+                DataColumn(
+                  label: const Text('Amount'),
+                  numeric: true,
+                  onSort: (columnIndex, ascending) =>
+                      ref.read(txQueryProvider.notifier).setSort('amount'),
+                ),
+                DataColumn(
+                  label: const Text('Type'),
+                  onSort: (columnIndex, ascending) =>
+                      ref.read(txQueryProvider.notifier).setSort('type'),
+                ),
+                DataColumn(
+                  label: const Text('Status'),
+                  onSort: (columnIndex, ascending) =>
+                      ref.read(txQueryProvider.notifier).setSort('status'),
+                ),
+                DataColumn(
+                  label: const Text('Date'),
+                  onSort: (columnIndex, ascending) =>
+                      ref.read(txQueryProvider.notifier).setSort('created_at'),
+                ),
+                const DataColumn(label: Text('Actions')),
+              ],
+              rows: page.items
+                  .map(
+                    (e) => DataRow(
+                      cells: [
+                        DataCell(Text(e.id)),
+                        DataCell(Text(e.user)),
+                        DataCell(Text(ngnFromMinor(e.amountMinor))),
+                        DataCell(
+                          FinanceStatusChip(label: e.type, compact: true),
                         ),
-                      ),
-                    ],
-                  ),
-                )
-                .toList(),
-          ),
+                        DataCell(
+                          FinanceStatusChip(label: e.status, compact: true),
+                        ),
+                        DataCell(Text(e.createdAt.toIso8601String())),
+                        DataCell(
+                          Row(
+                            children: [
+                              IconButton(
+                                onPressed: () => _showDetails(context, e),
+                                icon: const Icon(Icons.visibility),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                  .toList(),
+            ),
           const SizedBox(height: 8),
           _Pager(
             page: page.page,
@@ -140,13 +185,20 @@ class AdminTransactionsScreen extends ConsumerWidget {
           'Type: ${tx.type}\nStatus: ${tx.status}\nAmount: ${ngnFromMinor(tx.amountMinor)}\n'
           'User: ${tx.user}\nBooking: ${tx.bookingId ?? '-'}\nDate: ${tx.createdAt.toIso8601String()}',
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }
 
   String _toCsv(List<dynamic> items) {
-    final lines = <String>['id,user,amount_minor,type,status,created_at,booking_id'];
+    final lines = <String>[
+      'id,user,amount_minor,type,status,created_at,booking_id',
+    ];
     for (final i in items) {
       lines.add(
         '${i.id},${i.user},${i.amountMinor},${i.type},${i.status},${i.createdAt.toIso8601String()},${i.bookingId ?? ''}',
@@ -157,7 +209,11 @@ class AdminTransactionsScreen extends ConsumerWidget {
 }
 
 class _Pager extends StatelessWidget {
-  const _Pager({required this.page, required this.totalPages, required this.onChanged});
+  const _Pager({
+    required this.page,
+    required this.totalPages,
+    required this.onChanged,
+  });
   final int page;
   final int totalPages;
   final ValueChanged<int> onChanged;
@@ -165,12 +221,18 @@ class _Pager extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        OutlinedButton(onPressed: page > 1 ? () => onChanged(page - 1) : null, child: const Text('Prev')),
+        OutlinedButton(
+          onPressed: page > 1 ? () => onChanged(page - 1) : null,
+          child: const Text('Prev'),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Text('Page $page / $totalPages'),
         ),
-        OutlinedButton(onPressed: page < totalPages ? () => onChanged(page + 1) : null, child: const Text('Next')),
+        OutlinedButton(
+          onPressed: page < totalPages ? () => onChanged(page + 1) : null,
+          child: const Text('Next'),
+        ),
       ],
     );
   }

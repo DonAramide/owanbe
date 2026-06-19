@@ -26,4 +26,7 @@ export default (): EnvVars => ({
   PAYMENT_TIMEOUT_MINUTES: parseInt(process.env.PAYMENT_TIMEOUT_MINUTES ?? '30', 10),
   PAYOUT_TIMEOUT_MINUTES: parseInt(process.env.PAYOUT_TIMEOUT_MINUTES ?? '240', 10),
   FINANCE_TIMEOUT_SWEEP_MS: parseInt(process.env.FINANCE_TIMEOUT_SWEEP_MS ?? '60000', 10),
+  QFE_DUAL_WRITE_TREASURY: ['true', '1', 'yes'].includes(
+    String(process.env.QFE_DUAL_WRITE_TREASURY ?? 'false').toLowerCase(),
+  ),
 });

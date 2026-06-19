@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/money.dart';
 import '../../../widgets/tables/app_data_table.dart';
 import 'admin_finance_providers.dart';
+import 'finance_status_chip.dart';
 
 class AdminPayoutsScreen extends ConsumerStatefulWidget {
   const AdminPayoutsScreen({super.key});
@@ -32,28 +33,46 @@ class _AdminPayoutsScreenState extends ConsumerState<AdminPayoutsScreen> {
                 onPressed: action.busy
                     ? null
                     : () async {
-                        final ok = await _confirm(context, 'Process payout batch now?');
+                        final ok = await _confirm(
+                          context,
+                          'Process payout batch now?',
+                        );
                         if (!ok) return;
-                        ref.read(payoutRowActionProvider.notifier).setBusy(true);
-                        await ref.read(adminFinanceApiProvider).processPayoutBatch();
+                        ref
+                            .read(payoutRowActionProvider.notifier)
+                            .setBusy(true);
+                        await ref
+                            .read(adminFinanceApiProvider)
+                            .processPayoutBatch();
                         ref.invalidate(adminPayoutsProvider);
                         ref.invalidate(adminSummaryProvider);
-                        ref.read(payoutRowActionProvider.notifier).setBusy(false);
+                        ref
+                            .read(payoutRowActionProvider.notifier)
+                            .setBusy(false);
                       },
                 child: action.busy
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                     : const Text('Process Batch Payout'),
               ),
               FilledButton.tonal(
                 onPressed: _selected.isEmpty
                     ? null
                     : () async {
-                        final ok = await _confirm(context, 'Retry ${_selected.length} selected payouts?');
+                        final ok = await _confirm(
+                          context,
+                          'Retry ${_selected.length} selected payouts?',
+                        );
                         if (!ok) return;
                         for (final id in _selected.toList()) {
                           ref.read(payoutRowActionProvider.notifier).start(id);
                           try {
-                            await ref.read(adminFinanceApiProvider).retryPayout(id);
+                            await ref
+                                .read(adminFinanceApiProvider)
+                                .retryPayout(id);
                           } finally {
                             ref.read(payoutRowActionProvider.notifier).stop(id);
                           }
@@ -68,16 +87,26 @@ class _AdminPayoutsScreenState extends ConsumerState<AdminPayoutsScreen> {
                 value: q.status,
                 hint: const Text('Status filter'),
                 items: const [
+                  DropdownMenuItem(value: '', child: Text('all')),
                   DropdownMenuItem(value: 'pending', child: Text('pending')),
-                  DropdownMenuItem(value: 'processing', child: Text('processing')),
+                  DropdownMenuItem(
+                    value: 'processing',
+                    child: Text('processing'),
+                  ),
                   DropdownMenuItem(value: 'failed', child: Text('failed')),
-                  DropdownMenuItem(value: 'completed', child: Text('completed')),
+                  DropdownMenuItem(
+                    value: 'completed',
+                    child: Text('completed'),
+                  ),
                 ],
-                onChanged: (v) => ref.read(payoutQueryProvider.notifier).setStatus(v),
+                onChanged: (v) =>
+                    ref.read(payoutQueryProvider.notifier).setStatus(v),
               ),
               OutlinedButton(
                 onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: _toCsv(page.items)));
+                  await Clipboard.setData(
+                    ClipboardData(text: _toCsv(page.items)),
+                  );
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('CSV copied to clipboard')),
@@ -89,7 +118,13 @@ class _AdminPayoutsScreenState extends ConsumerState<AdminPayoutsScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          if (page.items.isEmpty) const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('No payouts found'))),
+          if (page.items.isEmpty)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('No payouts found'),
+              ),
+            ),
           if (page.items.isNotEmpty)
             AppDataTable(
               columns: const [
@@ -123,7 +158,12 @@ class _AdminPayoutsScreenState extends ConsumerState<AdminPayoutsScreen> {
                         DataCell(Text(p.id)),
                         DataCell(Text(p.vendorId)),
                         DataCell(Text(ngnFromMinor(p.amountMinor))),
-                        DataCell(Text(p.status)),
+                        DataCell(
+                          FinanceStatusChip(
+                            label: p.underReview ? 'under_review' : p.status,
+                            compact: true,
+                          ),
+                        ),
                         DataCell(Text(p.createdAt.toIso8601String())),
                         DataCell(
                           Row(
@@ -133,7 +173,9 @@ class _AdminPayoutsScreenState extends ConsumerState<AdminPayoutsScreen> {
                                     ? const SizedBox(
                                         width: 16,
                                         height: 16,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
                                       )
                                     : const Icon(Icons.refresh),
                                 onPressed: action.loadingIds.contains(p.id)
@@ -144,13 +186,24 @@ class _AdminPayoutsScreenState extends ConsumerState<AdminPayoutsScreen> {
                                           'Retry payout ${p.id} for ${ngnFromMinor(p.amountMinor)} (${p.vendorId})?',
                                         );
                                         if (!ok) return;
-                                        ref.read(payoutRowActionProvider.notifier).start(p.id);
+                                        ref
+                                            .read(
+                                              payoutRowActionProvider.notifier,
+                                            )
+                                            .start(p.id);
                                         try {
-                                          await ref.read(adminFinanceApiProvider).retryPayout(p.id);
+                                          await ref
+                                              .read(adminFinanceApiProvider)
+                                              .retryPayout(p.id);
                                           ref.invalidate(adminPayoutsProvider);
                                           ref.invalidate(adminSummaryProvider);
                                         } finally {
-                                          ref.read(payoutRowActionProvider.notifier).stop(p.id);
+                                          ref
+                                              .read(
+                                                payoutRowActionProvider
+                                                    .notifier,
+                                              )
+                                              .stop(p.id);
                                         }
                                       },
                               ),
@@ -189,13 +242,20 @@ class _AdminPayoutsScreenState extends ConsumerState<AdminPayoutsScreen> {
           'Status: ${p.status}\nBooking: ${p.bookingId ?? '-'}\nPayment: ${p.paymentId ?? '-'}\n'
           'Failure: ${p.failureMessage ?? p.failureCode ?? '-'}',
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }
 
   String _toCsv(List<dynamic> items) {
-    final lines = <String>['id,vendor_id,amount_minor,status,booking_id,payment_id,created_at'];
+    final lines = <String>[
+      'id,vendor_id,amount_minor,status,booking_id,payment_id,created_at',
+    ];
     for (final i in items) {
       lines.add(
         '${i.id},${i.vendorId},${i.amountMinor},${i.status},${i.bookingId ?? ''},${i.paymentId ?? ''},${i.createdAt.toIso8601String()}',
@@ -211,8 +271,14 @@ class _AdminPayoutsScreenState extends ConsumerState<AdminPayoutsScreen> {
         title: const Text('Confirm action'),
         content: Text(prompt),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Confirm')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirm'),
+          ),
         ],
       ),
     );
@@ -221,7 +287,11 @@ class _AdminPayoutsScreenState extends ConsumerState<AdminPayoutsScreen> {
 }
 
 class _Pager extends StatelessWidget {
-  const _Pager({required this.page, required this.totalPages, required this.onChanged});
+  const _Pager({
+    required this.page,
+    required this.totalPages,
+    required this.onChanged,
+  });
   final int page;
   final int totalPages;
   final ValueChanged<int> onChanged;
@@ -229,12 +299,18 @@ class _Pager extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        OutlinedButton(onPressed: page > 1 ? () => onChanged(page - 1) : null, child: const Text('Prev')),
+        OutlinedButton(
+          onPressed: page > 1 ? () => onChanged(page - 1) : null,
+          child: const Text('Prev'),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Text('Page $page / $totalPages'),
         ),
-        OutlinedButton(onPressed: page < totalPages ? () => onChanged(page + 1) : null, child: const Text('Next')),
+        OutlinedButton(
+          onPressed: page < totalPages ? () => onChanged(page + 1) : null,
+          child: const Text('Next'),
+        ),
       ],
     );
   }

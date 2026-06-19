@@ -36,30 +36,104 @@ class PaginatedResponse<T> {
 }
 typedef AdminPage<T> = PaginatedResponse<T>;
 
+class AdminFinanceKpiAttention {
+  const AdminFinanceKpiAttention({
+    required this.level,
+    required this.summary,
+    this.detail,
+  });
+
+  final String level;
+  final String summary;
+  final String? detail;
+
+  factory AdminFinanceKpiAttention.fromJson(Map<String, dynamic>? json) {
+    if (json == null) {
+      return const AdminFinanceKpiAttention(level: 'none', summary: '');
+    }
+    return AdminFinanceKpiAttention(
+      level: (json['level'] ?? 'none').toString(),
+      summary: (json['summary'] ?? '').toString(),
+      detail: json['detail']?.toString(),
+    );
+  }
+}
+
 class AdminFinanceSummary {
   const AdminFinanceSummary({
     required this.totalVolumeMinor,
     required this.escrowBalanceMinor,
     required this.pendingPayoutMinor,
+    required this.pendingPayoutCount,
     required this.underReviewMinor,
+    required this.underReviewCount,
     required this.failedCount,
     required this.failedMinor,
+    required this.openReconciliationCount,
+    required this.attention,
   });
   final String totalVolumeMinor;
   final String escrowBalanceMinor;
   final String pendingPayoutMinor;
+  final String pendingPayoutCount;
   final String underReviewMinor;
+  final String underReviewCount;
   final String failedCount;
   final String failedMinor;
+  final String openReconciliationCount;
+  final AdminFinanceSummaryAttention attention;
 
-  factory AdminFinanceSummary.fromJson(Map<String, dynamic> json) => AdminFinanceSummary(
-        totalVolumeMinor: (json['totalVolumeMinor'] ?? '0').toString(),
-        escrowBalanceMinor: (json['escrowBalanceMinor'] ?? '0').toString(),
-        pendingPayoutMinor: (json['pendingPayoutMinor'] ?? '0').toString(),
-        underReviewMinor: (json['underReviewMinor'] ?? '0').toString(),
-        failedCount: (json['failedCount'] ?? '0').toString(),
-        failedMinor: (json['failedMinor'] ?? '0').toString(),
-      );
+  factory AdminFinanceSummary.fromJson(Map<String, dynamic> json) {
+    final rawAttention = json['attention'];
+    return AdminFinanceSummary(
+      totalVolumeMinor: (json['totalVolumeMinor'] ?? '0').toString(),
+      escrowBalanceMinor: (json['escrowBalanceMinor'] ?? '0').toString(),
+      pendingPayoutMinor: (json['pendingPayoutMinor'] ?? '0').toString(),
+      pendingPayoutCount: (json['pendingPayoutCount'] ?? '0').toString(),
+      underReviewMinor: (json['underReviewMinor'] ?? '0').toString(),
+      underReviewCount: (json['underReviewCount'] ?? '0/0').toString(),
+      failedCount: (json['failedCount'] ?? '0').toString(),
+      failedMinor: (json['failedMinor'] ?? '0').toString(),
+      openReconciliationCount: (json['openReconciliationCount'] ?? '0').toString(),
+      attention: AdminFinanceSummaryAttention.fromJson(
+        rawAttention is Map<String, dynamic> ? rawAttention : null,
+      ),
+    );
+  }
+}
+
+class AdminFinanceSummaryAttention {
+  const AdminFinanceSummaryAttention({
+    required this.volume,
+    required this.escrow,
+    required this.pendingPayouts,
+    required this.underReview,
+    required this.failed,
+    required this.reconciliation,
+  });
+
+  final AdminFinanceKpiAttention volume;
+  final AdminFinanceKpiAttention escrow;
+  final AdminFinanceKpiAttention pendingPayouts;
+  final AdminFinanceKpiAttention underReview;
+  final AdminFinanceKpiAttention failed;
+  final AdminFinanceKpiAttention reconciliation;
+
+  factory AdminFinanceSummaryAttention.fromJson(Map<String, dynamic>? json) {
+    Map<String, dynamic>? block(String key) {
+      final v = json?[key];
+      return v is Map<String, dynamic> ? v : null;
+    }
+
+    return AdminFinanceSummaryAttention(
+      volume: AdminFinanceKpiAttention.fromJson(block('volume')),
+      escrow: AdminFinanceKpiAttention.fromJson(block('escrow')),
+      pendingPayouts: AdminFinanceKpiAttention.fromJson(block('pendingPayouts')),
+      underReview: AdminFinanceKpiAttention.fromJson(block('underReview')),
+      failed: AdminFinanceKpiAttention.fromJson(block('failed')),
+      reconciliation: AdminFinanceKpiAttention.fromJson(block('reconciliation')),
+    );
+  }
 }
 
 class AdminAlertItem {
@@ -68,18 +142,28 @@ class AdminAlertItem {
     required this.count,
     required this.severity,
     required this.latestOccurrence,
+    required this.headline,
+    required this.summary,
+    this.suggestedAction,
   });
   final String type;
   final int count;
   final String severity;
   final DateTime latestOccurrence;
+  final String headline;
+  final String summary;
+  final String? suggestedAction;
 
   factory AdminAlertItem.fromJson(Map<String, dynamic> json) => AdminAlertItem(
         type: (json['type'] ?? '').toString(),
         count: int.tryParse((json['count'] ?? '0').toString()) ?? 0,
         severity: (json['severity'] ?? 'WARNING').toString(),
         latestOccurrence:
-            DateTime.tryParse((json['latest_occurrence'] ?? '').toString()) ?? DateTime.now(),
+            DateTime.tryParse((json['latest_occurrence'] ?? json['latestOccurrence'] ?? '').toString()) ??
+                DateTime.now(),
+        headline: (json['headline'] ?? json['type'] ?? 'Alert').toString(),
+        summary: (json['summary'] ?? '').toString(),
+        suggestedAction: json['suggested_action']?.toString() ?? json['suggestedAction']?.toString(),
       );
 }
 

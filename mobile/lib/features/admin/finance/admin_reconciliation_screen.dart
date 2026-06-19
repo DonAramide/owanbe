@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/money.dart';
 import '../../../widgets/tables/app_data_table.dart';
 import 'admin_finance_providers.dart';
+import 'finance_status_chip.dart';
 
 class AdminReconciliationScreen extends ConsumerWidget {
   const AdminReconciliationScreen({super.key});
@@ -26,14 +27,22 @@ class AdminReconciliationScreen extends ConsumerWidget {
                 value: q.status,
                 hint: const Text('Status filter'),
                 items: const [
+                  DropdownMenuItem(value: '', child: Text('all')),
                   DropdownMenuItem(value: 'open', child: Text('open')),
+                  DropdownMenuItem(
+                    value: 'escalated',
+                    child: Text('escalated'),
+                  ),
                   DropdownMenuItem(value: 'resolved', child: Text('resolved')),
                 ],
-                onChanged: (v) => ref.read(reconQueryProvider.notifier).setStatus(v),
+                onChanged: (v) =>
+                    ref.read(reconQueryProvider.notifier).setStatus(v),
               ),
               OutlinedButton(
                 onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: _toCsv(page.items)));
+                  await Clipboard.setData(
+                    ClipboardData(text: _toCsv(page.items)),
+                  );
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('CSV copied to clipboard')),
@@ -46,7 +55,12 @@ class AdminReconciliationScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           if (page.items.isEmpty)
-            const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('No reconciliation issues found'))),
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('No reconciliation issues found'),
+              ),
+            ),
           if (page.items.isNotEmpty)
             AppDataTable(
               columns: const [
@@ -63,31 +77,53 @@ class AdminReconciliationScreen extends ConsumerWidget {
                     (r) => DataRow(
                       cells: [
                         DataCell(Text(r.reportId)),
-                        DataCell(Text(r.issueKind)),
+                        DataCell(
+                          FinanceStatusChip(label: r.issueKind, compact: true),
+                        ),
                         DataCell(Text(ngnFromMinor(r.expectedAmount))),
                         DataCell(Text(ngnFromMinor(r.actualAmount))),
                         DataCell(Text(ngnFromMinor(r.difference))),
-                        DataCell(Text(r.status)),
+                        DataCell(
+                          FinanceStatusChip(label: r.status, compact: true),
+                        ),
                         DataCell(
                           Row(
                             children: [
                               IconButton(
-                                onPressed: r.paymentId == null || action.loadingIds.contains(r.reportId)
+                                onPressed:
+                                    r.paymentId == null ||
+                                        action.loadingIds.contains(r.reportId)
                                     ? null
                                     : () async {
-                                        ref.read(reconRowActionProvider.notifier).start(r.reportId);
+                                        ref
+                                            .read(
+                                              reconRowActionProvider.notifier,
+                                            )
+                                            .start(r.reportId);
                                         try {
-                                          await ref.read(adminFinanceApiProvider).recoverReconciliation(r.paymentId!);
-                                          ref.invalidate(adminReconciliationProvider);
+                                          await ref
+                                              .read(adminFinanceApiProvider)
+                                              .recoverReconciliation(
+                                                r.paymentId!,
+                                              );
+                                          ref.invalidate(
+                                            adminReconciliationProvider,
+                                          );
                                         } finally {
-                                          ref.read(reconRowActionProvider.notifier).stop(r.reportId);
+                                          ref
+                                              .read(
+                                                reconRowActionProvider.notifier,
+                                              )
+                                              .stop(r.reportId);
                                         }
                                       },
                                 icon: action.loadingIds.contains(r.reportId)
                                     ? const SizedBox(
                                         width: 16,
                                         height: 16,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
                                       )
                                     : const Icon(Icons.refresh),
                               ),
@@ -126,13 +162,20 @@ class AdminReconciliationScreen extends ConsumerWidget {
           'Actual: ${ngnFromMinor(r.actualAmount)}\nDifference: ${ngnFromMinor(r.difference)}\n'
           'Status: ${r.status}\nPayment: ${r.paymentId ?? '-'}\nBooking: ${r.bookingId ?? '-'}',
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }
 
   String _toCsv(List<dynamic> items) {
-    final lines = <String>['report_id,issue_kind,severity,expected,actual,difference,status,payment_id,booking_id'];
+    final lines = <String>[
+      'report_id,issue_kind,severity,expected,actual,difference,status,payment_id,booking_id',
+    ];
     for (final i in items) {
       lines.add(
         '${i.reportId},${i.issueKind},${i.severity},${i.expectedAmount},${i.actualAmount},${i.difference},${i.status},${i.paymentId ?? ''},${i.bookingId ?? ''}',
@@ -143,7 +186,11 @@ class AdminReconciliationScreen extends ConsumerWidget {
 }
 
 class _Pager extends StatelessWidget {
-  const _Pager({required this.page, required this.totalPages, required this.onChanged});
+  const _Pager({
+    required this.page,
+    required this.totalPages,
+    required this.onChanged,
+  });
   final int page;
   final int totalPages;
   final ValueChanged<int> onChanged;
@@ -151,12 +198,18 @@ class _Pager extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        OutlinedButton(onPressed: page > 1 ? () => onChanged(page - 1) : null, child: const Text('Prev')),
+        OutlinedButton(
+          onPressed: page > 1 ? () => onChanged(page - 1) : null,
+          child: const Text('Prev'),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Text('Page $page / $totalPages'),
         ),
-        OutlinedButton(onPressed: page < totalPages ? () => onChanged(page + 1) : null, child: const Text('Next')),
+        OutlinedButton(
+          onPressed: page < totalPages ? () => onChanged(page + 1) : null,
+          child: const Text('Next'),
+        ),
       ],
     );
   }

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../eos/widgets/cards/eos_kpi_card.dart';
+
+/// Legacy KPI card — use [EosKpiCard] in new modules.
 class KpiCard extends StatelessWidget {
   const KpiCard({
     super.key,
@@ -8,6 +11,7 @@ class KpiCard extends StatelessWidget {
     this.subtitle,
     this.color,
   });
+
   final String title;
   final String value;
   final String? subtitle;
@@ -15,29 +19,11 @@ class KpiCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: Theme.of(context).textTheme.labelLarge),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: color ?? cs.onSurface,
-                  ),
-            ),
-            if (subtitle != null) ...[
-              const SizedBox(height: 4),
-              Text(subtitle!, style: Theme.of(context).textTheme.bodySmall),
-            ],
-          ],
-        ),
-      ),
+    return EosKpiCard(
+      title: title,
+      value: value,
+      subtitle: subtitle,
+      attention: color != null ? EosKpiAttention.warning : EosKpiAttention.none,
     );
   }
 }

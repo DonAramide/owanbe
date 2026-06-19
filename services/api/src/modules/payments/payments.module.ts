@@ -20,9 +20,10 @@ import { FinanceTimeoutService } from './finance-timeout.service';
 import { AdminFinanceDashboardService } from './admin-finance-dashboard.service';
 import { DisputesService } from './disputes.service';
 import { DisputesController } from './disputes.controller';
+import { QfeModule } from '../qfe/qfe.module';
 
 @Module({
-  imports: [AuthModule, OwnershipModule],
+  imports: [AuthModule, OwnershipModule, QfeModule],
   controllers: [
     PaymentsController,
     AdminFinanceController,

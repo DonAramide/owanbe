@@ -6,9 +6,11 @@ class AuthSession {
     required this.userId,
     required this.displayName,
     required this.role,
+    this.email,
   });
 
   final String userId;
   final String displayName;
   final UserRole role;
+  final String? email;
 }

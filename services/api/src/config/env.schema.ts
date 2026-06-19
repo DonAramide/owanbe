@@ -24,6 +24,8 @@ export const envValidationSchema = Joi.object({
   PAYMENT_TIMEOUT_MINUTES: Joi.number().integer().min(1).max(1440).default(30),
   PAYOUT_TIMEOUT_MINUTES: Joi.number().integer().min(1).max(10_080).default(240),
   FINANCE_TIMEOUT_SWEEP_MS: Joi.number().integer().min(10_000).max(3_600_000).default(60_000),
+  /** S5: mirror treasury settlement journals into financial_transactions + postings. */
+  QFE_DUAL_WRITE_TREASURY: Joi.boolean().truthy('true', '1', 'yes').falsy('false', '0', 'no').default(false),
 }).unknown(true);
 
 export type EnvVars = {
@@ -46,4 +48,5 @@ export type EnvVars = {
   PAYMENT_TIMEOUT_MINUTES: number;
   PAYOUT_TIMEOUT_MINUTES: number;
   FINANCE_TIMEOUT_SWEEP_MS: number;
+  QFE_DUAL_WRITE_TREASURY: boolean;
 };

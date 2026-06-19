@@ -13,6 +13,8 @@ class OwanbeApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'Owanbe',
       theme: owanbeTheme,
+      darkTheme: owanbeDarkTheme,
+      themeMode: ThemeMode.light,
       routerConfig: router,
     );
   }

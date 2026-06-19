@@ -17,6 +17,16 @@ class AuthNotifier extends Notifier<AuthSession?> {
     );
   }
 
+  /// Public attendee auth (Phase 1 demo).
+  void signInAttendee({required String displayName, String? email}) {
+    state = AuthSession(
+      userId: 'attendee-${email ?? displayName}',
+      displayName: displayName,
+      role: UserRole.client,
+      email: email,
+    );
+  }
+
   void signOut() => state = null;
 }
 

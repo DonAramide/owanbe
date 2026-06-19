@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../eos/widgets/financial/eos_attention_banner.dart';
+
 class AlertBanner extends StatelessWidget {
   const AlertBanner({
     super.key,
@@ -7,32 +9,24 @@ class AlertBanner extends StatelessWidget {
     required this.message,
     required this.onAction,
     this.onResolve,
+    this.headline,
   });
+
   final String severity;
   final String message;
+  final String? headline;
   final VoidCallback onAction;
   final VoidCallback? onResolve;
 
   @override
   Widget build(BuildContext context) {
-    final color = switch (severity.toUpperCase()) {
-      'CRITICAL' => Colors.red,
-      'WARNING' => Colors.orange,
-      _ => Colors.blueGrey,
-    };
-    return Card(
-      color: color.withValues(alpha: 0.08),
-      child: ListTile(
-        leading: Icon(Icons.warning_rounded, color: color),
-        title: Text(message),
-        trailing: Wrap(
-          spacing: 8,
-          children: [
-            if (onResolve != null) TextButton(onPressed: onResolve, child: const Text('Resolve')),
-            TextButton(onPressed: onAction, child: const Text('View')),
-          ],
-        ),
-      ),
+    return EosAttentionBanner(
+      headline: headline ?? 'Attention required',
+      message: message,
+      severity: severity,
+      onAction: onAction,
+      onDismiss: onResolve,
+      actionLabel: 'View',
     );
   }
 }

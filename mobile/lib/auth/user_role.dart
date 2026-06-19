@@ -1,13 +1,15 @@
-/// Maps to platform roles (admin, client, vendor). One app, role from session after login.
+/// Platform roles — organizer operates events; client is attendee-facing.
 enum UserRole {
   client,
+  organizer,
   vendor,
   admin,
 }
 
 extension UserRoleLabel on UserRole {
   String get label => switch (this) {
-        UserRole.client => 'Client',
+        UserRole.client => 'Attendee',
+        UserRole.organizer => 'Organizer',
         UserRole.vendor => 'Vendor',
         UserRole.admin => 'Admin',
       };

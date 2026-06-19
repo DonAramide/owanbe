@@ -14,6 +14,10 @@ import { LedgerService } from './ledger.service';
 import { QuaserRouterService } from './quaser-router.service';
 import { ReconciliationService } from './reconciliation.service';
 import { AlertsService } from './alerts.service';
+import {
+  FinancialTreasuryOrchestrationService,
+  treasurySettlementReference,
+} from '../qfe/financial-treasury-orchestration.service';
 
 export interface QuaserWebhookAck {
   ok: boolean;
@@ -43,6 +47,10 @@ function newDeviceFromPayload(payload: Record<string, unknown>): boolean {
   return false;
 }
 
+function isTreasuryDualWriteMismatch(error: unknown): boolean {
+  return error instanceof Error && error.message === 'QFE_TREASURY_DUAL_WRITE_MISMATCH';
+}
+
 /**
  * Quaser webhooks: never trust payload tenant_id — always derive tenant from payment/payout rows.
  * Capture path uses row locks + mandatory S2S rules; booking confirm only from pending_payment.
@@ -58,6 +66,7 @@ export class QuaserWebhookService {
     private readonly quaser: QuaserRouterService,
     private readonly reconciliation: ReconciliationService,
     private readonly alerts: AlertsService,
+    private readonly treasury: FinancialTreasuryOrchestrationService,
   ) {}
 
   async handleSignedWebhook(rawBody: Buffer, signatureHeader: string | undefined): Promise<QuaserWebhookAck> {
@@ -466,24 +475,38 @@ export class QuaserWebhookService {
         return { ok: false, reason: 'payment_not_captured' };
       }
 
-      const escrow = await this.ledger.ensurePoolLedgerAccounts(client, tenantId, p.currency);
-      const vendorPayable = await this.ledger.ensureVendorPayableAccount(
-        client,
-        tenantId,
-        p.vendor_id,
-        p.currency,
-      );
+      let journal: Awaited<ReturnType<FinancialTreasuryOrchestrationService['postSettlementJournal']>>;
+      try {
+        journal = await this.treasury.postSettlementJournal({
+          client,
+          tenantId,
+          payoutId: p.id,
+          bookingId: p.booking_id,
+          paymentId: p.payment_id,
+          vendorId: p.vendor_id,
+          currency: p.currency,
+          amountMinor: BigInt(p.amount_minor),
+          settlementReference: treasurySettlementReference(p.id),
+          webhookEventId: eventId || null,
+        });
+      } catch (e) {
+        if (isTreasuryDualWriteMismatch(e)) {
+          await client.query('COMMIT');
+          return { ok: false, reason: 'qfe_treasury_dual_write_mismatch' };
+        }
+        throw e;
+      }
 
-      const ledgerTxnId = await this.ledger.applyPayoutReleaseLedger(client, {
-        tenantId,
-        bookingId: p.booking_id,
-        paymentId: p.payment_id,
-        payoutId: p.id,
-        amountMinor: BigInt(p.amount_minor),
-        currency: p.currency,
-        escrowAccountId: escrow.escrowPoolId,
-        vendorPayableAccountId: vendorPayable,
-      });
+      if (journal.skipped && journal.reason === 'already_posted' && !journal.ledgerTransactionId) {
+        await client.query('ROLLBACK');
+        return { ok: true, duplicate: true, reason: 'treasury_already_posted' };
+      }
+
+      const ledgerTxnId = journal.ledgerTransactionId;
+      if (!ledgerTxnId) {
+        await client.query('ROLLBACK');
+        return { ok: false, reason: 'treasury_journal_missing' };
+      }
 
       await client.query(
         `UPDATE payouts
@@ -498,6 +521,9 @@ export class QuaserWebhookService {
           JSON.stringify({
             webhook_event_id: eventId || null,
             completed_at: new Date().toISOString(),
+            treasury_settlement_reference: journal.settlementReference,
+            financial_transaction_id: journal.financialTransactionId ?? null,
+            qfe_dual_write: journal.dualWriteEnabled,
           }),
         ],
       );

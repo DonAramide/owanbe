@@ -114,11 +114,12 @@ export class AdminFinanceController {
     @Query('limit') limit?: string,
     @Query('fromDate') fromDate?: string,
     @Query('toDate') toDate?: string,
+    @Query('status') status?: string,
   ) {
     const range = this.parseDateRange(fromDate, toDate);
     const p = Math.max(1, parseInt(page ?? '1', 10) || 1);
     const n = Math.min(100, Math.max(1, parseInt(limit ?? '100', 10) || 100));
-    return this.dashboard.payouts(tenantId, p, n, range.from, range.to);
+    return this.dashboard.payouts(tenantId, p, n, range.from, range.to, status);
   }
 
   @Roles(...ADMIN_FINANCE_CONTROL_ROLES)
@@ -298,6 +299,7 @@ export class AdminFinanceController {
     @Query('limit') limit?: string,
     @Query('fromDate') fromDate?: string,
     @Query('toDate') toDate?: string,
+    @Query('status') status?: string,
   ) {
     const range = this.parseDateRange(fromDate, toDate);
     return this.dashboard.reconciliation(
@@ -306,6 +308,7 @@ export class AdminFinanceController {
       Math.min(100, Math.max(1, parseInt(limit ?? '50', 10) || 50)),
       range.from,
       range.to,
+      status,
     );
   }
 
