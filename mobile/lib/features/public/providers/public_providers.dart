@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/api/persistence_providers.dart';
 import '../../organizer/providers/organizer_providers.dart';
 import '../data/public_event_catalog.dart';
 import '../models/public_models.dart';
@@ -11,20 +12,36 @@ final discoverCategoryProvider = StateProvider<String>((ref) => 'all');
 
 final publicEventsProvider = FutureProvider.autoDispose<List<PublicEvent>>((ref) async {
   ref.watch(organizerRevisionProvider);
-  final catalog = ref.watch(publicCatalogProvider);
   final query = ref.watch(discoverQueryProvider);
   final category = ref.watch(discoverCategoryProvider);
-  return catalog.listEvents(query: query, category: category);
+  try {
+    return await ref.read(eventsApiProvider).listPublicEvents(query: query, category: category);
+  } catch (e) {
+    if (!allowMockPersistenceFallback()) rethrow;
+    return ref.watch(publicCatalogProvider).listEvents(query: query, category: category);
+  }
 });
 
 final publicEventProvider = FutureProvider.autoDispose.family<PublicEvent?, String>((ref, id) async {
   ref.watch(organizerRevisionProvider);
-  return ref.watch(publicCatalogProvider).getEvent(id);
+  try {
+    return await ref.read(eventsApiProvider).getPublicEvent(id);
+  } catch (e) {
+    if (!allowMockPersistenceFallback()) rethrow;
+    return ref.watch(publicCatalogProvider).getEvent(id);
+  }
 });
 
-final eventCategoriesProvider = Provider<List<String>>((ref) {
+final eventCategoriesProvider = FutureProvider.autoDispose<List<String>>((ref) async {
   ref.watch(organizerRevisionProvider);
-  return ref.watch(publicCatalogProvider).categories();
+  try {
+    final events = await ref.read(eventsApiProvider).listPublicEvents();
+    final cats = events.map((e) => e.category).toSet().toList()..sort();
+    return ['all', ...cats];
+  } catch (e) {
+    if (!allowMockPersistenceFallback()) rethrow;
+    return ref.watch(publicCatalogProvider).categories();
+  }
 });
 
 class CartNotifier extends Notifier<List<CartLine>> {
@@ -72,7 +89,13 @@ class AttendeeTicketsNotifier extends Notifier<List<AttendeeTicket>> {
   @override
   List<AttendeeTicket> build() => [];
 
-  void addAll(List<AttendeeTicket> tickets) => state = [...state, ...tickets];
+  void addAll(List<AttendeeTicket> tickets) {
+    final byId = {for (final t in state) t.id: t};
+    for (final t in tickets) {
+      byId[t.id] = t;
+    }
+    state = byId.values.toList();
+  }
 }
 
 final attendeeTicketsProvider =

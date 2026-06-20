@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../auth/auth_notifier.dart';
 import '../auth/user_role.dart';
+import '../features/super_admin/super_admin_home_screen.dart';
 import '../features/admin/admin_home_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/public/screens/attendee_dashboard_screen.dart';
@@ -24,6 +25,7 @@ String _homePath(UserRole role) => switch (role) {
       UserRole.organizer => '/organizer',
       UserRole.vendor => '/vendor',
       UserRole.admin => '/admin',
+      UserRole.superAdmin => '/super-admin',
     };
 
 bool _isPublicPath(String loc) {
@@ -40,6 +42,7 @@ bool _pathAllowedForRole(String location, UserRole role) {
   if (location.startsWith('/organizer')) return role == UserRole.organizer;
   if (location.startsWith('/vendor')) return role == UserRole.vendor;
   if (location.startsWith('/admin')) return role == UserRole.admin;
+  if (location.startsWith('/super-admin')) return role == UserRole.superAdmin;
   if (location.startsWith('/client')) return role == UserRole.client;
   return true;
 }
@@ -99,6 +102,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (session == null) {
+        if (loc.startsWith('/super-admin')) {
+          return '/staff/login?role=superAdmin';
+        }
         return '/';
       }
 
@@ -144,6 +150,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', redirect: (context, state) => '/staff/login'),
       GoRoute(path: '/vendor', builder: (context, state) => const VendorHomeScreen()),
       GoRoute(path: '/admin', builder: (context, state) => const AdminHomeScreen()),
+      GoRoute(path: '/super-admin', builder: (context, state) => const SuperAdminHomeScreen()),
       GoRoute(
         path: '/organizer',
         builder: (context, state) => const OrganizerHomeScreen(),

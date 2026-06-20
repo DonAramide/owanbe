@@ -24,10 +24,11 @@ class VendorWalletScreen extends ConsumerWidget {
           child: const Text('Request payout'),
         ),
       ],
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          wallet.when(
+      body: stats.when(
+        data: (statsData) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            wallet.when(
             data: (snap) => Wrap(
               spacing: context.eos.spacing.md,
               runSpacing: context.eos.spacing.md,
@@ -73,11 +74,11 @@ class VendorWalletScreen extends ConsumerWidget {
             loading: () => const CircularProgressIndicator(),
             error: (e, _) => Text('$e'),
           ),
-          if (stats.pendingPayoutsMinor > 0) ...[
+          if (statsData.pendingPayoutsMinor > 0) ...[
             SizedBox(height: context.eos.spacing.md),
             EosAttentionBanner(
               headline: 'Pending payouts',
-              message: '${formatVendorMoney(stats.pendingPayoutsMinor)} in payout requests processing.',
+              message: '${formatVendorMoney(statsData.pendingPayoutsMinor)} in payout requests processing.',
               severity: 'WARNING',
               actionLabel: 'View payouts',
               onAction: () => ref.read(vendorShellTabProvider.notifier).select(5),
@@ -126,6 +127,9 @@ class VendorWalletScreen extends ConsumerWidget {
             ),
           ),
         ],
+        ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('$e')),
       ),
     );
   }

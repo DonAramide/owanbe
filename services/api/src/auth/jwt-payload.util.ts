@@ -16,6 +16,7 @@ export function normalizeJwtRoleCode(raw: string): OwanbeRole | null {
   const r = raw.trim().toLowerCase();
   if (r === 'admin') return 'admin_super';
   const allowed: ReadonlySet<string> = new Set([
+    'super_admin',
     'admin_super',
     'admin_ops',
     'admin_support',

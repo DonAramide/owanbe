@@ -303,3 +303,51 @@ class AdminReconItem {
         bookingId: json['booking_id']?.toString(),
       );
 }
+
+class AdminTicketRefundItem {
+  const AdminTicketRefundItem({
+    required this.id,
+    required this.ticketOrderId,
+    required this.status,
+    required this.amountMinor,
+    required this.platformFeeReversalMinor,
+    required this.currency,
+    required this.reason,
+    this.eventId,
+    this.eventTitle,
+    this.requesterEmail,
+    this.orderSubtotalMinor,
+    this.orderFeeMinor,
+    this.createdAt,
+  });
+
+  final String id;
+  final String ticketOrderId;
+  final String status;
+  final String amountMinor;
+  final String platformFeeReversalMinor;
+  final String currency;
+  final String reason;
+  final String? eventId;
+  final String? eventTitle;
+  final String? requesterEmail;
+  final String? orderSubtotalMinor;
+  final String? orderFeeMinor;
+  final DateTime? createdAt;
+
+  factory AdminTicketRefundItem.fromJson(Map<String, dynamic> json) => AdminTicketRefundItem(
+        id: (json['id'] ?? '').toString(),
+        ticketOrderId: (json['ticketOrderId'] ?? '').toString(),
+        status: (json['status'] ?? '').toString(),
+        amountMinor: (json['amountMinor'] ?? '0').toString(),
+        platformFeeReversalMinor: (json['platformFeeReversalMinor'] ?? '0').toString(),
+        currency: (json['currency'] ?? 'NGN').toString(),
+        reason: (json['reason'] ?? '').toString(),
+        eventId: json['eventId']?.toString(),
+        eventTitle: json['eventTitle']?.toString(),
+        requesterEmail: json['requesterEmail']?.toString(),
+        orderSubtotalMinor: json['orderSubtotalMinor']?.toString(),
+        orderFeeMinor: json['orderFeeMinor']?.toString(),
+        createdAt: DateTime.tryParse((json['createdAt'] ?? '').toString()),
+      );
+}

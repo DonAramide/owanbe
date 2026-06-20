@@ -183,6 +183,7 @@ class OrganizerTicketTier {
     required this.currency,
     required this.capacity,
     required this.remaining,
+    this.dbTierId,
     this.tierType = TicketTierType.regular,
     this.visibility = TicketVisibility.publicListing,
     this.salesWindowStart,
@@ -191,6 +192,7 @@ class OrganizerTicketTier {
   });
 
   final String id;
+  final String? dbTierId;
   final String name;
   final String description;
   final int priceMinor;

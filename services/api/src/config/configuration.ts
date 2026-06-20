@@ -29,4 +29,13 @@ export default (): EnvVars => ({
   QFE_DUAL_WRITE_TREASURY: ['true', '1', 'yes'].includes(
     String(process.env.QFE_DUAL_WRITE_TREASURY ?? 'false').toLowerCase(),
   ),
+  ALLOW_DEV_COMMERCE_AUTH: ['true', '1', 'yes'].includes(
+    String(process.env.ALLOW_DEV_COMMERCE_AUTH ?? 'true').toLowerCase(),
+  ),
+  ALLOW_DEV_ADMIN_AUTH: ['true', '1', 'yes'].includes(
+    String(process.env.ALLOW_DEV_ADMIN_AUTH ?? 'true').toLowerCase(),
+  ),
+  ALLOW_DEV_SUPER_ADMIN_AUTH: ['true', '1', 'yes'].includes(
+    String(process.env.ALLOW_DEV_SUPER_ADMIN_AUTH ?? 'true').toLowerCase(),
+  ),
 });

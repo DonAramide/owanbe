@@ -3,34 +3,40 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/auth_notifier.dart';
 import '../../eos/eos.dart';
-import '../admin/finance/admin_finance_dashboard_screen.dart';
-import '../admin/finance/admin_finance_providers.dart';
-import '../admin/finance/admin_payouts_screen.dart';
-import '../admin/finance/admin_reconciliation_screen.dart';
-import '../admin/finance/admin_review_screen.dart';
-import '../admin/finance/admin_transactions_screen.dart';
-import '../admin/finance/finance_status_chip.dart';
+import 'finance/admin_finance_providers.dart';
+import 'finance/admin_payouts_screen.dart';
+import 'finance/admin_reconciliation_screen.dart';
+import 'finance/admin_review_screen.dart';
+import 'finance/admin_transactions_screen.dart';
+import 'finance/finance_status_chip.dart';
+import 'platform/compliance_audit_screen.dart';
+import 'platform/event_oversight_screen.dart';
+import 'platform/finance_supervision_screen.dart';
+import 'platform/operations_center_screen.dart';
+import 'platform/organizer_oversight_screen.dart';
+import 'platform/platform_dashboard_screen.dart';
+import 'platform/vendor_oversight_screen.dart';
 import '../disputes/admin_disputes_screen.dart';
 
 class AdminHomeScreen extends ConsumerWidget {
   const AdminHomeScreen({super.key});
 
-  static final _destinations = EosRoleDestinations.adminFinance;
+  static final _destinations = EosRoleDestinations.platformAdmin;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(authSessionProvider);
     final financeState = ref.watch(financeStateProvider);
-    final tab = ref.watch(adminShellTabProvider);
+    final shell = ref.watch(adminShellTabProvider);
 
     return EosAppShell(
       brandLabel: 'Owanbe',
-      brandSubtitle: 'Event OS · Finance',
+      brandSubtitle: 'Event OS · Platform',
       destinations: _destinations,
-      selectedIndex: tab,
+      selectedIndex: shell.tab,
       onSelected: (v) => ref.read(adminShellTabProvider.notifier).select(v),
       topBar: _AdminTopBar(
-        displayName: session?.displayName ?? 'Admin',
+        displayName: session?.displayName ?? 'Platform Admin',
         financeState: financeState,
         onSetState: (v) async {
           await ref.read(adminFinanceApiProvider).setFinanceState(v);
@@ -38,18 +44,28 @@ class AdminHomeScreen extends ConsumerWidget {
         },
         onSignOut: () => ref.read(authSessionProvider.notifier).signOut(),
       ),
-      body: _bodyForTab(tab),
+      body: _bodyForTab(shell),
     );
   }
 
-  Widget _bodyForTab(int index) => switch (index) {
-        0 => const AdminFinanceDashboardScreen(),
+  Widget _bodyForTab(AdminShellState shell) => switch (shell.tab) {
+        0 => const PlatformDashboardScreen(),
+        1 => const OrganizerOversightScreen(),
+        2 => const EventOversightScreen(),
+        3 => const VendorOversightScreen(),
+        4 => const OperationsCenterScreen(),
+        5 => _financeBody(shell.financeSub),
+        6 => const ComplianceAuditScreen(),
+        _ => const PlatformDashboardScreen(),
+      };
+
+  Widget _financeBody(int? sub) => switch (sub) {
         1 => const AdminTransactionsScreen(),
         2 => const AdminPayoutsScreen(),
         3 => const AdminReviewScreen(),
         4 => const AdminReconciliationScreen(),
         5 => const AdminDisputesScreen(),
-        _ => const Center(child: Text('Settings coming soon')),
+        _ => const FinanceSupervisionScreen(),
       };
 }
 
@@ -83,7 +99,7 @@ class _AdminTopBar extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: EosSearchField(hint: 'Search transactions, payouts, vendors…'),
+                child: EosSearchField(hint: 'Search organizers, events, vendors…'),
               ),
               SizedBox(width: context.eos.spacing.sm),
               IconButton(onPressed: () {}, icon: const Icon(Icons.notifications_outlined)),

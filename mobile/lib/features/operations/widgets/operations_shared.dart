@@ -5,7 +5,6 @@ import '../../../core/utils/money.dart';
 import '../../../eos/eos.dart';
 import '../../organizer/models/organizer_models.dart';
 import '../../organizer/providers/organizer_providers.dart';
-import '../data/operations_store.dart';
 import '../models/operations_models.dart';
 import '../providers/operations_providers.dart';
 
@@ -14,59 +13,63 @@ class LiveOpsEventPicker extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final events = ref.watch(liveOrganizerEventsProvider);
+    final eventsAsync = ref.watch(liveOrganizerEventsProvider);
     final selected = ref.watch(liveOpsEventIdProvider);
 
-    if (events.isEmpty) {
-      return EosAttentionBanner(
-        headline: 'No live events',
-        message: 'Publish an event and tap Go live from Events to open the command center.',
-        severity: 'WARNING',
-        actionLabel: 'Go to Events',
-        onAction: () => ref.read(organizerShellTabProvider.notifier).select(1),
-      );
-    }
+    return eventsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Text('$e'),
+      data: (events) {
+        if (events.isEmpty) {
+          return EosAttentionBanner(
+            headline: 'No live events',
+            message: 'Publish an event and tap Go live from Events to open the command center.',
+            severity: 'WARNING',
+            actionLabel: 'Go to Events',
+            onAction: () => ref.read(organizerShellTabProvider.notifier).select(1),
+          );
+        }
 
-    final value = selected ?? events.first.id;
-    if (selected == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(liveOpsEventIdProvider.notifier).state = events.first.id;
-        OperationsStore.instance.ensureLive(events.first.id);
-      });
-    }
+        final value = selected ?? events.first.id;
+        if (selected == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ref.read(liveOpsEventIdProvider.notifier).state = events.first.id;
+          });
+        }
 
-    final event = events.firstWhere((e) => e.id == value, orElse: () => events.first);
-    final isLive = event.status == OrganizerEventStatus.live;
+        final event = events.firstWhere((e) => e.id == value, orElse: () => events.first);
+        final isLive = event.status == OrganizerEventStatus.live;
 
-    return EosSurfaceCard(
-      child: Row(
-        children: [
-          if (isLive) const EosLiveIndicator(compact: true),
-          if (isLive) SizedBox(width: context.eos.spacing.sm),
-          Expanded(
-            child: EosSelectField<String>(
-              label: 'Live event',
-              value: value,
-              items: [
-                for (final e in events)
-                  DropdownMenuItem(
-                    value: e.id,
-                    child: Text(
-                      '${e.title}${e.status == OrganizerEventStatus.live ? ' · LIVE' : ''}',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-              ],
-              onChanged: (id) {
-                if (id != null) {
-                  ref.read(liveOpsEventIdProvider.notifier).state = id;
-                  OperationsStore.instance.ensureLive(id);
-                }
-              },
-            ),
+        return EosSurfaceCard(
+          child: Row(
+            children: [
+              if (isLive) const EosLiveIndicator(compact: true),
+              if (isLive) SizedBox(width: context.eos.spacing.sm),
+              Expanded(
+                child: EosSelectField<String>(
+                  label: 'Live event',
+                  value: value,
+                  items: [
+                    for (final e in events)
+                      DropdownMenuItem(
+                        value: e.id,
+                        child: Text(
+                          '${e.title}${e.status == OrganizerEventStatus.live ? ' · LIVE' : ''}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: (id) {
+                    if (id != null) {
+                      ref.read(liveOpsEventIdProvider.notifier).state = id;
+                    }
+                  },
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

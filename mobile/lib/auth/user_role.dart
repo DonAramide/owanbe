@@ -4,6 +4,7 @@ enum UserRole {
   organizer,
   vendor,
   admin,
+  superAdmin,
 }
 
 extension UserRoleLabel on UserRole {
@@ -12,5 +13,6 @@ extension UserRoleLabel on UserRole {
         UserRole.organizer => 'Organizer',
         UserRole.vendor => 'Vendor',
         UserRole.admin => 'Admin',
+        UserRole.superAdmin => 'Control Tower',
       };
 }

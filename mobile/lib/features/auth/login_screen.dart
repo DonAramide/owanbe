@@ -14,7 +14,7 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
-  static const _staffRoles = [UserRole.organizer, UserRole.vendor, UserRole.admin];
+  static const _staffRoles = [UserRole.organizer, UserRole.vendor, UserRole.admin, UserRole.superAdmin];
   UserRole _role = UserRole.organizer;
 
   @override

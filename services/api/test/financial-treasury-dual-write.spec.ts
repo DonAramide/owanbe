@@ -280,6 +280,8 @@ describe('QuaserWebhookService payment capture handling', () => {
       reconciliation as never,
       alerts as never,
       {} as never,
+      { applyCapture: jest.fn() } as never,
+      { completePayout: jest.fn() } as never,
     );
 
     const invoke = (payload?: Record<string, unknown>) =>
@@ -399,7 +401,18 @@ describe('QuaserWebhookService payout QFE mismatch handling', () => {
       }),
       release: jest.fn(),
     };
-    const pool = { connect: jest.fn().mockResolvedValue(client) };
+    const pool = {
+      connect: jest.fn().mockResolvedValue(client),
+      query: jest.fn().mockImplementation((sql: string) => {
+        if (sql.includes('SELECT id FROM payouts WHERE id = $1')) {
+          return { rows: [{ id: '550e8400-e29b-41d4-a716-446655440002' }] };
+        }
+        if (sql.includes('SELECT id FROM organizer_payouts WHERE id = $1')) {
+          return { rows: [] };
+        }
+        return { rows: [] };
+      }),
+    };
     const treasury = params?.treasury ?? {
       postSettlementJournal: jest.fn().mockResolvedValue({
         skipped: false,
@@ -418,6 +431,8 @@ describe('QuaserWebhookService payout QFE mismatch handling', () => {
       {} as never,
       {} as never,
       treasury as never,
+      { applyCapture: jest.fn() } as never,
+      { completePayout: jest.fn() } as never,
     );
 
     const invoke = () =>

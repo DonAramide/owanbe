@@ -6,6 +6,34 @@ import '../../../auth/auth_notifier.dart';
 import '../../../eos/eos.dart';
 import '../models/public_models.dart';
 import '../providers/public_providers.dart';
+import '../providers/ticket_commerce_providers.dart';
+
+final attendeeTicketsSyncProvider = FutureProvider.autoDispose<List<AttendeeTicket>>((ref) async {
+  final session = ref.watch(authSessionProvider);
+  if (session == null) return ref.watch(attendeeTicketsProvider);
+
+  try {
+    final api = ref.read(ticketCommerceApiProvider);
+    final remote = await api.fetchMyEntitlements(session);
+    return remote
+        .map(
+          (e) => AttendeeTicket(
+            id: e.id,
+            eventId: e.eventId,
+            eventTitle: e.eventTitle,
+            tierName: e.tierName,
+            venue: e.eventVenue,
+            city: e.eventCity,
+            startsAt: e.startsAt,
+            qrPayload: e.qrPayload,
+            purchasedAt: e.issuedAt ?? DateTime.now(),
+          ),
+        )
+        .toList();
+  } catch (_) {
+    return ref.watch(attendeeTicketsProvider);
+  }
+});
 
 class AttendeeDashboardScreen extends ConsumerStatefulWidget {
   const AttendeeDashboardScreen({super.key});
@@ -19,8 +47,10 @@ class _AttendeeDashboardScreenState extends ConsumerState<AttendeeDashboardScree
 
   @override
   Widget build(BuildContext context) {
-    final tickets = ref.watch(attendeeTicketsProvider);
+    final ticketsAsync = ref.watch(attendeeTicketsSyncProvider);
     final session = ref.watch(authSessionProvider);
+    final localTickets = ref.watch(attendeeTicketsProvider);
+    final tickets = ticketsAsync.hasValue ? ticketsAsync.requireValue : localTickets;
 
     return EosAppShell(
       brandLabel: 'Owanbe',

@@ -29,54 +29,64 @@ class OrganizerDashboardScreen extends ConsumerWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: context.eos.spacing.md,
-            runSpacing: context.eos.spacing.md,
-            children: [
-              _kpi(context, 'Active events', '${stats.activeEvents}', Icons.celebration_outlined,
-                  stats.activeEvents > 0 ? EosKpiAttention.info : EosKpiAttention.none),
-              _kpi(context, 'Upcoming', '${stats.upcomingEvents}', Icons.event_outlined, EosKpiAttention.none),
-              _kpi(context, 'Tickets sold', '${stats.ticketsSold}', Icons.confirmation_number_outlined,
-                  stats.ticketsSold > 0 ? EosKpiAttention.info : EosKpiAttention.none),
-              SizedBox(
-                width: 260,
-                child: EosKpiCard(
-                  title: 'Revenue',
-                  value: formatRevenue(stats.revenueMinor),
-                  icon: Icons.payments_outlined,
+          stats.when(
+            data: (s) => Wrap(
+              spacing: context.eos.spacing.md,
+              runSpacing: context.eos.spacing.md,
+              children: [
+                _kpi(context, 'Active events', '${s.activeEvents}', Icons.celebration_outlined,
+                    s.activeEvents > 0 ? EosKpiAttention.info : EosKpiAttention.none),
+                _kpi(context, 'Upcoming', '${s.upcomingEvents}', Icons.event_outlined, EosKpiAttention.none),
+                _kpi(context, 'Tickets sold', '${s.ticketsSold}', Icons.confirmation_number_outlined,
+                    s.ticketsSold > 0 ? EosKpiAttention.info : EosKpiAttention.none),
+                SizedBox(
+                  width: 260,
+                  child: EosKpiCard(
+                    title: 'Revenue',
+                    value: formatRevenue(s.revenueMinor),
+                    icon: Icons.payments_outlined,
+                  ),
                 ),
-              ),
-              _kpi(context, 'Vendors', '${stats.vendorCount}', Icons.storefront_outlined, EosKpiAttention.none),
-              _kpi(context, 'Attendees', '${stats.attendeeCount}', Icons.people_outline, EosKpiAttention.none),
-            ],
+                _kpi(context, 'Vendors', '${s.vendorCount}', Icons.storefront_outlined, EosKpiAttention.none),
+                _kpi(context, 'Attendees', '${s.attendeeCount}', Icons.people_outline, EosKpiAttention.none),
+              ],
+            ),
+            loading: () => const CircularProgressIndicator(),
+            error: (e, _) => Text('$e'),
           ),
           SizedBox(height: context.eos.spacing.xl),
           EosSection(
             title: 'Attention center',
             subtitle: 'Items needing your review',
-            child: attention.isEmpty
-                ? EosSurfaceCard(
-                    child: Text('All clear — no pending actions.', style: context.eosText.bodyMedium),
-                  )
-                : Column(
-                    children: [
-                      for (final item in attention.take(5))
-                        EosAttentionBanner(
-                          headline: item.headline,
-                          message: item.message,
-                          severity: item.severity,
-                          actionLabel: 'Open event',
-                          onAction: item.eventId == null
-                              ? null
-                              : () => context.push('/organizer/events/${item.eventId}?tab=${_tabForAttention(item.type)}'),
-                        ),
-                    ],
-                  ),
+            child: attention.when(
+              data: (items) => items.isEmpty
+                  ? EosSurfaceCard(
+                      child: Text('All clear — no pending actions.', style: context.eosText.bodyMedium),
+                    )
+                  : Column(
+                      children: [
+                        for (final item in items.take(5))
+                          EosAttentionBanner(
+                            headline: item.headline,
+                            message: item.message,
+                            severity: item.severity,
+                            actionLabel: 'Open event',
+                            onAction: item.eventId == null
+                                ? null
+                                : () => context.push(
+                                      '/organizer/events/${item.eventId}?tab=${_tabForAttention(item.type)}',
+                                    ),
+                          ),
+                      ],
+                    ),
+              loading: () => const CircularProgressIndicator(),
+              error: (e, _) => Text('$e'),
+            ),
           ),
           SizedBox(height: context.eos.spacing.xl),
-          EosSection(
+          const EosSection(
             title: 'Quick actions',
-            child: const OrganizerQuickActions(),
+            child: OrganizerQuickActions(),
           ),
           SizedBox(height: context.eos.spacing.xl),
           EosSection(

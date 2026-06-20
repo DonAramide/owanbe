@@ -19,7 +19,23 @@ class VendorDashboardScreen extends ConsumerWidget {
     return EosPageScaffold(
       title: 'Merchant dashboard',
       subtitle: profile.businessName,
-      body: Column(
+      body: stats.when(
+        data: (s) => _buildBody(context, ref, profile, s, orders, participations),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('$e')),
+      ),
+    );
+  }
+
+  Widget _buildBody(
+    BuildContext context,
+    WidgetRef ref,
+    VendorProfile profile,
+    VendorDashboardStats stats,
+    AsyncValue<List<VendorOrder>> orders,
+    AsyncValue<List<VendorEventParticipation>> participations,
+  ) {
+    return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (stats.pendingPayoutsMinor > 0)

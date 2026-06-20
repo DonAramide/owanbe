@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../eos/eos.dart';
-import '../data/organizer_event_store.dart';
+import '../data/organizer_persistence.dart';
 import '../models/organizer_models.dart';
 import '../providers/organizer_providers.dart';
 import '../widgets/organizer_shared.dart';
@@ -57,21 +57,18 @@ class VendorManagementScreen extends ConsumerWidget {
                         child: OrganizerVendorManageCard(
                           vendor: v,
                           onApprove: v.status == VendorSlotStatus.pending
-                              ? () {
-                                  OrganizerEventStore.instance.setVendorStatus(event.id, v.id, VendorSlotStatus.approved);
-                                  bumpOrganizerRevision(ref);
+                              ? () async {
+                                  await updateVendorSlot(ref, event.id, v.id, VendorSlotStatus.approved);
                                 }
                               : null,
                           onReject: v.status == VendorSlotStatus.pending
-                              ? () {
-                                  OrganizerEventStore.instance.setVendorStatus(event.id, v.id, VendorSlotStatus.rejected);
-                                  bumpOrganizerRevision(ref);
+                              ? () async {
+                                  await updateVendorSlot(ref, event.id, v.id, VendorSlotStatus.rejected);
                                 }
                               : null,
                           onSuspend: v.status == VendorSlotStatus.approved
-                              ? () {
-                                  OrganizerEventStore.instance.setVendorStatus(event.id, v.id, VendorSlotStatus.suspended);
-                                  bumpOrganizerRevision(ref);
+                              ? () async {
+                                  await updateVendorSlot(ref, event.id, v.id, VendorSlotStatus.suspended);
                                 }
                               : null,
                         ),
@@ -109,15 +106,15 @@ class VendorManagementScreen extends ConsumerWidget {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               if (name.text.trim().isEmpty) return;
-              OrganizerEventStore.instance.inviteVendor(
+              await inviteVendor(
+                ref,
                 eventId,
                 businessName: name.text.trim(),
                 category: category.text.trim(),
               );
-              bumpOrganizerRevision(ref);
-              Navigator.pop(ctx);
+              if (ctx.mounted) Navigator.pop(ctx);
             },
             child: const Text('Send invite'),
           ),

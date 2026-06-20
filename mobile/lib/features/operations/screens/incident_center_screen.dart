@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../eos/eos.dart';
-import '../data/operations_store.dart';
 import '../models/operations_models.dart';
 import '../providers/operations_providers.dart';
+import '../../../core/api/persistence_providers.dart';
+import '../data/operations_store.dart';
 import '../widgets/operations_shared.dart';
 
 class IncidentCenterScreen extends ConsumerStatefulWidget {
@@ -75,8 +76,10 @@ class _IncidentCenterScreenState extends ConsumerState<IncidentCenterScreen> {
   }
 
   void _update(String id, IncidentStatus status) {
-    OperationsStore.instance.updateIncidentStatus(widget.eventId, id, status);
-    bumpOperationsRevision(ref);
+    if (allowMockPersistenceFallback()) {
+      OperationsStore.instance.updateIncidentStatus(widget.eventId, id, status);
+      bumpOperationsRevision(ref);
+    }
   }
 
   void _showLogSheet() {
@@ -119,18 +122,18 @@ class _IncidentCenterScreenState extends ConsumerState<IncidentCenterScreen> {
             ),
             SizedBox(height: context.eos.spacing.lg),
             FilledButton(
-              onPressed: () {
+              onPressed: () async {
                 if (_title.text.trim().isEmpty) return;
-                OperationsStore.instance.logIncident(
+                await performLogIncident(
+                  ref,
                   eventId: widget.eventId,
                   title: _title.text.trim(),
                   category: _category,
                   priority: _priority,
                   reporter: _reporter.text.trim(),
                 );
-                bumpOperationsRevision(ref);
                 _title.clear();
-                Navigator.pop(ctx);
+                if (ctx.mounted) Navigator.pop(ctx);
               },
               child: const Text('Submit'),
             ),

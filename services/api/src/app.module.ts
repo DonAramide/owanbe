@@ -16,6 +16,10 @@ import { VendorsModule } from './modules/vendors/vendors.module';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { AdminOnboardingModule } from './modules/admin-onboarding/admin-onboarding.module';
 import { BookingsModule } from './modules/bookings/bookings.module';
+import { CommerceModule } from './modules/commerce/commerce.module';
+import { EventsModule } from './modules/events/events.module';
+import { PlatformAdminModule } from './modules/platform-admin/platform-admin.module';
+import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { HealthModule } from './modules/health/health.module';
 import { RolesModule } from './roles/roles.module';
@@ -47,6 +51,10 @@ import { AuditModule } from './audit/audit.module';
     OnboardingModule,
     AdminOnboardingModule,
     BookingsModule,
+    CommerceModule,
+    EventsModule,
+    PlatformAdminModule,
+    SuperAdminModule,
     PaymentsModule,
   ],
   providers: [

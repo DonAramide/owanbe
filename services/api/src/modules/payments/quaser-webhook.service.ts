@@ -18,6 +18,8 @@ import {
   FinancialTreasuryOrchestrationService,
   treasurySettlementReference,
 } from '../qfe/financial-treasury-orchestration.service';
+import { TicketCaptureService } from '../commerce/ticket-capture.service';
+import { OrganizerPayoutService } from '../commerce/organizer-payout.service';
 
 export interface QuaserWebhookAck {
   ok: boolean;
@@ -67,6 +69,8 @@ export class QuaserWebhookService {
     private readonly reconciliation: ReconciliationService,
     private readonly alerts: AlertsService,
     private readonly treasury: FinancialTreasuryOrchestrationService,
+    private readonly ticketCapture: TicketCaptureService,
+    private readonly organizerPayout: OrganizerPayoutService,
   ) {}
 
   async handleSignedWebhook(rawBody: Buffer, signatureHeader: string | undefined): Promise<QuaserWebhookAck> {
@@ -165,7 +169,8 @@ export class QuaserWebhookService {
       const pay = payRows.rows[0];
       if (!pay) {
         await client.query('ROLLBACK');
-        throw new BadRequestException({ code: 'PAYMENT_NOT_FOUND', message: 'Payment not found' });
+        client.release();
+        return this.handleTicketPaymentCaptured(payload, eventType, eventId, paymentId, amountFromRouter);
       }
 
       const tenantId = pay.tenant_id;
@@ -305,6 +310,34 @@ export class QuaserWebhookService {
     }
   }
 
+  private async handleTicketPaymentCaptured(
+    payload: Record<string, unknown>,
+    eventType: string,
+    eventId: string,
+    paymentId: string,
+    amountFromRouter: string | null,
+  ): Promise<QuaserWebhookAck> {
+    const ticketPay = await this.pool.query<{ id: string; status: string }>(
+      `SELECT id, status::text FROM ticket_payments WHERE id = $1`,
+      [paymentId],
+    );
+    if (!ticketPay.rows[0]) {
+      throw new BadRequestException({ code: 'PAYMENT_NOT_FOUND', message: 'Payment not found' });
+    }
+
+    const result = await this.ticketCapture.applyCapture(paymentId, {
+      eventId: eventId || undefined,
+      eventType,
+      payload,
+      amountMinor: amountFromRouter ?? undefined,
+    });
+    return {
+      ok: result.ok,
+      duplicate: result.duplicate,
+      reason: result.reason,
+    };
+  }
+
   /**
    * Only transition from pending_payment → confirmed; otherwise record reconciliation + metadata.
    */
@@ -422,6 +455,24 @@ export class QuaserWebhookService {
     const payoutId = String(payload.payout_id ?? '');
     if (!payoutId || !UUID_RE.test(payoutId)) {
       throw new BadRequestException({ code: 'INVALID_PAYOUT', message: 'payout_id missing or invalid' });
+    }
+
+    const vendorExists = await this.pool.query<{ id: string }>(
+      `SELECT id FROM payouts WHERE id = $1`,
+      [payoutId],
+    );
+    if (!vendorExists.rows[0]) {
+      const orgExists = await this.pool.query<{ id: string }>(
+        `SELECT id FROM organizer_payouts WHERE id = $1`,
+        [payoutId],
+      );
+      if (orgExists.rows[0]) {
+        const result = await this.organizerPayout.completePayout(payoutId, {
+          webhook_event_id: eventId,
+        });
+        return { ok: result.ok, reason: result.reason ?? 'organizer_payout_completed' };
+      }
+      throw new BadRequestException({ code: 'NOT_FOUND', message: 'Payout not found' });
     }
 
     const client = await this.pool.connect();

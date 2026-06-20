@@ -11,3 +11,5 @@ String ngnFromMinor(String minorRaw) {
       );
   return '$sign₦$withCommas.${kobo.toString().padLeft(2, '0')}';
 }
+
+String formatRevenue(int minor) => ngnFromMinor(minor.toString());

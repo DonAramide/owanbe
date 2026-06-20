@@ -11,28 +11,45 @@ class VendorFinanceApi {
 
   final http.Client _http;
 
+  static const devTenantId = '11111111-1111-4111-8111-111111111111';
+
   String get _base {
     final raw = (dotenv.env['OWANBE_API_BASE'] ?? 'http://localhost:8080/v1').trim();
     if (raw.endsWith('/')) return raw.substring(0, raw.length - 1);
     return raw;
   }
 
-  String get _tenantId => (dotenv.env['OWANBE_TENANT_ID'] ?? '').trim();
+  String get _tenantId => (dotenv.env['OWANBE_TENANT_ID'] ?? devTenantId).trim();
+
+  bool get isConfigured => _tenantId.isNotEmpty;
 
   Future<Map<String, String>> _headers() async {
     final token = Supabase.instance.client.auth.currentSession?.accessToken ?? '';
-    if (token.isEmpty || _tenantId.isEmpty) {
+    final headers = <String, String>{
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'X-Tenant-Id': _tenantId,
+    };
+    if (token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+      return headers;
+    }
+    if (!isConfigured) {
       throw VendorFinanceApiException(
         code: 'AUTH_MISSING',
         message: 'Missing auth token or OWANBE_TENANT_ID in env',
       );
     }
-    return <String, String>{
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-      'X-Tenant-Id': _tenantId,
-    };
+    final devUser = (dotenv.env['OWANBE_VENDOR_USER_ID'] ?? '').trim();
+    if (devUser.isEmpty) {
+      throw VendorFinanceApiException(
+        code: 'AUTH_MISSING',
+        message: 'Missing auth token or OWANBE_VENDOR_USER_ID for dev',
+      );
+    }
+    headers['X-Dev-User-Id'] = devUser;
+    headers['X-Dev-User-Email'] = dotenv.env['OWANBE_VENDOR_USER_EMAIL'] ?? 'vendor@owanbe.dev';
+    return headers;
   }
 
   Uri _u(String path, [Map<String, String>? query]) {

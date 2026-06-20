@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/money.dart';
 import '../../../eos/eos.dart';
-import '../data/organizer_event_store.dart';
+import '../data/organizer_persistence.dart';
 import '../models/organizer_models.dart';
 import '../providers/organizer_providers.dart';
 import '../widgets/organizer_shared.dart';
@@ -149,8 +149,9 @@ class TicketManagementScreen extends ConsumerWidget {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(
-            onPressed: () {
-              OrganizerEventStore.instance.addTicketTier(
+            onPressed: () async {
+              await addTicketTier(
+                ref,
                 eventId,
                 OrganizerTicketTier(
                   id: 'tier_${DateTime.now().millisecondsSinceEpoch}',
@@ -165,8 +166,7 @@ class TicketManagementScreen extends ConsumerWidget {
                   salesWindowEnd: DateTime.now().add(const Duration(days: 30)),
                 ),
               );
-              bumpOrganizerRevision(ref);
-              Navigator.pop(ctx);
+              if (ctx.mounted) Navigator.pop(ctx);
             },
             child: const Text('Add'),
           ),

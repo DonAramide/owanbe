@@ -1,5 +1,8 @@
 import type { OwanbeRole } from './types/jwt-user';
 
+/** Owanbe control tower — cross-tenant platform operator. */
+export const SUPER_ADMIN_ROLES: OwanbeRole[] = ['super_admin'];
+
 /** Any admin tier (queue / read-heavy endpoints). */
 export const ADMIN_TIERS: OwanbeRole[] = ['admin_super', 'admin_ops', 'admin_support'];
 

@@ -1,6 +1,7 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { AuthModule } from '../../auth/auth.module';
 import { OwnershipModule } from '../../ownership/ownership.module';
+import { CommerceModule } from '../commerce/commerce.module';
 import { PaymentsController } from './payments.controller';
 import { AdminFinanceController } from './admin-finance.controller';
 import { QuaserWebhookController } from './quaser-webhook.controller';
@@ -21,9 +22,10 @@ import { AdminFinanceDashboardService } from './admin-finance-dashboard.service'
 import { DisputesService } from './disputes.service';
 import { DisputesController } from './disputes.controller';
 import { QfeModule } from '../qfe/qfe.module';
+import { TicketCaptureService } from '../commerce/ticket-capture.service';
 
 @Module({
-  imports: [AuthModule, OwnershipModule, QfeModule],
+  imports: [AuthModule, OwnershipModule, forwardRef(() => QfeModule), forwardRef(() => CommerceModule)],
   controllers: [
     PaymentsController,
     AdminFinanceController,
@@ -46,11 +48,13 @@ import { QfeModule } from '../qfe/qfe.module';
     FinanceTimeoutService,
     AdminFinanceDashboardService,
     DisputesService,
+    TicketCaptureService,
   ],
   exports: [
     PaymentsService,
     PayoutService,
     LedgerService,
+    QuaserRouterService,
     ReconciliationService,
     AlertsService,
     FinancialAdjustmentsService,
@@ -59,6 +63,7 @@ import { QfeModule } from '../qfe/qfe.module';
     ManualReviewService,
     AdminFinanceDashboardService,
     DisputesService,
+    TicketCaptureService,
   ],
 })
 export class PaymentsModule {}

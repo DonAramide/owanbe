@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/money.dart';
 import '../../../widgets/tables/app_data_table.dart';
 import 'admin_finance_providers.dart';
+import 'admin_finance_models.dart';
 import 'finance_status_chip.dart';
 
 class AdminTransactionsScreen extends ConsumerWidget {
@@ -152,7 +153,7 @@ class AdminTransactionsScreen extends ConsumerWidget {
                           Row(
                             children: [
                               IconButton(
-                                onPressed: () => _showDetails(context, e),
+                                onPressed: () => _showDetails(context, ref, e),
                                 icon: const Icon(Icons.visibility),
                               ),
                             ],
@@ -176,18 +177,49 @@ class AdminTransactionsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _showDetails(BuildContext context, dynamic tx) async {
+  Future<void> _showDetails(BuildContext context, WidgetRef ref, AdminTxItem tx) async {
+    final paymentId = tx.type == 'payment' && tx.id.startsWith('payment_')
+        ? tx.id.substring('payment_'.length)
+        : null;
     await showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         title: Text('Transaction ${tx.id}'),
         content: Text(
           'Type: ${tx.type}\nStatus: ${tx.status}\nAmount: ${ngnFromMinor(tx.amountMinor)}\n'
           'User: ${tx.user}\nBooking: ${tx.bookingId ?? '-'}\nDate: ${tx.createdAt.toIso8601String()}',
         ),
         actions: [
+          if (paymentId != null && tx.status == 'captured') ...[
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(dialogCtx);
+                await ref.read(adminFinanceApiProvider).refundPayment(
+                      paymentId: paymentId,
+                      reason: 'admin_manual_refund',
+                    );
+                ref.invalidate(adminTransactionsProvider);
+                ref.invalidate(adminSummaryProvider);
+              },
+              child: const Text('Refund'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(dialogCtx);
+                if (tx.bookingId == null) return;
+                await ref.read(adminFinanceApiProvider).applyChargeback(
+                      paymentId: paymentId,
+                      amountMinor: tx.amountMinor,
+                      eventId: tx.bookingId!,
+                    );
+                ref.invalidate(adminTransactionsProvider);
+                ref.invalidate(adminSummaryProvider);
+              },
+              child: const Text('Chargeback'),
+            ),
+          ],
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogCtx),
             child: const Text('Close'),
           ),
         ],

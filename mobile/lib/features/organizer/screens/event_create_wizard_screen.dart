@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/money.dart';
 import '../../../eos/eos.dart';
-import '../data/organizer_event_store.dart';
+import '../data/organizer_persistence.dart';
 import '../models/organizer_models.dart';
 import '../providers/organizer_providers.dart';
 
@@ -390,7 +390,7 @@ class _EventCreateWizardScreenState extends ConsumerState<EventCreateWizardScree
     setState(() => _step++);
   }
 
-  void _save() {
+  Future<void> _save() async {
     final draft = EventWizardDraft(
       title: _title.text.trim(),
       tagline: _tagline.text.trim(),
@@ -406,8 +406,7 @@ class _EventCreateWizardScreenState extends ConsumerState<EventCreateWizardScree
       endsAt: _ends,
       ticketTiers: _tiers,
     );
-    final event = OrganizerEventStore.instance.createDraft(draft);
-    bumpOrganizerRevision(ref);
+    final event = await createEventFromDraft(ref, draft);
     ref.read(selectedOrganizerEventIdProvider.notifier).state = event.id;
     if (mounted) context.go('/organizer/events/${event.id}');
   }

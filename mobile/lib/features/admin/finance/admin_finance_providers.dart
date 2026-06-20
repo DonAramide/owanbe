@@ -155,16 +155,33 @@ final resolvedAlertTypesProvider = StateProvider.autoDispose<Set<String>>(
   (ref) => <String>{},
 );
 
-/// Admin shell tab index (Dashboard=0 … Settings=6). KPI cards set this for drill-down.
-final adminShellTabProvider = NotifierProvider<AdminShellTabController, int>(
+/// Admin shell navigation (platform tabs + optional finance sub-views).
+final adminShellTabProvider = NotifierProvider<AdminShellTabController, AdminShellState>(
   AdminShellTabController.new,
 );
 
-class AdminShellTabController extends Notifier<int> {
-  @override
-  int build() => 0;
+class AdminShellState {
+  const AdminShellState({this.tab = 0, this.financeSub});
 
-  void select(int tab) => state = tab;
+  final int tab;
+  /// 1=transactions, 2=payouts, 3=review, 4=reconciliation, 5=disputes
+  final int? financeSub;
+
+  AdminShellState copyWith({int? tab, int? financeSub, bool clearFinanceSub = false}) {
+    return AdminShellState(
+      tab: tab ?? this.tab,
+      financeSub: clearFinanceSub ? null : (financeSub ?? this.financeSub),
+    );
+  }
+}
+
+class AdminShellTabController extends Notifier<AdminShellState> {
+  @override
+  AdminShellState build() => const AdminShellState();
+
+  void select(int tab) => state = AdminShellState(tab: tab);
+
+  void selectFinanceSub(int sub) => state = AdminShellState(tab: 5, financeSub: sub);
 }
 
 class RowActionState {

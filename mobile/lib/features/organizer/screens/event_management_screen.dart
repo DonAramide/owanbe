@@ -3,9 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../eos/eos.dart';
-import '../../operations/data/operations_store.dart';
 import '../../operations/providers/operations_providers.dart';
-import '../data/organizer_event_store.dart';
+import '../data/organizer_persistence.dart';
 import '../models/organizer_models.dart';
 import '../providers/organizer_providers.dart';
 import '../widgets/organizer_shared.dart';
@@ -87,18 +86,15 @@ class _EventManageCard extends StatelessWidget {
               ),
               if (event.status == OrganizerEventStatus.draft)
                 OutlinedButton(
-                  onPressed: () {
-                    OrganizerEventStore.instance.publish(event.id);
-                    bumpOrganizerRevision(ref);
+                  onPressed: () async {
+                    await publishEvent(ref, event.id);
                   },
                   child: const Text('Publish'),
                 ),
               if (event.status == OrganizerEventStatus.published)
                 OutlinedButton(
-                  onPressed: () {
-                    OrganizerEventStore.instance.setLive(event.id);
-                    OperationsStore.instance.ensureLive(event.id);
-                    bumpOrganizerRevision(ref);
+                  onPressed: () async {
+                    await goLiveEvent(ref, event.id);
                     bumpOperationsRevision(ref);
                     ref.read(liveOpsEventIdProvider.notifier).state = event.id;
                     ref.read(organizerShellTabProvider.notifier).select(6);

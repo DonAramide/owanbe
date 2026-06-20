@@ -7,11 +7,11 @@ import '../../../eos/eos.dart';
 import '../models/organizer_models.dart';
 import '../providers/organizer_providers.dart';
 
+export '../../../core/utils/money.dart' show formatRevenue;
+
 String formatEventDateRange(DateTime start, DateTime end) {
   return '${start.month}/${start.day}/${start.year} · ${start.hour}:${start.minute.toString().padLeft(2, '0')}';
 }
-
-String formatRevenue(int minor) => ngnFromMinor(minor.toString());
 
 String moneyAmountForEos(int minor) => ngnFromMinor(minor.toString()).replaceFirst('₦', '');
 

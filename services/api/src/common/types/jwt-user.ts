@@ -2,6 +2,7 @@ import type { UserLifecycleStatus } from './user-status';
 
 /** Canonical role codes stored in `roles.code` (JWT hints are normalized to these). */
 export type OwanbeRole =
+  | 'super_admin'
   | 'admin_super'
   | 'admin_ops'
   | 'admin_support'

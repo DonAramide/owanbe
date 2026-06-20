@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/money.dart';
 import '../../../widgets/cards/review_card.dart';
 import 'admin_finance_providers.dart';
+import 'admin_ticket_refunds_panel.dart';
 
 class AdminReviewScreen extends ConsumerStatefulWidget {
   const AdminReviewScreen({super.key});
@@ -17,6 +18,30 @@ class _AdminReviewScreenState extends ConsumerState<AdminReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          const TabBar(
+            tabs: [
+              Tab(text: 'Payment reviews'),
+              Tab(text: 'Ticket refunds'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _buildPaymentReviews(),
+                const AdminTicketRefundsPanel(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentReviews() {
     final reviews = ref.watch(adminReviewsProvider);
     final action = ref.watch(reviewRowActionProvider);
     return reviews.when(

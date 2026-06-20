@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../eos/eos.dart';
-import '../data/vendor_store.dart';
+import '../data/vendor_persistence.dart';
 import '../models/vendor_models.dart';
 import '../providers/vendor_providers.dart';
 import '../widgets/vendor_shared.dart';
@@ -85,21 +85,21 @@ class EventParticipationScreen extends ConsumerWidget {
     if (p.lifecycleStage == ParticipationLifecycle.invited) {
       if (p.id.startsWith('disc_')) {
         return FilledButton(
-          onPressed: () {
-            VendorStore.instance.applyToEvent(p.eventId);
-            bumpVendorRevision(ref);
+          onPressed: () async {
+            await applyToEvent(ref, p.eventId);
             ref.read(participationLifecycleFilterProvider.notifier).state = ParticipationLifecycle.applied;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Application submitted')),
-            );
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Application submitted')),
+              );
+            }
           },
           child: const Text('Apply'),
         );
       }
       return FilledButton(
-        onPressed: () {
-          VendorStore.instance.acceptParticipation(p.id);
-          bumpVendorRevision(ref);
+        onPressed: () async {
+          await acceptParticipation(ref, p);
           ref.read(participationLifecycleFilterProvider.notifier).state = ParticipationLifecycle.approved;
         },
         child: const Text('Accept'),

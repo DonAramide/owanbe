@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../eos/eos.dart';
-import '../data/organizer_event_store.dart';
+import '../data/organizer_persistence.dart';
 import '../providers/organizer_providers.dart';
 import '../widgets/organizer_shared.dart';
 
@@ -108,14 +108,13 @@ class AttendeeManagementScreen extends ConsumerWidget {
                                   Align(
                                     alignment: Alignment.centerLeft,
                                     child: TextButton(
-                                      onPressed: () {
-                                        OrganizerEventStore.instance.update(event.id, (e) {
+                                      onPressed: () async {
+                                        await updateAttendee(ref, event.id, (e) {
                                           final attendees = e.attendees
                                               .map((x) => x.id == a.id ? x.copyWith(checkedIn: true) : x)
                                               .toList();
                                           return e.copyWith(attendees: attendees);
                                         });
-                                        bumpOrganizerRevision(ref);
                                       },
                                       child: const Text('Check in'),
                                     ),

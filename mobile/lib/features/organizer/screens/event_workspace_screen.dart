@@ -4,12 +4,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/money.dart';
 import '../../../eos/eos.dart';
-import '../../operations/data/operations_store.dart';
 import '../../operations/providers/operations_providers.dart';
-import '../data/organizer_event_store.dart';
+import '../data/organizer_persistence.dart';
 import '../models/organizer_models.dart';
 import '../providers/organizer_providers.dart';
+import '../finance/organizer_finance_providers.dart';
 import '../widgets/organizer_shared.dart';
+import '../../../auth/auth_notifier.dart';
 
 const _workspaceTabs = [
   'Overview',
@@ -126,7 +127,7 @@ class _EventWorkspaceScreenState extends ConsumerState<EventWorkspaceScreen> {
       1 => _TicketsTab(event: event),
       2 => _AttendeesTab(event: event),
       3 => _VendorsTab(event: event, ref: ref),
-      4 => _FinanceTab(event: event),
+      4 => _FinanceTab(eventId: event.id),
       5 => _OperationsTab(event: event, ref: ref),
       6 => _AnalyticsTab(eventId: event.id),
       _ => _SettingsTab(event: event, ref: ref),
@@ -199,18 +200,15 @@ class _OverviewTab extends StatelessWidget {
             children: [
               if (event.status == OrganizerEventStatus.draft)
                 FilledButton(
-                  onPressed: () {
-                    OrganizerEventStore.instance.publish(event.id);
-                    bumpOrganizerRevision(ref);
+                  onPressed: () async {
+                    await publishEvent(ref, event.id);
                   },
                   child: const Text('Publish event'),
                 ),
               if (event.status == OrganizerEventStatus.published)
                 FilledButton(
-                  onPressed: () {
-                    OrganizerEventStore.instance.setLive(event.id);
-                    OperationsStore.instance.ensureLive(event.id);
-                    bumpOrganizerRevision(ref);
+                  onPressed: () async {
+                    await goLiveEvent(ref, event.id);
                     bumpOperationsRevision(ref);
                     ref.read(liveOpsEventIdProvider.notifier).state = event.id;
                     ref.read(organizerShellTabProvider.notifier).select(6);
@@ -352,11 +350,12 @@ class _TicketsTabState extends ConsumerState<_TicketsTab> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               final priceMinor = (int.tryParse(price.text) ?? 0) * 100;
               final capacity = int.tryParse(cap.text) ?? 100;
               if (existing == null) {
-                OrganizerEventStore.instance.addTicketTier(
+                await addTicketTier(
+                  ref,
                   eventId,
                   OrganizerTicketTier(
                     id: 'tier_${DateTime.now().millisecondsSinceEpoch}',
@@ -373,7 +372,7 @@ class _TicketsTabState extends ConsumerState<_TicketsTab> {
                   ),
                 );
               } else {
-                OrganizerEventStore.instance.updateTicketTier(eventId, existing.id, (t) {
+                await updateTicketTier(ref, eventId, existing, (t) {
                   final sold = t.capacity - t.remaining;
                   final newCap = capacity;
                   return t.copyWith(
@@ -387,8 +386,7 @@ class _TicketsTabState extends ConsumerState<_TicketsTab> {
                   );
                 });
               }
-              bumpOrganizerRevision(ref);
-              Navigator.pop(ctx);
+              if (ctx.mounted) Navigator.pop(ctx);
             },
             child: Text(existing == null ? 'Create' : 'Save'),
           ),
@@ -468,14 +466,13 @@ class _AttendeesTab extends ConsumerWidget {
                               Align(
                                 alignment: Alignment.centerLeft,
                                 child: TextButton(
-                                  onPressed: () {
-                                    OrganizerEventStore.instance.update(event.id, (e) {
+                                  onPressed: () async {
+                                    await updateAttendee(ref, event.id, (e) {
                                       final attendees = e.attendees
                                           .map((x) => x.id == a.id ? x.copyWith(checkedIn: true) : x)
                                           .toList();
                                       return e.copyWith(attendees: attendees);
                                     });
-                                    bumpOrganizerRevision(ref);
                                   },
                                   child: const Text('Manual check-in'),
                                 ),
@@ -529,21 +526,18 @@ class _VendorsTab extends ConsumerWidget {
                 child: OrganizerVendorManageCard(
                   vendor: v,
                   onApprove: v.status == VendorSlotStatus.pending
-                      ? () {
-                          OrganizerEventStore.instance.setVendorStatus(event.id, v.id, VendorSlotStatus.approved);
-                          bumpOrganizerRevision(ref);
+                      ? () async {
+                          await updateVendorSlot(ref, event.id, v.id, VendorSlotStatus.approved);
                         }
                       : null,
                   onReject: v.status == VendorSlotStatus.pending
-                      ? () {
-                          OrganizerEventStore.instance.setVendorStatus(event.id, v.id, VendorSlotStatus.rejected);
-                          bumpOrganizerRevision(ref);
+                      ? () async {
+                          await updateVendorSlot(ref, event.id, v.id, VendorSlotStatus.rejected);
                         }
                       : null,
                   onSuspend: v.status == VendorSlotStatus.approved
-                      ? () {
-                          OrganizerEventStore.instance.setVendorStatus(event.id, v.id, VendorSlotStatus.suspended);
-                          bumpOrganizerRevision(ref);
+                      ? () async {
+                          await updateVendorSlot(ref, event.id, v.id, VendorSlotStatus.suspended);
                         }
                       : null,
                 ),
@@ -571,15 +565,15 @@ class _VendorsTab extends ConsumerWidget {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               if (name.text.trim().isEmpty) return;
-              OrganizerEventStore.instance.inviteVendor(
+              await inviteVendor(
+                ref,
                 eventId,
                 businessName: name.text.trim(),
                 category: category.text.trim(),
               );
-              bumpOrganizerRevision(ref);
-              Navigator.pop(ctx);
+              if (ctx.mounted) Navigator.pop(ctx);
             },
             child: const Text('Send invite'),
           ),
@@ -591,55 +585,235 @@ class _VendorsTab extends ConsumerWidget {
   }
 }
 
-class _FinanceTab extends StatelessWidget {
-  const _FinanceTab({required this.event});
-  final OrganizerEvent event;
+class _FinanceTab extends ConsumerWidget {
+  const _FinanceTab({required this.eventId});
+  final String eventId;
+
+  String _txLabel(String type) => switch (type) {
+        'ticket_sale' => 'Ticket sale',
+        'platform_fee' => 'Platform fee',
+        'payout' => 'Payout',
+        'refund_request' => 'Refund request',
+        _ => type,
+      };
+
+  Future<void> _requestPayout(BuildContext context, WidgetRef ref, OrganizerEventFinanceSummary fin) async {
+    final available = int.tryParse(fin.availableForPayoutMinor) ?? 0;
+    if (available <= 0 || !fin.payoutEligible) return;
+    final controller = TextEditingController(text: available.toString());
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Request payout'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: 'Amount (minor units)',
+            helperText: 'Available: ${formatRevenue(available)}',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Submit')),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    final session = ref.read(authSessionProvider);
+    await ref.read(organizerPayoutControllerProvider.notifier).submit(
+          organizerId: fin.organizerId,
+          amountMinor: controller.text.trim(),
+          session: session,
+        );
+    controller.dispose();
+    if (!context.mounted) return;
+    final state = ref.read(organizerPayoutControllerProvider);
+    if (state.error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.error!)));
+      return;
+    }
+    if (state.lastSuccess != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Payout requested: ${state.lastSuccess!.payouts.length} transfer(s)')),
+      );
+      ref.invalidate(organizerEventFinanceSummaryProvider(eventId));
+      ref.invalidate(organizerEventFinanceTransactionsProvider(eventId));
+    }
+  }
 
   @override
-  Widget build(BuildContext context) {
-    final vendorRevenue = event.vendors.fold(0, (sum, v) => sum + v.revenueMinor);
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(context.eos.spacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          EosAttentionBanner(
-            headline: 'Mock finance summary',
-            message: 'Full Finance Operations (Phase 5) is not started. Numbers below are local estimates.',
-            severity: 'INFO',
-          ),
-          Wrap(
-            spacing: context.eos.spacing.md,
-            runSpacing: context.eos.spacing.md,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final summary = ref.watch(organizerEventFinanceSummaryProvider(eventId));
+    final txs = ref.watch(organizerEventFinanceTransactionsProvider(eventId));
+    final payoutState = ref.watch(organizerPayoutControllerProvider);
+
+    return summary.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(
+        child: Padding(
+          padding: EdgeInsets.all(context.eos.spacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(
-                width: 220,
-                child: EosKpiCard(
-                  title: 'Ticket revenue',
-                  value: formatRevenue(event.revenueMinor),
-                  icon: Icons.confirmation_number_outlined,
-                ),
+              EosAttentionBanner(
+                headline: 'Finance data unavailable',
+                message: '$e',
+                severity: 'CRITICAL',
               ),
-              SizedBox(
-                width: 220,
-                child: EosKpiCard(
-                  title: 'Vendor GMV',
-                  value: formatRevenue(vendorRevenue),
-                  icon: Icons.storefront_outlined,
-                ),
-              ),
-              SizedBox(
-                width: 220,
-                child: EosKpiCard(
-                  title: 'Refund requests',
-                  value: '${event.refundRequests}',
-                  icon: Icons.replay_outlined,
-                  attention: event.refundRequests > 0 ? EosKpiAttention.warning : EosKpiAttention.none,
-                ),
+              SizedBox(height: context.eos.spacing.md),
+              OutlinedButton(
+                onPressed: () {
+                  ref.invalidate(organizerEventFinanceSummaryProvider(eventId));
+                  ref.invalidate(organizerEventFinanceTransactionsProvider(eventId));
+                },
+                child: const Text('Retry'),
               ),
             ],
           ),
-        ],
+        ),
+      ),
+      data: (fin) => RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(organizerEventFinanceSummaryProvider(eventId));
+          ref.invalidate(organizerEventFinanceTransactionsProvider(eventId));
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.all(context.eos.spacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!fin.payoutEligible && fin.payoutEligibilityReason != null)
+                Padding(
+                  padding: EdgeInsets.only(bottom: context.eos.spacing.md),
+                  child: EosAttentionBanner(
+                    headline: 'Payout not yet available',
+                    message: fin.payoutEligibilityReason!,
+                    severity: 'INFO',
+                  ),
+                ),
+              if (fin.openRefundRequests > 0)
+                Padding(
+                  padding: EdgeInsets.only(bottom: context.eos.spacing.md),
+                  child: EosAttentionBanner(
+                    headline: '${fin.openRefundRequests} open refund request(s)',
+                    message: 'Review refund cases for this event.',
+                    severity: 'CRITICAL',
+                  ),
+                ),
+              Wrap(
+                spacing: context.eos.spacing.md,
+                runSpacing: context.eos.spacing.md,
+                children: [
+                  SizedBox(
+                    width: 220,
+                    child: EosKpiCard(
+                      title: 'Ticket revenue',
+                      value: formatRevenue(int.tryParse(fin.ticketRevenueMinor) ?? 0),
+                      subtitle: '${fin.fulfilledOrderCount} order(s)',
+                      icon: Icons.confirmation_number_outlined,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 220,
+                    child: EosKpiCard(
+                      title: 'Platform fees',
+                      value: formatRevenue(int.tryParse(fin.platformFeeMinor) ?? 0),
+                      icon: Icons.percent_outlined,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 220,
+                    child: EosKpiCard(
+                      title: 'Net earnings',
+                      value: formatRevenue(int.tryParse(fin.netEarningsMinor) ?? 0),
+                      subtitle: 'Organizer share',
+                      icon: Icons.savings_outlined,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 220,
+                    child: EosKpiCard(
+                      title: 'Available payout',
+                      value: formatRevenue(int.tryParse(fin.availableForPayoutMinor) ?? 0),
+                      subtitle: fin.payoutEligible ? 'Eligible' : 'On hold',
+                      icon: Icons.account_balance_wallet_outlined,
+                      attention: fin.payoutEligible ? EosKpiAttention.none : EosKpiAttention.warning,
+                    ),
+                  ),
+                  if (int.tryParse(fin.heldInEscrowMinor) != null && int.parse(fin.heldInEscrowMinor) > 0)
+                    SizedBox(
+                      width: 220,
+                      child: EosKpiCard(
+                        title: 'In escrow hold',
+                        value: formatRevenue(int.parse(fin.heldInEscrowMinor)),
+                        icon: Icons.lock_clock_outlined,
+                      ),
+                    ),
+                ],
+              ),
+              if (fin.payoutEligible && (int.tryParse(fin.availableForPayoutMinor) ?? 0) > 0)
+                Padding(
+                  padding: EdgeInsets.only(top: context.eos.spacing.md),
+                  child: FilledButton.icon(
+                    onPressed: payoutState.loading
+                        ? null
+                        : () => _requestPayout(context, ref, fin),
+                    icon: payoutState.loading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.payments_outlined),
+                    label: Text(payoutState.loading ? 'Processing…' : 'Request payout'),
+                  ),
+                ),
+              SizedBox(height: context.eos.spacing.xl),
+              Text('Transaction history', style: context.eosText.titleLarge),
+              SizedBox(height: context.eos.spacing.sm),
+              txs.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                error: (e, _) => EosAttentionBanner(
+                  headline: 'Transactions unavailable',
+                  message: '$e',
+                  severity: 'CRITICAL',
+                ),
+                data: (items) {
+                  if (items.isEmpty) {
+                    return EosSurfaceCard(
+                      child: Text('No ticket commerce transactions yet', style: context.eosText.bodyMedium),
+                    );
+                  }
+                  return EosDataTable(
+                    columns: const [
+                      DataColumn(label: Text('Type')),
+                      DataColumn(label: Text('Amount')),
+                      DataColumn(label: Text('Status')),
+                      DataColumn(label: Text('Reference')),
+                    ],
+                    rows: items
+                        .map(
+                          (t) => DataRow(
+                            cells: [
+                              DataCell(Text(_txLabel(t.type))),
+                              DataCell(OrganizerMoneyText(minor: int.tryParse(t.amountMinor) ?? 0, compact: true)),
+                              DataCell(EosFinanceChip(label: t.status, compact: true)),
+                              DataCell(Text(t.orderReference ?? t.ticketOrderId ?? '—', style: context.eosText.labelSmall)),
+                            ],
+                          ),
+                        )
+                        .toList(),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -678,10 +852,8 @@ class _OperationsTab extends StatelessWidget {
               ),
               if (event.status != OrganizerEventStatus.live)
                 OutlinedButton(
-                  onPressed: () {
-                    OrganizerEventStore.instance.setLive(event.id);
-                    OperationsStore.instance.ensureLive(event.id);
-                    bumpOrganizerRevision(ref);
+                  onPressed: () async {
+                    await goLiveEvent(ref, event.id);
                     bumpOperationsRevision(ref);
                     ref.read(liveOpsEventIdProvider.notifier).state = event.id;
                     ref.read(organizerShellTabProvider.notifier).select(6);
@@ -828,9 +1000,8 @@ class _SettingsTab extends ConsumerWidget {
           SizedBox(height: context.eos.spacing.md),
           if (event.status == OrganizerEventStatus.draft)
             FilledButton(
-              onPressed: () {
-                OrganizerEventStore.instance.publish(event.id);
-                bumpOrganizerRevision(ref);
+              onPressed: () async {
+                await publishEvent(ref, event.id);
               },
               child: const Text('Publish to marketplace'),
             ),

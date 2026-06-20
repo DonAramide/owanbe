@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../eos/eos.dart';
-import '../data/vendor_store.dart';
+import '../finance/vendor_finance_providers.dart';
 import '../providers/vendor_providers.dart';
 import '../widgets/vendor_shared.dart';
 
@@ -147,18 +147,29 @@ class _VendorPayoutsScreenState extends ConsumerState<VendorPayoutsScreen> {
 
   void _submit() {
     final amount = int.tryParse(_amount.text.trim()) ?? 0;
-    try {
-      VendorStore.instance.requestPayout(amount);
-      bumpVendorRevision(ref);
-      setState(() {
-        _error = null;
-        _amount.clear();
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Payout request submitted')),
-      );
-    } catch (e) {
-      setState(() => _error = e.toString());
+    if (amount <= 0) {
+      setState(() => _error = 'Enter a valid amount');
+      return;
     }
+    ref.read(withdrawControllerProvider.notifier).submit(amountMinor: amount.toString()).then((_) {
+      if (!mounted) return;
+      final state = ref.read(withdrawControllerProvider);
+      if (state.error != null) {
+        setState(() => _error = state.error);
+        return;
+      }
+      if (state.lastSuccess != null) {
+        ref.invalidate(vendorWalletProvider);
+        ref.invalidate(vendorPayoutsProvider);
+        if (!mounted) return;
+        setState(() {
+          _error = null;
+          _amount.clear();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Payout request submitted')),
+        );
+      }
+    });
   }
 }

@@ -51,6 +51,32 @@ class AdminReconciliationScreen extends ConsumerWidget {
                 },
                 child: const Text('Export CSV'),
               ),
+              FilledButton.tonal(
+                onPressed: action.busy
+                    ? null
+                    : () async {
+                        ref.read(reconRowActionProvider.notifier).setBusy(true);
+                        try {
+                          await ref.read(adminFinanceApiProvider).runReconciliation();
+                          ref.invalidate(adminReconciliationProvider);
+                          ref.invalidate(adminSummaryProvider);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Reconciliation job completed')),
+                            );
+                          }
+                        } finally {
+                          ref.read(reconRowActionProvider.notifier).setBusy(false);
+                        }
+                      },
+                child: action.busy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Run reconciliation'),
+              ),
             ],
           ),
           const SizedBox(height: 12),

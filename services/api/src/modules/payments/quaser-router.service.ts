@@ -182,4 +182,49 @@ export class QuaserRouterService {
     }
     return { quaserReference: ref, raw };
   }
+
+  async initiateOrganizerPayoutTransfer(input: {
+    tenantId: string;
+    payoutId: string;
+    amountMinor: string;
+    currency: string;
+    organizerId: string;
+    idempotencyKey: string;
+    webhookUrl: string;
+  }): Promise<{ quaserReference: string; raw: Record<string, unknown> }> {
+    const base = this.baseUrl();
+    if (!base) {
+      const quaserReference = `OWB-ORG-PAYOUT-DEV-${input.payoutId.slice(0, 8)}`;
+      return { quaserReference, raw: { stub: true, organizer_payout: true } };
+    }
+    const url = `${base.replace(/\/$/, '')}/v1/payouts`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.apiKey()}`,
+        'Idempotency-Key': input.idempotencyKey,
+      },
+      body: JSON.stringify({
+        tenant_id: input.tenantId,
+        payout_id: input.payoutId,
+        amount_minor: input.amountMinor,
+        currency: input.currency,
+        organizer_id: input.organizerId,
+        payout_kind: 'organizer',
+        webhook_url: input.webhookUrl,
+      }),
+    });
+    const raw = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      this.logger.warn({ status: res.status, raw }, 'Quaser organizer payout initiate failed');
+      throw new Error(`Quaser organizer payout initiate failed: HTTP ${res.status}`);
+    }
+    const ref =
+      (typeof raw.quaser_reference === 'string' && raw.quaser_reference) ||
+      (typeof raw.reference === 'string' && raw.reference) ||
+      '';
+    if (!ref) throw new Error('Quaser organizer payout response missing reference');
+    return { quaserReference: ref, raw };
+  }
 }

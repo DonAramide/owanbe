@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
+import { PaymentsModule } from '../payments/payments.module';
 import { QfeFeatureFlagsService } from './qfe-feature-flags.service';
 import { TreasuryLedgerWriterService } from './treasury-ledger-writer.service';
 import { QfeFinancialWriterService } from './qfe-financial-writer.service';
@@ -7,6 +8,7 @@ import { FinancialDualWriteCoordinatorService } from './financial-dual-write-coo
 import { FinancialTreasuryOrchestrationService } from './financial-treasury-orchestration.service';
 
 @Module({
+  imports: [forwardRef(() => PaymentsModule)],
   providers: [
     QfeFeatureFlagsService,
     TreasuryLedgerWriterService,

@@ -26,6 +26,12 @@ export const envValidationSchema = Joi.object({
   FINANCE_TIMEOUT_SWEEP_MS: Joi.number().integer().min(10_000).max(3_600_000).default(60_000),
   /** S5: mirror treasury settlement journals into financial_transactions + postings. */
   QFE_DUAL_WRITE_TREASURY: Joi.boolean().truthy('true', '1', 'yes').falsy('false', '0', 'no').default(false),
+  /** Dev-only: allow X-Dev-User-Id / X-Dev-User-Email for ticket commerce without JWT. */
+  ALLOW_DEV_COMMERCE_AUTH: Joi.boolean().truthy('true', '1', 'yes').falsy('false', '0', 'no').default(true),
+  /** Dev-only: allow X-Dev-User-Id for platform admin routes when user has admin tier in DB. */
+  ALLOW_DEV_ADMIN_AUTH: Joi.boolean().truthy('true', '1', 'yes').falsy('false', '0', 'no').default(true),
+  /** Dev-only: allow X-Dev-User-Id for super-admin control tower routes. */
+  ALLOW_DEV_SUPER_ADMIN_AUTH: Joi.boolean().truthy('true', '1', 'yes').falsy('false', '0', 'no').default(true),
 }).unknown(true);
 
 export type EnvVars = {
@@ -49,4 +55,7 @@ export type EnvVars = {
   PAYOUT_TIMEOUT_MINUTES: number;
   FINANCE_TIMEOUT_SWEEP_MS: number;
   QFE_DUAL_WRITE_TREASURY: boolean;
+  ALLOW_DEV_COMMERCE_AUTH: boolean;
+  ALLOW_DEV_ADMIN_AUTH: boolean;
+  ALLOW_DEV_SUPER_ADMIN_AUTH: boolean;
 };

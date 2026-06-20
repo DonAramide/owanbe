@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../eos/eos.dart';
-import '../data/operations_store.dart';
 import '../providers/operations_providers.dart';
-import '../../organizer/providers/organizer_providers.dart';
 import '../widgets/operations_shared.dart';
 
 class QrScanScreen extends ConsumerStatefulWidget {
@@ -116,10 +114,9 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
     if (ticket.isEmpty) return;
     setState(() => _scanning = true);
     await Future<void>.delayed(const Duration(milliseconds: 180));
-    final response = OperationsStore.instance.scanTicket(widget.eventId, ticket);
+    final response = await performQrCheckIn(ref, widget.eventId, ticket);
     ref.read(lastQrScanProvider.notifier).state = response;
     bumpOperationsRevision(ref);
-    bumpOrganizerRevision(ref);
     if (mounted) setState(() => _scanning = false);
   }
 }

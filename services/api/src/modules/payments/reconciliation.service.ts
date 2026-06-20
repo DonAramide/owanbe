@@ -176,6 +176,134 @@ export class ReconciliationService {
         reportsInserted++;
       }
 
+      const missingTicketLedger = await client.query<{ ticket_payment_id: string; ticket_order_id: string }>(
+        `SELECT tp.id AS ticket_payment_id, tp.ticket_order_id
+         FROM ticket_payments tp
+         WHERE tp.tenant_id = $1
+           AND tp.status::text = 'captured'
+           AND tp.updated_at >= $2 AND tp.updated_at < $3
+           AND NOT EXISTS (
+             SELECT 1 FROM ledger_transactions lt
+             WHERE lt.ticket_order_id = tp.ticket_order_id
+               AND lt.tenant_id = tp.tenant_id
+               AND lt.reason = 'payment_capture_ticket'
+           )`,
+        [tenantId, periodStart, periodEnd],
+      );
+      for (const row of missingTicketLedger.rows) {
+        await client.query(
+          `INSERT INTO reconciliation_reports (
+             job_id, tenant_id, issue_kind, severity, payment_id, details, resolution_status
+           ) VALUES ($1, $2, 'ledger_only_transaction'::reconciliation_issue_kind, 'high',
+                     NULL, $3::jsonb, 'open')`,
+          [
+            jobId,
+            tenantId,
+            JSON.stringify({
+              check: 'captured_ticket_payment_missing_ledger_capture',
+              ticket_payment_id: row.ticket_payment_id,
+              ticket_order_id: row.ticket_order_id,
+            }),
+          ],
+        );
+        await client.query(
+          `UPDATE ticket_payments
+           SET under_review = TRUE,
+               metadata = metadata || $2::jsonb,
+               updated_at = now()
+           WHERE id = $1`,
+          [row.ticket_payment_id, JSON.stringify({ reconciliation: 'missing_capture_ledger' })],
+        );
+        reportsInserted++;
+      }
+
+      const orphanTicketLedger = await client.query<{
+        ledger_txn_id: string;
+        ticket_order_id: string | null;
+        ticket_payment_id: string | null;
+      }>(
+        `SELECT lt.id AS ledger_txn_id, lt.ticket_order_id,
+                (SELECT tp.id FROM ticket_payments tp
+                 WHERE tp.ticket_order_id = lt.ticket_order_id AND tp.tenant_id = lt.tenant_id
+                 ORDER BY tp.updated_at DESC LIMIT 1) AS ticket_payment_id
+         FROM ledger_transactions lt
+         WHERE lt.tenant_id = $1
+           AND lt.reason = 'payment_capture_ticket'
+           AND lt.created_at >= $2 AND lt.created_at < $3
+           AND NOT EXISTS (
+             SELECT 1 FROM ticket_payments tp
+             WHERE tp.ticket_order_id = lt.ticket_order_id
+               AND tp.tenant_id = lt.tenant_id
+               AND tp.status::text = 'captured'
+           )`,
+        [tenantId, periodStart, periodEnd],
+      );
+      for (const row of orphanTicketLedger.rows) {
+        await client.query(
+          `INSERT INTO reconciliation_reports (
+             job_id, tenant_id, issue_kind, severity, ledger_txn_id, details, resolution_status
+           ) VALUES ($1, $2, 'psp_only_transaction'::reconciliation_issue_kind, 'critical',
+                     $3::uuid, $4::jsonb, 'open')`,
+          [
+            jobId,
+            tenantId,
+            row.ledger_txn_id,
+            JSON.stringify({
+              check: 'ledger_ticket_capture_without_captured_payment',
+              ticket_payment_id: row.ticket_payment_id,
+            }),
+          ],
+        );
+        if (row.ticket_payment_id) {
+          await client.query(
+            `UPDATE ticket_payments
+             SET under_review = TRUE,
+                 metadata = metadata || $2::jsonb,
+                 updated_at = now()
+             WHERE id = $1`,
+            [row.ticket_payment_id, JSON.stringify({ reconciliation: 'orphan_capture_ledger' })],
+          );
+        }
+        reportsInserted++;
+      }
+
+      const settlementMismatches = await client.query<{
+        settlement_id: string;
+        payout_id: string;
+        ledger_transaction_id: string | null;
+        financial_transaction_id: string | null;
+      }>(
+        `SELECT ts.id AS settlement_id, ts.payout_id, ts.ledger_transaction_id, ts.financial_transaction_id
+         FROM treasury_settlements ts
+         WHERE ts.tenant_id = $1
+           AND ts.created_at >= $2 AND ts.created_at < $3
+           AND ts.status::text IN ('journal_posted', 'reconciled')
+           AND (
+             ts.ledger_transaction_id IS NULL
+             OR (ts.financial_transaction_id IS NULL AND ts.metadata->>'dual_write' = 'true')
+           )`,
+        [tenantId, periodStart, periodEnd],
+      );
+      for (const row of settlementMismatches.rows) {
+        await client.query(
+          `INSERT INTO reconciliation_reports (
+             job_id, tenant_id, issue_kind, severity, details, resolution_status
+           ) VALUES ($1, $2, 'status_mismatch'::reconciliation_issue_kind, 'high', $3::jsonb, 'open')`,
+          [
+            jobId,
+            tenantId,
+            JSON.stringify({
+              check: 'treasury_settlement_dual_write_mismatch',
+              settlement_id: row.settlement_id,
+              payout_id: row.payout_id,
+              ledger_transaction_id: row.ledger_transaction_id,
+              financial_transaction_id: row.financial_transaction_id,
+            }),
+          ],
+        );
+        reportsInserted++;
+      }
+
       await client.query(
         `UPDATE reconciliation_jobs
          SET status = 'succeeded',

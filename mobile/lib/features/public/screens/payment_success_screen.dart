@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../eos/eos.dart';
 import '../models/public_models.dart';
 import '../providers/public_providers.dart';
+import '../providers/ticket_commerce_providers.dart';
 import '../widgets/public_shell_mixin.dart';
 
 class PaymentSuccessScreen extends ConsumerStatefulWidget {
@@ -15,50 +16,41 @@ class PaymentSuccessScreen extends ConsumerStatefulWidget {
 }
 
 class _PaymentSuccessScreenState extends ConsumerState<PaymentSuccessScreen> {
-  bool _issued = false;
+  bool _synced = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _issueTickets());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncTickets());
   }
 
-  Future<void> _issueTickets() async {
-    if (_issued) return;
-    final cart = ref.read(cartProvider);
-    if (cart.isEmpty) return;
-
-    final catalog = ref.read(publicCatalogProvider);
-    final tickets = <AttendeeTicket>[];
-    final now = DateTime.now();
-
-    for (final line in cart) {
-      final event = await catalog.getEvent(line.eventId);
-      if (event == null) continue;
-      for (var i = 0; i < line.quantity; i++) {
-        tickets.add(
-          AttendeeTicket(
-            id: 'tkt_${line.tierId}_${now.millisecondsSinceEpoch}_$i',
-            eventId: event.id,
-            eventTitle: event.title,
-            tierName: line.tierName,
-            venue: event.venue,
-            city: event.city,
-            startsAt: event.startsAt,
-            qrPayload: 'OWANBE:${event.id}:${line.tierId}:$i',
-            purchasedAt: now,
+  void _syncTickets() {
+    if (_synced) return;
+    final entitlements = ref.read(checkoutEntitlementsProvider);
+    if (entitlements.isEmpty) return;
+    final tickets = entitlements
+        .map(
+          (e) => AttendeeTicket(
+            id: e.id,
+            eventId: e.eventId,
+            eventTitle: e.eventTitle,
+            tierName: e.tierName,
+            venue: e.eventVenue,
+            city: e.eventCity,
+            startsAt: e.startsAt,
+            qrPayload: e.qrPayload,
+            purchasedAt: DateTime.now(),
           ),
-        );
-      }
-    }
-
+        )
+        .toList();
     ref.read(attendeeTicketsProvider.notifier).addAll(tickets);
-    ref.read(cartProvider.notifier).clear();
-    setState(() => _issued = true);
+    _synced = true;
   }
 
   @override
   Widget build(BuildContext context) {
+    final entitlements = ref.watch(checkoutEntitlementsProvider);
+
     return buildPublicShell(
       context: context,
       ref: ref,
@@ -79,7 +71,9 @@ class _PaymentSuccessScreenState extends ConsumerState<PaymentSuccessScreen> {
                   Text('Payment successful', style: context.eosText.headlineSmall),
                   SizedBox(height: context.eos.spacing.xs),
                   Text(
-                    'Your tickets are ready. Show the QR code at entry.',
+                    entitlements.isNotEmpty
+                        ? '${entitlements.length} ticket(s) issued. Show the QR code at entry.'
+                        : 'Payment recorded — tickets will appear on your dashboard.',
                     style: context.eosText.bodyMedium,
                     textAlign: TextAlign.center,
                   ),

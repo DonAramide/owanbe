@@ -75,17 +75,17 @@ class AdminFinanceDashboardScreen extends ConsumerWidget {
     switch (action) {
       case _KpiNavAction.payoutsPending:
         ref.read(payoutQueryProvider.notifier).setStatus('processing');
-        ref.read(adminShellTabProvider.notifier).select(2);
+        ref.read(adminShellTabProvider.notifier).selectFinanceSub(2);
       case _KpiNavAction.underReview:
-        ref.read(adminShellTabProvider.notifier).select(3);
+        ref.read(adminShellTabProvider.notifier).selectFinanceSub(3);
       case _KpiNavAction.failed:
         ref.read(payoutQueryProvider.notifier).setStatus('failed');
-        ref.read(adminShellTabProvider.notifier).select(2);
+        ref.read(adminShellTabProvider.notifier).selectFinanceSub(2);
       case _KpiNavAction.reconciliation:
         ref.read(reconQueryProvider.notifier).setStatus('open');
-        ref.read(adminShellTabProvider.notifier).select(4);
+        ref.read(adminShellTabProvider.notifier).selectFinanceSub(4);
       case _KpiNavAction.transactions:
-        ref.read(adminShellTabProvider.notifier).select(1);
+        ref.read(adminShellTabProvider.notifier).selectFinanceSub(1);
     }
   }
 
@@ -133,14 +133,14 @@ class AdminFinanceDashboardScreen extends ConsumerWidget {
     switch (type) {
       case 'reconciliation_issue':
         ref.read(reconQueryProvider.notifier).setStatus('open');
-        ref.read(adminShellTabProvider.notifier).select(4);
+        ref.read(adminShellTabProvider.notifier).selectFinanceSub(4);
       case 'payout_failure':
         ref.read(payoutQueryProvider.notifier).setStatus('failed');
-        ref.read(adminShellTabProvider.notifier).select(2);
+        ref.read(adminShellTabProvider.notifier).selectFinanceSub(2);
       case 'payment_under_review':
-        ref.read(adminShellTabProvider.notifier).select(3);
+        ref.read(adminShellTabProvider.notifier).selectFinanceSub(3);
       default:
-        ref.read(adminShellTabProvider.notifier).select(0);
+        ref.read(adminShellTabProvider.notifier).select(5);
     }
   }
 }

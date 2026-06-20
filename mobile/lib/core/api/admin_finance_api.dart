@@ -214,4 +214,96 @@ class AdminFinanceApi {
     );
     if (res.statusCode < 200 || res.statusCode >= 300) _throwApi(res);
   }
+
+  Future<void> refundPayment({
+    required String paymentId,
+    String? amountMinor,
+    String? reason,
+  }) async {
+    final res = await _http.post(
+      _u('admin/finance/payments/$paymentId/refund', {
+        if (amountMinor != null && amountMinor.isNotEmpty) 'amountMinor': amountMinor,
+        if (reason != null && reason.isNotEmpty) 'reason': reason,
+      }),
+      headers: await _headers(),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) _throwApi(res);
+  }
+
+  Future<void> applyChargeback({
+    required String paymentId,
+    required String amountMinor,
+    required String eventId,
+    bool suspendVendorPayouts = false,
+  }) async {
+    final res = await _http.post(
+      _u('admin/finance/payments/$paymentId/chargeback', {
+        'amountMinor': amountMinor,
+        'eventId': eventId,
+        if (suspendVendorPayouts) 'suspendVendorPayouts': 'true',
+      }),
+      headers: await _headers(),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) _throwApi(res);
+  }
+
+  Future<Map<String, dynamic>> runReconciliation({
+    DateTime? periodStart,
+    DateTime? periodEnd,
+  }) async {
+    final res = await _http.post(
+      _u('admin/finance/reconciliation/run', {
+        if (periodStart != null) 'periodStart': periodStart.toIso8601String(),
+        if (periodEnd != null) 'periodEnd': periodEnd.toIso8601String(),
+      }),
+      headers: await _headers(),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) _throwApi(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<List<AdminTicketRefundItem>> getTicketRefunds({String? status}) async {
+    final res = await _http.get(
+      _u('admin/finance/ticket-refunds', {
+        if (status != null && status.isNotEmpty) 'status': status,
+      }),
+      headers: await _headers(),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) _throwApi(res);
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return (body['items'] as List<dynamic>)
+        .map((e) => AdminTicketRefundItem.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<AdminTicketRefundItem> getTicketRefundDetail(String caseId) async {
+    final res = await _http.get(
+      _u('admin/finance/ticket-refunds/$caseId'),
+      headers: await _headers(),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) _throwApi(res);
+    return AdminTicketRefundItem.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<void> ticketRefundAction(String caseId, String action, {String? note}) async {
+    final res = await _http.post(
+      _u('admin/finance/ticket-refunds/$caseId/$action'),
+      headers: await _headers(),
+      body: jsonEncode({if (note != null && note.isNotEmpty) 'note': note}),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) _throwApi(res);
+  }
+
+  Future<String> downloadExport({
+    required String kind,
+    String format = 'csv',
+    int limit = 500,
+  }) async {
+    final res = await _http.get(
+      _u('admin/finance/exports/$kind', {'format': format, 'limit': '$limit'}),
+      headers: await _headers(),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) _throwApi(res);
+    return res.body;
+  }
 }

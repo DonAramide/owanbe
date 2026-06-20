@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../eos/eos.dart';
-import '../data/operations_store.dart';
 import '../models/operations_models.dart';
 import '../providers/operations_providers.dart';
-import '../../organizer/providers/organizer_providers.dart';
 import '../widgets/operations_shared.dart';
 
 class CheckInCenterScreen extends ConsumerWidget {
@@ -69,10 +67,8 @@ class CheckInCenterScreen extends ConsumerWidget {
                     guest: g,
                     onCheckIn: g.checkedIn
                         ? null
-                        : () {
-                            OperationsStore.instance.checkInGuest(eventId, g.id, manual: true);
-                            bumpOperationsRevision(ref);
-                            bumpOrganizerRevision(ref);
+                        : () async {
+                            await performManualCheckIn(ref, eventId, g);
                           },
                     onResend: g.checkedIn
                         ? () => ScaffoldMessenger.of(context).showSnackBar(
