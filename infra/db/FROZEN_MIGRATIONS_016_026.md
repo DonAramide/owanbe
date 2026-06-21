@@ -1,18 +1,15 @@
-# Frozen Schema Migrations (016–024)
+# Frozen Schema Migrations (016–026)
 
-> **Superseded by `FROZEN_MIGRATIONS_016_026.md` at release `v1.0.0-production-ready`.**  
-> This file is retained for historical rollback to v0.8.0-super-admin-complete.
-
-**Release:** `v0.8.0-super-admin-complete`  
-**Frozen:** 2026-06-20  
-**Purpose:** Rollback baseline before Phase 8 (Identity & Security Hardening)
+**Release:** `v1.0.0-production-ready`  
+**Frozen:** 2026-06-21  
+**Purpose:** Production baseline schema — immutable forward-only from this release
 
 ## Policy
 
-Migrations **016 through 024** are **immutable** as of this release. Do not edit these files.
+Migrations **016 through 026** are **immutable** as of this release. Do not edit these files.
 
-- Phase 8+ schema changes must use **025+** with new numbered files.
-- To fix a bug in frozen migrations, create a forward-only corrective migration (e.g. `025_phase8_fix_*.sql`).
+- Post-v1.0 schema changes must use **027+** with new numbered files.
+- To fix a bug in frozen migrations, create a forward-only corrective migration (e.g. `027_v1_fix_*.sql`).
 - Apply frozen migrations in numeric order on fresh databases.
 
 ## Frozen manifest
@@ -28,22 +25,26 @@ Migrations **016 through 024** are **immutable** as of this release. Do not edit
 | 022 | `022_phase54_persistence.sql` | 5.4 | Vendor participations, check-ins, incidents, feed |
 | 023 | `023_phase6_admin_seed.sql` | 6 | Platform admin user (`admin_super`) |
 | 024 | `024_phase7_super_admin.sql` | 7 | `super_admin` role, feature flags, security events |
+| 025 | `025_phase8_security.sql` | 8 | Permissions, role_permissions, compliance tables, security event types |
+| 026 | `026_phase9_integrations.sql` | 9 | `notification_deliveries`, `media_objects` |
 
 ## Apply scripts
 
 ```bash
-# Individual phase seeds (after core schema 001–015)
-node scripts/apply-phase54-migration.js   # 022
-node scripts/apply-phase6-migration.js    # 023
-node scripts/apply-phase7-migration.js    # 024
+node scripts/apply-phase8-migration.js   # 025
+node scripts/apply-phase9-migration.js   # 026
 ```
 
 Prior migrations (001–015) remain the foundation; see `owanbe_core.sql` and numbered files through `015_qfe_treasury_dual_write.sql`.
+
+## Supersedes
+
+- `FROZEN_MIGRATIONS_016_024.md` (v0.8.0-super-admin-complete baseline)
 
 ## Verification gates (this release)
 
 | Script | Phase | Result |
 |--------|-------|--------|
-| `verify-phase5-4-persistence.js` | 5.4 | PASS 19/19 |
-| `verify-phase6-platform-admin.js` | 6 | PASS 14/14 |
-| `verify-phase7-super-admin.js` | 7 | PASS 8/8 |
+| `verify-phase8-identity-security.js` | 8 | PASS 5/5 |
+| `verify-phase9-production-integrations.js` | 9 | PASS 5/5 |
+| `verify-phase10-launch-readiness.js` | 10 | PASS 6/6 |
