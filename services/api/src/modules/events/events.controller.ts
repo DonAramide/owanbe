@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../common/decorators/public.decorator';
+import { RequirePermissions } from '../../permissions/permissions.decorator';
 import { TenantId } from '../../common/decorators/tenant-id.decorator';
 import { CommerceAuthGuard } from '../commerce/commerce-auth.guard';
 import { CommerceActorParam, type CommerceActor } from '../commerce/commerce-auth.service';
@@ -56,6 +57,7 @@ export class EventsController {
 
   @Public()
   @UseGuards(CommerceAuthGuard)
+  @RequirePermissions('event.create')
   @Post('events')
   async create(@CommerceActorParam() actor: CommerceActor, @Body() body: Record<string, unknown>) {
     return this.events.create(actor!, body);
@@ -74,6 +76,7 @@ export class EventsController {
 
   @Public()
   @UseGuards(CommerceAuthGuard)
+  @RequirePermissions('event.publish')
   @Post('events/:eventId/publish')
   async publish(@Param('eventId') eventId: string, @CommerceActorParam() actor: CommerceActor) {
     return this.events.publish(actor!, eventId);
@@ -81,6 +84,7 @@ export class EventsController {
 
   @Public()
   @UseGuards(CommerceAuthGuard)
+  @RequirePermissions('event.close')
   @Post('events/:eventId/go-live')
   async goLive(@Param('eventId') eventId: string, @CommerceActorParam() actor: CommerceActor) {
     return this.events.goLive(actor!, eventId);
@@ -165,6 +169,7 @@ export class EventsController {
 
   @Public()
   @UseGuards(CommerceAuthGuard)
+  @RequirePermissions('vendor.apply')
   @Post('vendor/events/:eventId/apply')
   async vendorApply(@Param('eventId') eventId: string, @CommerceActorParam() actor: CommerceActor) {
     return this.vendor.apply(actor!, eventId);

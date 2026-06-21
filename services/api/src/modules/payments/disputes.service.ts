@@ -12,6 +12,7 @@ import { BookingAccessService } from '../../ownership/booking-access.service';
 import { VendorAccessService } from '../../ownership/vendor-access.service';
 import { FinancialAdjustmentsService } from './financial-adjustments.service';
 import { PayoutService } from './payout.service';
+import { StorageService } from '../../integrations/storage/storage.service';
 
 @Injectable()
 export class DisputesService {
@@ -22,6 +23,7 @@ export class DisputesService {
     private readonly vendorAccess: VendorAccessService,
     private readonly adjustments: FinancialAdjustmentsService,
     private readonly payouts: PayoutService,
+    private readonly storage: StorageService,
   ) {}
 
   private async disputeForTenant(tenantId: string, disputeId: string) {
@@ -313,11 +315,26 @@ export class DisputesService {
     actorUserId: string;
     actorRoles: string[];
     type: 'image' | 'video' | 'document';
-    url: string;
+    url?: string;
+    storageObjectId?: string;
     metadata?: Record<string, unknown>;
     idempotencyKey?: string;
   }) {
     await this.assertParticipant(params);
+    let url = params.url?.trim() ?? '';
+    if (params.storageObjectId) {
+      const resolved = await this.storage.resolvePublicUrl(params.tenantId, params.storageObjectId);
+      if (!resolved) {
+        throw new UnprocessableEntityException({
+          code: 'STORAGE_OBJECT_NOT_FOUND',
+          message: 'Media object not found for tenant',
+        });
+      }
+      url = resolved;
+    }
+    if (!url) {
+      throw new UnprocessableEntityException({ code: 'EVIDENCE_URL_REQUIRED', message: 'url or storageObjectId required' });
+    }
     const idem = params.idempotencyKey?.trim() || null;
     if (idem) {
       const existing = await this.pool.query<{ id: string }>(
@@ -335,7 +352,7 @@ export class DisputesService {
         params.tenantId,
         params.disputeId,
         params.type,
-        params.url.trim(),
+        url,
         params.actorUserId,
         JSON.stringify(params.metadata ?? {}),
         idem,

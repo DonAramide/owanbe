@@ -1,12 +1,11 @@
 import 'dart:convert';
 
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../auth/auth_session.dart';
 import '../../features/organizer/models/organizer_models.dart';
 import '../../features/public/models/public_models.dart';
+import 'owanbe_api_auth.dart';
 
 class EventsApiException implements Exception {
   EventsApiException({required this.code, required this.message});
@@ -25,34 +24,15 @@ class EventsApi {
   static const devOrganizerUserId = '22222222-2222-4222-8222-222222222222';
   static const devVendorUserId = '22222222-2222-4222-8222-222222222222';
 
-  String get _base {
-    final raw = (dotenv.env['OWANBE_API_BASE'] ?? 'http://localhost:8080/v1').trim();
-    return raw.endsWith('/') ? raw.substring(0, raw.length - 1) : raw;
-  }
+  String get _base => OwanbeApiAuth.resolveApiBase();
 
-  String get _tenantId => (dotenv.env['OWANBE_TENANT_ID'] ?? devTenantId).trim();
+  String get _tenantId => OwanbeApiAuth.resolveTenantId(devTenantId);
 
   Future<Map<String, String>> _headers({
     AuthSession? session,
     bool vendor = false,
   }) async {
-    final token = Supabase.instance.client.auth.currentSession?.accessToken;
-    final headers = <String, String>{
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      'X-Tenant-Id': _tenantId,
-    };
-    if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
-      return headers;
-    }
-    final devUser = vendor
-        ? (dotenv.env['OWANBE_VENDOR_USER_ID'] ?? devVendorUserId).trim()
-        : (dotenv.env['OWANBE_ORGANIZER_USER_ID'] ?? devOrganizerUserId).trim();
-    headers['X-Dev-User-Id'] = devUser;
-    headers['X-Dev-User-Email'] = session?.email ??
-        (vendor ? (dotenv.env['OWANBE_VENDOR_USER_EMAIL'] ?? 'vendor@owanbe.dev') : 'attendee@owanbe.dev');
-    return headers;
+    return OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId);
   }
 
   Uri _u(String path, [Map<String, String>? query]) {
@@ -79,7 +59,7 @@ class EventsApi {
         if (query != null && query.isNotEmpty) 'q': query,
         if (category != null && category.isNotEmpty) 'category': category,
       }),
-      headers: {'Accept': 'application/json', 'X-Tenant-Id': _tenantId},
+      headers: OwanbeApiAuth.publicHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     final body = jsonDecode(res.body) as Map<String, dynamic>;
@@ -91,7 +71,7 @@ class EventsApi {
   Future<PublicEvent?> getPublicEvent(String eventId) async {
     final res = await _http.get(
       _u('events/$eventId'),
-      headers: {'Accept': 'application/json', 'X-Tenant-Id': _tenantId},
+      headers: OwanbeApiAuth.publicHeaders(tenantId: _tenantId),
     );
     if (res.statusCode == 404) return null;
     if (res.statusCode >= 400) _throw(res);

@@ -47,8 +47,6 @@ async function api(method, path, body, extraHeaders = {}) {
       'Content-Type': 'application/json',
       'X-Tenant-Id': TENANT_ID,
       Authorization: `Bearer ${token}`,
-      'X-Dev-User-Id': ADMIN_USER_ID,
-      'X-Dev-User-Email': ADMIN_USER_EMAIL,
       ...extraHeaders,
     },
     body: body ? JSON.stringify(body) : undefined,

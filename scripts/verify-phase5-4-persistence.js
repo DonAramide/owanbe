@@ -10,6 +10,16 @@ const TENANT_ID = process.env.TENANT_ID || '11111111-1111-4111-8111-111111111111
 const DEV_USER_ID = process.env.DEV_USER_ID || '22222222-2222-4222-8222-222222222222';
 const DEV_USER_EMAIL = process.env.DEV_USER_EMAIL || 'attendee@owanbe.dev';
 const EVENT_REF = 'evt_lagos_owanbe_2026';
+const JWT_SECRET = process.env.SUPABASE_JWT_SECRET || 'dev-jwt-secret-16chars';
+const jwt = require('../services/api/node_modules/jsonwebtoken');
+
+function signJwt() {
+  return jwt.sign(
+    { sub: DEV_USER_ID, email: DEV_USER_EMAIL, app_metadata: { tenant_id: TENANT_ID, roles: ['organizer'] } },
+    JWT_SECRET,
+    { algorithm: 'HS256', expiresIn: '1h' },
+  );
+}
 
 const report = { checks: {}, evidence: {}, overall: 'FAIL' };
 
@@ -25,8 +35,7 @@ async function api(method, path, body, extraHeaders = {}) {
       Accept: 'application/json',
       'Content-Type': 'application/json',
       'X-Tenant-Id': TENANT_ID,
-      'X-Dev-User-Id': DEV_USER_ID,
-      'X-Dev-User-Email': DEV_USER_EMAIL,
+      Authorization: `Bearer ${signJwt()}`,
       ...extraHeaders,
     },
     body: body ? JSON.stringify(body) : undefined,

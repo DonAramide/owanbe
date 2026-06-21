@@ -29,13 +29,14 @@ export default (): EnvVars => ({
   QFE_DUAL_WRITE_TREASURY: ['true', '1', 'yes'].includes(
     String(process.env.QFE_DUAL_WRITE_TREASURY ?? 'false').toLowerCase(),
   ),
-  ALLOW_DEV_COMMERCE_AUTH: ['true', '1', 'yes'].includes(
-    String(process.env.ALLOW_DEV_COMMERCE_AUTH ?? 'true').toLowerCase(),
-  ),
-  ALLOW_DEV_ADMIN_AUTH: ['true', '1', 'yes'].includes(
-    String(process.env.ALLOW_DEV_ADMIN_AUTH ?? 'true').toLowerCase(),
-  ),
-  ALLOW_DEV_SUPER_ADMIN_AUTH: ['true', '1', 'yes'].includes(
-    String(process.env.ALLOW_DEV_SUPER_ADMIN_AUTH ?? 'true').toLowerCase(),
-  ),
+  INTEGRATIONS_MODE: process.env.INTEGRATIONS_MODE ?? 'development',
+  RESEND_API_KEY: process.env.RESEND_API_KEY ?? '',
+  NOTIFICATION_FROM_EMAIL: process.env.NOTIFICATION_FROM_EMAIL ?? '',
+  NOTIFICATION_WEBHOOK_URL: process.env.NOTIFICATION_WEBHOOK_URL ?? '',
+  TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID ?? '',
+  TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN ?? '',
+  TWILIO_FROM_NUMBER: process.env.TWILIO_FROM_NUMBER ?? '',
+  SUPABASE_URL: process.env.SUPABASE_URL ?? '',
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+  STORAGE_BUCKET: process.env.STORAGE_BUCKET ?? 'owanbe-media',
 });

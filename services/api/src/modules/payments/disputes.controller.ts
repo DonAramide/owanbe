@@ -85,7 +85,8 @@ export class DisputesController {
     @CurrentUser() user: JwtUser,
     @Param('id') id: string,
     @Query('type') type: 'image' | 'video' | 'document',
-    @Query('url') url: string,
+    @Query('url') url?: string,
+    @Query('storageObjectId') storageObjectId?: string,
     @Query('idempotencyKey') idempotencyKey?: string,
   ) {
     return this.disputes.uploadEvidence({
@@ -95,6 +96,7 @@ export class DisputesController {
       actorRoles: user.roles,
       type,
       url,
+      storageObjectId,
       idempotencyKey,
     });
   }

@@ -1,6 +1,7 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { PG_POOL } from '../../database/database.tokens';
+import { NotificationService } from '../../integrations/notifications/notification.service';
 
 export interface TicketEntitlementView {
   id: string;
@@ -18,7 +19,10 @@ export interface TicketEntitlementView {
 
 @Injectable()
 export class TicketEntitlementsService {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly notifications: NotificationService,
+  ) {}
 
   async listForUser(tenantId: string, userId: string): Promise<TicketEntitlementView[]> {
     const { rows } = await this.pool.query<{
@@ -55,5 +59,35 @@ export class TicketEntitlementsService {
       status: r.status,
       issuedAt: r.issued_at.toISOString(),
     }));
+  }
+
+  async resendTicket(tenantId: string, userId: string, entitlementId: string) {
+    const { rows } = await this.pool.query<{
+      ticket_code: string;
+      tier_name: string;
+      title: string;
+      email: string;
+    }>(
+      `SELECT te.ticket_code,
+              COALESCE(te.metadata->>'tier_name', 'Ticket') AS tier_name,
+              e.title, u.email
+       FROM ticket_entitlements te
+       INNER JOIN events e ON e.id = te.event_id
+       INNER JOIN users u ON u.id = te.holder_user_id
+       WHERE te.id = $1 AND te.tenant_id = $2 AND te.holder_user_id = $3 AND te.status = 'issued'`,
+      [entitlementId, tenantId, userId],
+    );
+    const row = rows[0];
+    if (!row) {
+      throw new NotFoundException({ code: 'ENTITLEMENT_NOT_FOUND', message: 'Ticket not found' });
+    }
+    const result = await this.notifications.sendTicketConfirmation({
+      tenantId,
+      email: row.email,
+      eventTitle: row.title,
+      ticketCode: row.ticket_code,
+      tierName: row.tier_name,
+    });
+    return { ok: result.ok, entitlementId };
   }
 }

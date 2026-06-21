@@ -6,6 +6,8 @@ export type OwanbeRole =
   | 'admin_super'
   | 'admin_ops'
   | 'admin_support'
+  | 'platform_admin'
+  | 'organizer'
   | 'client'
   | 'vendor'
   | 'vendor_pending'
@@ -21,6 +23,8 @@ export interface JwtUser {
   jwtRoleHints: OwanbeRole[];
   /** Populated by RolesGuard from DB after JWT∩DB validation. */
   roles: OwanbeRole[];
+  /** Populated by PermissionsGuard when @RequirePermissions is used. */
+  permissions?: string[];
   /** Populated by RolesGuard from `users.status`. */
   userStatus?: UserLifecycleStatus;
 }

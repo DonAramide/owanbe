@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Phase 7 Super Admin Control Tower — verification gate (full sections 1–8).
- * Requires: Docker Postgres, migration 024, API on :8080 with ALLOW_DEV_SUPER_ADMIN_AUTH.
+ * Requires: Docker Postgres, migration 024, API on :8080 with JWT auth.
  */
 const { Client } = require('../services/api/node_modules/pg');
 const jwt = require('../services/api/node_modules/jsonwebtoken');
@@ -45,8 +45,6 @@ async function api(method, path, body) {
       Accept: 'application/json',
       'Content-Type': 'application/json',
       Authorization: `Bearer ${signJwt()}`,
-      'X-Dev-User-Id': SUPER_ADMIN_ID,
-      'X-Dev-User-Email': SUPER_ADMIN_EMAIL,
     },
     body: body ? JSON.stringify(body) : undefined,
   });

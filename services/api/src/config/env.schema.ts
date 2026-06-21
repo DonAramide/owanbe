@@ -26,12 +26,25 @@ export const envValidationSchema = Joi.object({
   FINANCE_TIMEOUT_SWEEP_MS: Joi.number().integer().min(10_000).max(3_600_000).default(60_000),
   /** S5: mirror treasury settlement journals into financial_transactions + postings. */
   QFE_DUAL_WRITE_TREASURY: Joi.boolean().truthy('true', '1', 'yes').falsy('false', '0', 'no').default(false),
-  /** Dev-only: allow X-Dev-User-Id / X-Dev-User-Email for ticket commerce without JWT. */
-  ALLOW_DEV_COMMERCE_AUTH: Joi.boolean().truthy('true', '1', 'yes').falsy('false', '0', 'no').default(true),
-  /** Dev-only: allow X-Dev-User-Id for platform admin routes when user has admin tier in DB. */
-  ALLOW_DEV_ADMIN_AUTH: Joi.boolean().truthy('true', '1', 'yes').falsy('false', '0', 'no').default(true),
-  /** Dev-only: allow X-Dev-User-Id for super-admin control tower routes. */
-  ALLOW_DEV_SUPER_ADMIN_AUTH: Joi.boolean().truthy('true', '1', 'yes').falsy('false', '0', 'no').default(true),
+
+  /** Phase 9: production disables payment auto-stub; development allows Quaser-less stubs. */
+  INTEGRATIONS_MODE: Joi.string().valid('development', 'production').default('development'),
+
+  /** Notifications — Resend (email) */
+  RESEND_API_KEY: Joi.string().optional().allow(''),
+  NOTIFICATION_FROM_EMAIL: Joi.string().optional().allow(''),
+  /** Fallback delivery webhook for SMS/email when provider keys unset (gate / staging). */
+  NOTIFICATION_WEBHOOK_URL: Joi.string().uri().optional().allow(''),
+
+  /** SMS — Twilio */
+  TWILIO_ACCOUNT_SID: Joi.string().optional().allow(''),
+  TWILIO_AUTH_TOKEN: Joi.string().optional().allow(''),
+  TWILIO_FROM_NUMBER: Joi.string().optional().allow(''),
+
+  /** Storage — Supabase Storage */
+  SUPABASE_URL: Joi.string().uri().optional().allow(''),
+  SUPABASE_SERVICE_ROLE_KEY: Joi.string().optional().allow(''),
+  STORAGE_BUCKET: Joi.string().default('owanbe-media'),
 }).unknown(true);
 
 export type EnvVars = {
@@ -55,7 +68,14 @@ export type EnvVars = {
   PAYOUT_TIMEOUT_MINUTES: number;
   FINANCE_TIMEOUT_SWEEP_MS: number;
   QFE_DUAL_WRITE_TREASURY: boolean;
-  ALLOW_DEV_COMMERCE_AUTH: boolean;
-  ALLOW_DEV_ADMIN_AUTH: boolean;
-  ALLOW_DEV_SUPER_ADMIN_AUTH: boolean;
+  INTEGRATIONS_MODE: string;
+  RESEND_API_KEY: string;
+  NOTIFICATION_FROM_EMAIL: string;
+  NOTIFICATION_WEBHOOK_URL: string;
+  TWILIO_ACCOUNT_SID: string;
+  TWILIO_AUTH_TOKEN: string;
+  TWILIO_FROM_NUMBER: string;
+  SUPABASE_URL: string;
+  SUPABASE_SERVICE_ROLE_KEY: string;
+  STORAGE_BUCKET: string;
 };

@@ -66,4 +66,12 @@ export class TicketCommerceController {
     const items = await this.entitlements.listForUser(actor!.tenantId, actor!.userId);
     return { items };
   }
+
+  @Post('ticket-entitlements/:entitlementId/resend')
+  async resendTicket(
+    @Param('entitlementId') entitlementId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.entitlements.resendTicket(actor!.tenantId, actor!.userId, entitlementId);
+  }
 }

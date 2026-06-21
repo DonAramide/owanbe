@@ -9,17 +9,26 @@ import { ROLES_KEY } from '../decorators/roles.decorator';
 import type { JwtUser, OwanbeRole } from '../types/jwt-user';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { RolesService } from '../../roles/roles.service';
+import { SecurityEventService } from '../../security/security-event.service';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly rolesService: RolesService,
+    private readonly securityEvents: SecurityEventService,
   ) {}
 
-  private assertAccountAllowsApi(user: JwtUser): void {
+  private async assertAccountAllowsApi(user: JwtUser): Promise<void> {
     const s = user.userStatus;
     if (s === 'suspended' || s === 'banned' || s === 'deleted') {
+      await this.securityEvents.record({
+        eventType: 'session_abuse',
+        severity: 'critical',
+        tenantId: user.tenantId,
+        actorUserId: user.userId,
+        details: { userStatus: s, reason: 'blocked_account_api_access' },
+      });
       throw new ForbiddenException({
         code: 'ACCOUNT_BLOCKED',
         message: 'Account is not permitted to use the API',
@@ -41,7 +50,7 @@ export class RolesGuard implements CanActivate {
     }
     user.roles = principal.roles;
     user.userStatus = principal.userStatus;
-    this.assertAccountAllowsApi(user);
+    await this.assertAccountAllowsApi(user);
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {

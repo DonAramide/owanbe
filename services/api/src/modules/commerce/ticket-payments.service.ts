@@ -12,6 +12,7 @@ import type { EnvVars } from '../../config/env.schema';
 import { QuaserRouterService } from '../payments/quaser-router.service';
 import { FinanceStateService } from '../payments/finance-state.service';
 import { TicketCaptureService } from './ticket-capture.service';
+import { IntegrationsModeService } from '../../integrations/integrations-mode.service';
 
 export interface CreateTicketPaymentResult {
   payment: {
@@ -40,6 +41,7 @@ export class TicketPaymentsService {
     private readonly config: ConfigService<EnvVars, true>,
     private readonly financeState: FinanceStateService,
     private readonly capture: TicketCaptureService,
+    private readonly integrations: IntegrationsModeService,
   ) {}
 
   private publicWebhookUrl() {
@@ -48,7 +50,7 @@ export class TicketPaymentsService {
   }
 
   private isQuaserStub() {
-    return !this.config.get('QUASER_ROUTER_BASE_URL', { infer: true }).trim();
+    return this.integrations.allowPaymentStubs();
   }
 
   async createPayment(
@@ -57,6 +59,13 @@ export class TicketPaymentsService {
     idempotencyHeader?: string,
   ): Promise<CreateTicketPaymentResult> {
     await this.financeState.ensurePaymentsAllowed();
+
+    if (!this.integrations.allowPaymentStubs() && !this.integrations.isQuaserConfigured()) {
+      throw new UnprocessableEntityException({
+        code: 'PAYMENTS_NOT_CONFIGURED',
+        message: 'Set QUASER_ROUTER_BASE_URL for production payment capture',
+      });
+    }
 
     const idem =
       idempotencyHeader && idempotencyHeader.trim().length >= 8 && idempotencyHeader.length <= 128

@@ -17,6 +17,7 @@ import { FinanceStateService } from '../payments/finance-state.service';
 import { AlertsService } from '../payments/alerts.service';
 import type { CommerceActor } from './commerce-auth.service';
 import { OrganizerFinanceService } from './organizer-finance.service';
+import { IntegrationsModeService } from '../../integrations/integrations-mode.service';
 
 export interface EligibleOrganizerPayoutRow {
   ticket_order_id: string;
@@ -38,6 +39,7 @@ export class OrganizerPayoutService {
     private readonly financeState: FinanceStateService,
     private readonly alerts: AlertsService,
     private readonly organizerFinance: OrganizerFinanceService,
+    private readonly integrations: IntegrationsModeService,
   ) {}
 
   private publicWebhookUrl() {
@@ -46,7 +48,7 @@ export class OrganizerPayoutService {
   }
 
   private isQuaserStub() {
-    return !this.config.get('QUASER_ROUTER_BASE_URL', { infer: true }).trim();
+    return this.integrations.allowPaymentStubs();
   }
 
   private cooldownHours() {

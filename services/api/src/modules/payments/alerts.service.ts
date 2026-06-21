@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { EnvVars } from '../../config/env.schema';
+import { NotificationService } from '../../integrations/notifications/notification.service';
 
 export type FinancialAlertType =
   | 'payment_mismatch'
@@ -16,7 +17,10 @@ export class AlertsService {
   private readonly logger = new Logger(AlertsService.name);
   private readonly dedupe = new Map<string, number>();
 
-  constructor(private readonly config: ConfigService<EnvVars, true>) {}
+  constructor(
+    private readonly config: ConfigService<EnvVars, true>,
+    private readonly notifications: NotificationService,
+  ) {}
 
   async trigger(
     type: FinancialAlertType,
@@ -48,7 +52,14 @@ export class AlertsService {
     }
     const email = this.config.get('ALERT_EMAIL_TO', { infer: true }).trim();
     if (email) {
-      this.logger.warn({ email, ...msg }, 'Alert email integration placeholder');
+      await this.notifications.send({
+        channel: 'email',
+        template: `alert_${type}`,
+        recipient: email,
+        subject: `[Owanbe ${severity}] ${type}`,
+        body: `<pre>${JSON.stringify(msg, null, 2)}</pre>`,
+        metadata: { alertType: type, severity },
+      });
     }
   }
 }

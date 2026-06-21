@@ -5,16 +5,14 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
-import { DevAdminAuthService } from '../../auth/dev-admin-auth.service';
-import { DevSuperAdminAuthService } from '../../auth/dev-super-admin-auth.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { SecurityEventService } from '../../security/security-event.service';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('supabase-jwt') {
   constructor(
     private readonly reflector: Reflector,
-    private readonly devSuperAdminAuth: DevSuperAdminAuthService,
-    private readonly devAdminAuth: DevAdminAuthService,
+    private readonly securityEvents: SecurityEventService,
   ) {
     super();
   }
@@ -24,7 +22,10 @@ export class JwtAuthGuard extends AuthGuard('supabase-jwt') {
       context.getHandler(),
       context.getClass(),
     ]);
-    const req = context.switchToHttp().getRequest<{ headers?: { authorization?: string }; user?: unknown }>();
+    const req = context.switchToHttp().getRequest<{
+      headers?: { authorization?: string; 'x-tenant-id'?: string };
+      user?: unknown;
+    }>();
     const auth = req.headers?.authorization;
     const hasBearer = typeof auth === 'string' && auth.toLowerCase().startsWith('bearer ');
 
@@ -32,31 +33,22 @@ export class JwtAuthGuard extends AuthGuard('supabase-jwt') {
       return true;
     }
 
-    if (hasBearer) {
-      try {
-        const ok = (await super.canActivate(context)) as boolean;
-        if (ok) return true;
-      } catch {
-        // Fall through to dev admin auth.
-      }
+    if (!hasBearer) {
+      throw new UnauthorizedException({ code: 'AUTH_REQUIRED', message: 'Bearer token required' });
     }
 
-    const devSuper = await this.devSuperAdminAuth.tryResolve(context);
-    if (devSuper) {
-      req.user = devSuper;
-      return true;
-    }
-
-    const devUser = await this.devAdminAuth.tryResolve(context);
-    if (devUser) {
-      req.user = devUser;
-      return true;
-    }
-
-    if (hasBearer) {
+    try {
       return (await super.canActivate(context)) as boolean;
+    } catch (err) {
+      await this.securityEvents.record({
+        eventType: 'failed_login',
+        severity: 'warning',
+        details: {
+          reason: err instanceof Error ? err.message : 'invalid_token',
+          path: context.switchToHttp().getRequest<{ url?: string }>().url,
+        },
+      });
+      throw new UnauthorizedException({ code: 'INVALID_TOKEN', message: 'Invalid or expired token' });
     }
-
-    throw new UnauthorizedException({ code: 'AUTH_REQUIRED', message: 'Sign in required' });
   }
 }

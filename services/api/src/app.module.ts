@@ -24,6 +24,11 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { HealthModule } from './modules/health/health.module';
 import { RolesModule } from './roles/roles.module';
 import { AuditModule } from './audit/audit.module';
+import { SecurityModule } from './security/security.module';
+import { PermissionsModule } from './permissions/permissions.module';
+import { PermissionsGuard } from './permissions/permissions.guard';
+import { ComplianceModule } from './modules/compliance/compliance.module';
+import { IntegrationsModule } from './integrations/integrations.module';
 
 @Module({
   imports: [
@@ -42,6 +47,8 @@ import { AuditModule } from './audit/audit.module';
       ],
     }),
     DatabaseModule,
+    SecurityModule,
+    PermissionsModule,
     RolesModule,
     AuditModule,
     AuthModule,
@@ -56,12 +63,15 @@ import { AuditModule } from './audit/audit.module';
     PlatformAdminModule,
     SuperAdminModule,
     PaymentsModule,
+    ComplianceModule,
+    IntegrationsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: TenantHeaderGuard },
     { provide: APP_GUARD, useClass: OwanbeThrottlerGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: PermissionsGuard },
   ],
 })
 export class AppModule implements NestModule {

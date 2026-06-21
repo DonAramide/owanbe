@@ -38,6 +38,8 @@ export class SuperAdminSecurityService {
       permissionEscalations: events.rows.filter((e) => e.event_type === 'permission_escalation').length,
       suspiciousActivity: events.rows.filter((e) => e.event_type === 'suspicious_activity').length,
       financeExceptions: events.rows.filter((e) => e.event_type === 'finance_exception').length,
+      rateLimitViolations: events.rows.filter((e) => e.event_type === 'rate_limit_violation').length,
+      sessionAbuse: events.rows.filter((e) => e.event_type === 'session_abuse').length,
     };
     return {
       summary: byType,

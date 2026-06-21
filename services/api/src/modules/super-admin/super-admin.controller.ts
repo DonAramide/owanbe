@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { SkipTenant } from '../../common/decorators/skip-tenant.decorator';
+import { RequirePermissions } from '../../permissions/permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { JwtUser } from '../../common/types/jwt-user';
 import { SUPER_ADMIN_ROLES } from '../../common/permission-matrix';
@@ -55,6 +56,7 @@ export class SuperAdminController {
   }
 
   @Roles(...SUPER_ADMIN_ROLES)
+  @RequirePermissions('tenant.suspend')
   @Post('tenants/:tenantId/suspend')
   suspendTenant(@CurrentUser() user: JwtUser, @Param('tenantId') tenantId: string) {
     return this.tenants.setStatus(user.userId, tenantId, 'suspended');

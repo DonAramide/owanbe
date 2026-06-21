@@ -1,10 +1,9 @@
 import 'dart:convert';
 
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../auth/auth_session.dart';
+import 'owanbe_api_auth.dart';
 
 class TicketCommerceApiException implements Exception {
   TicketCommerceApiException({required this.code, required this.message});
@@ -101,30 +100,14 @@ class TicketCommerceApi {
 
   static const devTenantId = '11111111-1111-4111-8111-111111111111';
 
-  String get _base {
-    final raw = (dotenv.env['OWANBE_API_BASE'] ?? 'http://localhost:8080/v1').trim();
-    return raw.endsWith('/') ? raw.substring(0, raw.length - 1) : raw;
-  }
+  String get _base => OwanbeApiAuth.resolveApiBase();
 
-  String get _tenantId => (dotenv.env['OWANBE_TENANT_ID'] ?? devTenantId).trim();
+  String get _tenantId => OwanbeApiAuth.resolveTenantId(devTenantId);
 
   bool get isConfigured => _tenantId.isNotEmpty;
 
-  Future<Map<String, String>> _headers(AuthSession session) async {
-    final token = Supabase.instance.client.auth.currentSession?.accessToken;
-    final headers = <String, String>{
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      'X-Tenant-Id': _tenantId,
-    };
-    if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
-    } else {
-      headers['X-Dev-User-Id'] = session.userId;
-      headers['X-Dev-User-Email'] = session.email ?? session.userId;
-    }
-    return headers;
-  }
+  Future<Map<String, String>> _headers(AuthSession session) =>
+      OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId);
 
   Uri _u(String path) {
     final p = path.startsWith('/') ? path.substring(1) : path;

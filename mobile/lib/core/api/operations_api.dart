@@ -1,38 +1,20 @@
 import 'dart:convert';
 
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../features/operations/models/operations_models.dart';
 import 'events_api.dart';
+import 'owanbe_api_auth.dart';
 
 class OperationsApi {
   OperationsApi({http.Client? client}) : _http = client ?? http.Client();
   final http.Client _http;
 
-  String get _base {
-    final raw = (dotenv.env['OWANBE_API_BASE'] ?? 'http://localhost:8080/v1').trim();
-    return raw.endsWith('/') ? raw.substring(0, raw.length - 1) : raw;
-  }
+  String get _base => OwanbeApiAuth.resolveApiBase();
 
-  String get _tenantId => (dotenv.env['OWANBE_TENANT_ID'] ?? EventsApi.devTenantId).trim();
+  String get _tenantId => OwanbeApiAuth.resolveTenantId(EventsApi.devTenantId);
 
-  Future<Map<String, String>> _headers() async {
-    final token = Supabase.instance.client.auth.currentSession?.accessToken;
-    final headers = <String, String>{
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      'X-Tenant-Id': _tenantId,
-    };
-    if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
-      return headers;
-    }
-    headers['X-Dev-User-Id'] = (dotenv.env['OWANBE_ORGANIZER_USER_ID'] ?? EventsApi.devOrganizerUserId).trim();
-    headers['X-Dev-User-Email'] = dotenv.env['OWANBE_ORGANIZER_USER_EMAIL'] ?? 'attendee@owanbe.dev';
-    return headers;
-  }
+  Future<Map<String, String>> _headers() => OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId);
 
   Uri _u(String path) {
     final p = path.startsWith('/') ? path.substring(1) : path;

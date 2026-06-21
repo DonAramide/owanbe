@@ -3,12 +3,14 @@ import type { Pool } from 'pg';
 import { PG_POOL } from '../../database/database.tokens';
 import type { CommerceActor } from '../commerce/commerce-auth.service';
 import { EventsAccessService } from './events-access.service';
+import { RealtimeBroadcastService } from '../../integrations/realtime/realtime-broadcast.service';
 
 @Injectable()
 export class EventOperationsService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly access: EventsAccessService,
+    private readonly realtime: RealtimeBroadcastService,
   ) {}
 
   async listCheckIns(actor: CommerceActor, eventKey: string) {
@@ -132,6 +134,14 @@ export class EventOperationsService {
       await this.pool.query('ROLLBACK');
       throw e;
     }
+    this.realtime.publish({
+      tenantId: actor.tenantId,
+      eventId: event.id,
+      feedType: 'guest_checked_in',
+      headline: `${holderName} checked in`,
+      detail: `${tierName} · ${source}`,
+      timestamp: new Date().toISOString(),
+    });
     return { ok: true, ticketCode: row.ticket_code, holderName, tierName };
   }
 
@@ -190,6 +200,14 @@ export class EventOperationsService {
        VALUES ($1, $2, 'incident_logged', $3, $4)`,
       [actor.tenantId, event.id, `Incident: ${body.title}`, body.category ?? 'other'],
     );
+    this.realtime.publish({
+      tenantId: actor.tenantId,
+      eventId: event.id,
+      feedType: 'incident_logged',
+      headline: `Incident: ${body.title}`,
+      detail: body.category ?? 'other',
+      timestamp: new Date().toISOString(),
+    });
     return { id: rows[0]!.id };
   }
 

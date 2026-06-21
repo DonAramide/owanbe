@@ -1,9 +1,8 @@
 import 'dart:convert';
 
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/api/owanbe_api_auth.dart';
 import '../../../auth/auth_session.dart';
 
 class OrganizerFinanceApiException implements Exception {
@@ -115,29 +114,12 @@ class OrganizerFinanceApi {
   static const devTenantId = '11111111-1111-4111-8111-111111111111';
   static const devOrganizerUserId = '22222222-2222-4222-8222-222222222222';
 
-  String get _base {
-    final raw = (dotenv.env['OWANBE_API_BASE'] ?? 'http://localhost:8080/v1').trim();
-    return raw.endsWith('/') ? raw.substring(0, raw.length - 1) : raw;
-  }
+  String get _base => OwanbeApiAuth.resolveApiBase();
 
-  String get _tenantId => (dotenv.env['OWANBE_TENANT_ID'] ?? devTenantId).trim();
+  String get _tenantId => OwanbeApiAuth.resolveTenantId(devTenantId);
 
-  Future<Map<String, String>> _headers([AuthSession? session]) async {
-    final token = Supabase.instance.client.auth.currentSession?.accessToken;
-    final headers = <String, String>{
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      'X-Tenant-Id': _tenantId,
-    };
-    if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
-    } else {
-      final devUser = (dotenv.env['OWANBE_ORGANIZER_USER_ID'] ?? devOrganizerUserId).trim();
-      headers['X-Dev-User-Id'] = devUser;
-      headers['X-Dev-User-Email'] = session?.email ?? 'attendee@owanbe.dev';
-    }
-    return headers;
-  }
+  Future<Map<String, String>> _headers([AuthSession? session]) =>
+      OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId);
 
   Uri _u(String path) {
     final p = path.startsWith('/') ? path.substring(1) : path;

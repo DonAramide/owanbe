@@ -4,6 +4,8 @@ import { randomBytes } from 'crypto';
 import { PG_POOL } from '../../database/database.tokens';
 import { LedgerService } from '../payments/ledger.service';
 import { FinanceStateService } from '../payments/finance-state.service';
+import { NotificationService } from '../../integrations/notifications/notification.service';
+import { MetricsService } from '../../integrations/observability/metrics.service';
 
 export interface TicketCaptureResult {
   ok: boolean;
@@ -18,6 +20,8 @@ export class TicketCaptureService {
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly ledger: LedgerService,
     private readonly financeState: FinanceStateService,
+    private readonly notifications: NotificationService,
+    private readonly metrics: MetricsService,
   ) {}
 
   async applyCapture(
@@ -151,6 +155,8 @@ export class TicketCaptureService {
       );
 
       await client.query('COMMIT');
+      this.metrics.inc('payments_captured_total', { rail: 'ticket' });
+      void this.notifyTicketHolder(pay.tenant_id, pay.ticket_order_id, order.event_id, order.buyer_user_id);
       return { ok: true, reason: 'applied', entitlementIds };
     } catch (e) {
       await client.query('ROLLBACK');
@@ -238,5 +244,41 @@ export class TicketCaptureService {
 
   private generateTicketCode(): string {
     return `TKT-${randomBytes(6).toString('hex').toUpperCase()}`;
+  }
+
+  private async notifyTicketHolder(
+    tenantId: string,
+    orderId: string,
+    eventId: string,
+    buyerUserId: string,
+  ): Promise<void> {
+    try {
+      const info = await this.pool.query<{
+        email: string;
+        title: string;
+        ticket_code: string;
+        tier_name: string;
+      }>(
+        `SELECT u.email, e.title, te.ticket_code,
+                COALESCE(te.metadata->>'tier_name', 'Ticket') AS tier_name
+         FROM users u
+         INNER JOIN ticket_entitlements te ON te.holder_user_id = u.id
+         INNER JOIN events e ON e.id = te.event_id
+         WHERE u.id = $1 AND te.tenant_id = $2 AND te.ticket_order_id = $3 AND te.event_id = $4
+         ORDER BY te.issued_at ASC LIMIT 1`,
+        [buyerUserId, tenantId, orderId, eventId],
+      );
+      const row = info.rows[0];
+      if (!row?.email) return;
+      await this.notifications.sendTicketConfirmation({
+        tenantId,
+        email: row.email,
+        eventTitle: row.title,
+        ticketCode: row.ticket_code,
+        tierName: row.tier_name,
+      });
+    } catch {
+      /* non-blocking */
+    }
   }
 }

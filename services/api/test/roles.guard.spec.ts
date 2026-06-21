@@ -5,6 +5,9 @@ import { ROLES_KEY } from '../src/common/decorators/roles.decorator';
 import { IS_PUBLIC_KEY } from '../src/common/decorators/public.decorator';
 import type { JwtUser } from '../src/common/types/jwt-user';
 import type { RolesService } from '../src/roles/roles.service';
+import type { SecurityEventService } from '../src/security/security-event.service';
+
+const securityEvents = { record: jest.fn().mockResolvedValue(undefined) } as unknown as SecurityEventService;
 
 function ctx(req: Record<string, unknown>): ExecutionContext {
   return {
@@ -29,7 +32,7 @@ describe('RolesGuard', () => {
         userStatus: 'active',
       }),
     } as unknown as RolesService;
-    const guard = new RolesGuard(reflector, rolesService);
+    const guard = new RolesGuard(reflector, rolesService, securityEvents);
     jest.spyOn(reflector, 'getAllAndOverride').mockImplementation((key) => {
       if (key === IS_PUBLIC_KEY) return false;
       if (key === ROLES_KEY) return ['client'];
@@ -52,7 +55,7 @@ describe('RolesGuard', () => {
         userStatus: 'active',
       }),
     } as unknown as RolesService;
-    const guard = new RolesGuard(reflector, rolesService);
+    const guard = new RolesGuard(reflector, rolesService, securityEvents);
     jest.spyOn(reflector, 'getAllAndOverride').mockImplementation((key) => {
       if (key === IS_PUBLIC_KEY) return false;
       if (key === ROLES_KEY) return ['admin_super'];
@@ -75,7 +78,7 @@ describe('RolesGuard', () => {
         userStatus: 'active',
       }),
     } as unknown as RolesService;
-    const guard = new RolesGuard(reflector, rolesService);
+    const guard = new RolesGuard(reflector, rolesService, securityEvents);
     jest.spyOn(reflector, 'getAllAndOverride').mockImplementation((key) => {
       if (key === IS_PUBLIC_KEY) return false;
       if (key === ROLES_KEY) return ['admin_super'];
@@ -98,7 +101,7 @@ describe('RolesGuard', () => {
         userStatus: 'suspended',
       }),
     } as unknown as RolesService;
-    const guard = new RolesGuard(reflector, rolesService);
+    const guard = new RolesGuard(reflector, rolesService, securityEvents);
     jest.spyOn(reflector, 'getAllAndOverride').mockImplementation((key) => {
       if (key === IS_PUBLIC_KEY) return false;
       if (key === ROLES_KEY) return ['client'];
@@ -121,7 +124,7 @@ describe('RolesGuard', () => {
         userStatus: 'active',
       }),
     } as unknown as RolesService;
-    const guard = new RolesGuard(reflector, rolesService);
+    const guard = new RolesGuard(reflector, rolesService, securityEvents);
     jest.spyOn(reflector, 'getAllAndOverride').mockImplementation((key) => {
       if (key === IS_PUBLIC_KEY) return true;
       return undefined;

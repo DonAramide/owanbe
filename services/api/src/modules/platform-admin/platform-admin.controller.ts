@@ -15,6 +15,7 @@ import {
   ADMIN_FINANCE_CONTROL_ROLES,
   ADMIN_APPROVERS,
 } from '../../common/permission-matrix';
+import { RequirePermissions } from '../../permissions/permissions.decorator';
 import { PlatformDashboardService } from './platform-dashboard.service';
 import { AdminOrganizersService } from './admin-organizers.service';
 import { AdminEventsService } from './admin-events.service';
@@ -120,6 +121,7 @@ export class PlatformAdminController {
   }
 
   @Roles(...ADMIN_APPROVERS)
+  @RequirePermissions('vendor.approve')
   @Post('vendors/:vendorId/approve')
   async approveVendor(
     @TenantId() tenantId: string,
