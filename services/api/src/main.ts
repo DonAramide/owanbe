@@ -11,6 +11,13 @@ async function bootstrap() {
     bufferLogs: true,
     rawBody: true,
   });
+  app.enableCors({
+    origin: process.env.NODE_ENV === 'production'
+      ? (process.env.CORS_ORIGINS ?? '').split(',').filter(Boolean)
+      : true,
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-Id', 'Accept'],
+  });
   app.setGlobalPrefix('v1', {
     exclude: [
       { path: 'health', method: RequestMethod.GET },

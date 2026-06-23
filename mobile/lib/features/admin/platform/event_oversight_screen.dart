@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../eos/eos.dart';
+import '../widgets/admin_async_body.dart';
+import '../widgets/admin_error_states.dart';
+import '../widgets/admin_page_layout.dart';
 import 'admin_platform_providers.dart';
 
 class EventOversightScreen extends ConsumerWidget {
@@ -15,10 +18,10 @@ class EventOversightScreen extends ConsumerWidget {
     final selected = ref.watch(selectedAdminEventIdProvider);
     final detail = selected == null ? null : ref.watch(adminEventDetailProvider(selected));
 
-    return EosPageScaffold(
-      title: 'Event oversight',
+    return AdminPageLayout(
+      title: 'Events',
       subtitle: 'Monitor events, health, and force-close when needed',
-      floatingHeader: EosSearchField(
+      header: EosSearchField(
         hint: 'Search events…',
         onChanged: (v) => ref.read(adminEventSearchProvider.notifier).state = v,
       ),
@@ -27,8 +30,10 @@ class EventOversightScreen extends ConsumerWidget {
         children: [
           Expanded(
             flex: 2,
-            child: list.when(
-              data: (items) => EosDataTable(
+            child: AdminAsyncBody(
+              value: list,
+              onRetry: () => ref.invalidate(adminEventsProvider(query)),
+              builder: (items) => EosDataTable(
                 columns: const [
                   DataColumn(label: Text('Event')),
                   DataColumn(label: Text('Organizer')),
@@ -49,18 +54,18 @@ class EventOversightScreen extends ConsumerWidget {
                   );
                 }).toList(),
               ),
-              loading: () => const CircularProgressIndicator(),
-              error: (e, _) => Text('$e'),
+              isEmpty: (items) => items.isEmpty,
+              empty: const EmptyStateCard(title: 'No events found'),
             ),
           ),
           SizedBox(width: context.eos.spacing.lg),
           Expanded(
             child: selected == null
-                ? EosSurfaceCard(child: Text('Select an event', style: context.eosText.bodyMedium))
-                : detail!.when(
-                    data: (d) => _EventDetailPanel(eventId: selected, data: d),
-                    loading: () => const CircularProgressIndicator(),
-                    error: (e, _) => Text('$e'),
+                ? const EmptyStateCard(title: 'Select an event')
+                : AdminAsyncBody(
+                    value: detail!,
+                    onRetry: () => ref.invalidate(adminEventDetailProvider(selected)),
+                    builder: (d) => _EventDetailPanel(eventId: selected, data: d),
                   ),
           ),
         ],
@@ -83,6 +88,7 @@ class _EventDetailPanel extends ConsumerWidget {
     final vendors = (data['vendors'] as List<dynamic>? ?? []).length;
     final attendees = (data['attendees'] as List<dynamic>? ?? []).length;
     return EosSurfaceCard(
+      elevated: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

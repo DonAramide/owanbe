@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../eos/widgets/financial/eos_finance_chip.dart';
+import '../../../eos/widgets/financial/eos_finance_chip.dart';
 
 /// Legacy alias — prefer [EosFinanceChip] in new modules.
 class FinanceStatusChip extends StatelessWidget {

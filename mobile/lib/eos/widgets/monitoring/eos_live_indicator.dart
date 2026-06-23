@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../extensions/eos_context.dart';
 import '../../tokens/eos_colors.dart';
+import 'eos_status_pulse.dart';
 
 class EosLiveIndicator extends StatelessWidget {
   const EosLiveIndicator({super.key, this.label = 'Live', this.compact = false});

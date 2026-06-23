@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../../auth/auth_session.dart';
 import '../../features/organizer/models/organizer_models.dart';
 import '../../features/public/models/public_models.dart';
+import '../../../shared/models/event_access_mode.dart';
 import 'owanbe_api_auth.dart';
 
 class EventsApiException implements Exception {
@@ -250,6 +251,15 @@ OrganizerEvent mapOrganizerEvent(Map<String, dynamic> json) {
     isFeatured: json['isFeatured'] == true,
     createdAt: _parseDate(json['createdAt']),
     publishedAt: _parseDate(json['publishedAt']),
+    eventAccessMode: EventAccessModeX.fromApi(json['eventAccessMode']?.toString()),
+    budgetMinor: int.tryParse((json['budgetMinor'] ?? '0').toString()) ?? 0,
+    expectedGuests: (json['expectedGuests'] as num?)?.toInt() ?? 0,
+    categorySlug: (json['categorySlug'] ?? '').toString(),
+    venueName: (json['venueName'] ?? json['venue'] ?? '').toString(),
+    venueAddress: (json['venueAddress'] ?? '').toString(),
+    venueLatitude: (json['venueLatitude'] as num?)?.toDouble(),
+    venueLongitude: (json['venueLongitude'] as num?)?.toDouble(),
+    googlePlaceId: json['googlePlaceId']?.toString(),
   );
 }
 

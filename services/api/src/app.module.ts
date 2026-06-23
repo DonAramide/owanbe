@@ -29,6 +29,7 @@ import { PermissionsModule } from './permissions/permissions.module';
 import { PermissionsGuard } from './permissions/permissions.guard';
 import { ComplianceModule } from './modules/compliance/compliance.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { EventConfigModule } from './modules/event-config/event-config.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
     PaymentsModule,
     ComplianceModule,
     IntegrationsModule,
+    EventConfigModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

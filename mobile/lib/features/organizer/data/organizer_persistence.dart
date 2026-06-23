@@ -1,9 +1,79 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/api/persistence_providers.dart';
+import '../../../core/api/persistence_providers.dart';
+import '../../../shared/models/event_access_mode.dart';
 import '../models/organizer_models.dart';
 import '../providers/organizer_providers.dart';
 import '../data/organizer_event_store.dart';
+
+Future<OrganizerEvent> createEventFromV2Draft(WidgetRef ref, EventWizardV2Draft draft) async {
+  final body = <String, dynamic>{
+    'title': draft.title,
+    'tagline': draft.tagline,
+    'city': draft.city,
+    'venue': draft.venueName,
+    'category': draft.categoryLabel,
+    'categorySlug': draft.categorySlug,
+    'eventAccessMode': draft.eventAccessMode.apiValue,
+    'budgetMinor': draft.budgetMinor,
+    'expectedGuests': draft.expectedGuests,
+    'venueName': draft.venueName,
+    'venueAddress': draft.venueAddress,
+    if (draft.venueLatitude != null) 'venueLatitude': draft.venueLatitude,
+    if (draft.venueLongitude != null) 'venueLongitude': draft.venueLongitude,
+    if (draft.googlePlaceId != null) 'googlePlaceId': draft.googlePlaceId,
+    'tags': draft.tags,
+    'startsAt': draft.startsAt.toIso8601String(),
+    'endsAt': draft.endsAt.toIso8601String(),
+    'budgetAllocation': draft.budgetAllocation,
+  };
+  if (draft.eventAccessMode == EventAccessMode.publicTicketed && draft.ticketTiers.isNotEmpty) {
+    body['ticketTiers'] = draft.ticketTiers
+        .map((t) => {
+              'id': t.id,
+              'name': t.name,
+              'description': t.description,
+              'priceMinor': t.priceMinor,
+              'currency': t.currency,
+              'capacity': t.capacity,
+              'remaining': t.remaining,
+              'tierType': t.tierType.name,
+              'visibility': t.visibility.name,
+            })
+        .toList();
+  }
+  try {
+    final event = await ref.read(eventsApiProvider).createEvent(body);
+    bumpOrganizerRevision(ref);
+    return event;
+  } catch (e) {
+    if (!allowMockPersistenceFallback()) rethrow;
+    final legacy = EventWizardDraft(
+      title: draft.title,
+      tagline: draft.tagline,
+      city: draft.city,
+      venue: draft.venueName,
+      category: draft.categoryLabel,
+      tags: draft.tags,
+      startsAt: draft.startsAt,
+      endsAt: draft.endsAt,
+      ticketTiers: draft.ticketTiers,
+    );
+    final event = OrganizerEventStore.instance.createDraft(legacy).copyWith(
+          eventAccessMode: draft.eventAccessMode,
+          budgetMinor: draft.budgetMinor,
+          expectedGuests: draft.expectedGuests,
+          categorySlug: draft.categorySlug,
+          venueName: draft.venueName,
+          venueAddress: draft.venueAddress,
+          venueLatitude: draft.venueLatitude,
+          venueLongitude: draft.venueLongitude,
+          googlePlaceId: draft.googlePlaceId,
+        );
+    bumpOrganizerRevision(ref);
+    return event;
+  }
+}
 
 Future<OrganizerEvent> createEventFromDraft(WidgetRef ref, EventWizardDraft draft) async {
   try {

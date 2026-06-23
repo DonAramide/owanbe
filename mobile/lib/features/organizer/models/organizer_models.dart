@@ -1,4 +1,5 @@
 import '../../public/models/public_models.dart';
+import '../../../shared/models/event_access_mode.dart';
 
 enum OrganizerEventStatus { draft, published, live, completed, cancelled }
 
@@ -43,6 +44,15 @@ class OrganizerEvent {
     this.refundRequests = 0,
     this.createdAt,
     this.publishedAt,
+    this.eventAccessMode = EventAccessMode.privateInvitation,
+    this.budgetMinor = 0,
+    this.expectedGuests = 0,
+    this.categorySlug = '',
+    this.venueName = '',
+    this.venueAddress = '',
+    this.venueLatitude,
+    this.venueLongitude,
+    this.googlePlaceId,
   });
 
   final String id;
@@ -69,6 +79,19 @@ class OrganizerEvent {
   final int refundRequests;
   final DateTime? createdAt;
   final DateTime? publishedAt;
+  final EventAccessMode eventAccessMode;
+  final int budgetMinor;
+  final int expectedGuests;
+  final String categorySlug;
+  final String venueName;
+  final String venueAddress;
+  final double? venueLatitude;
+  final double? venueLongitude;
+  final String? googlePlaceId;
+
+  bool get isPrivateCelebration => eventAccessMode == EventAccessMode.privateInvitation;
+
+  bool get isPublicTicketed => eventAccessMode == EventAccessMode.publicTicketed;
 
   bool get isUpcoming =>
       status == OrganizerEventStatus.published || status == OrganizerEventStatus.draft;
@@ -107,6 +130,15 @@ class OrganizerEvent {
     int? pageViews,
     int? refundRequests,
     DateTime? publishedAt,
+    EventAccessMode? eventAccessMode,
+    int? budgetMinor,
+    int? expectedGuests,
+    String? categorySlug,
+    String? venueName,
+    String? venueAddress,
+    double? venueLatitude,
+    double? venueLongitude,
+    String? googlePlaceId,
   }) {
     return OrganizerEvent(
       id: id,
@@ -133,6 +165,15 @@ class OrganizerEvent {
       refundRequests: refundRequests ?? this.refundRequests,
       createdAt: createdAt,
       publishedAt: publishedAt ?? this.publishedAt,
+      eventAccessMode: eventAccessMode ?? this.eventAccessMode,
+      budgetMinor: budgetMinor ?? this.budgetMinor,
+      expectedGuests: expectedGuests ?? this.expectedGuests,
+      categorySlug: categorySlug ?? this.categorySlug,
+      venueName: venueName ?? this.venueName,
+      venueAddress: venueAddress ?? this.venueAddress,
+      venueLatitude: venueLatitude ?? this.venueLatitude,
+      venueLongitude: venueLongitude ?? this.venueLongitude,
+      googlePlaceId: googlePlaceId ?? this.googlePlaceId,
     );
   }
 
@@ -368,6 +409,49 @@ class EventAnalyticsSnapshot {
   final List<double> salesTrend;
   final Map<String, int> tierBreakdown;
   final Map<TicketTierType, int> tierTypeBreakdown;
+}
+
+class EventWizardV2Draft {
+  EventWizardV2Draft({
+    this.categorySlug = '',
+    this.categoryLabel = '',
+    this.eventAccessMode = EventAccessMode.privateInvitation,
+    this.title = '',
+    this.tagline = '',
+    this.city = '',
+    this.venueName = '',
+    this.venueAddress = '',
+    this.venueLatitude,
+    this.venueLongitude,
+    this.googlePlaceId,
+    this.budgetMinor = 0,
+    this.expectedGuests = 150,
+    this.tags = const [],
+    this.budgetAllocation = const [],
+    DateTime? startsAt,
+    DateTime? endsAt,
+    this.ticketTiers = const [],
+  })  : startsAt = startsAt ?? DateTime.now().add(const Duration(days: 60)),
+        endsAt = endsAt ?? DateTime.now().add(const Duration(days: 60, hours: 6));
+
+  final String categorySlug;
+  final String categoryLabel;
+  final EventAccessMode eventAccessMode;
+  final String title;
+  final String tagline;
+  final String city;
+  final String venueName;
+  final String venueAddress;
+  final double? venueLatitude;
+  final double? venueLongitude;
+  final String? googlePlaceId;
+  final int budgetMinor;
+  final int expectedGuests;
+  final List<String> tags;
+  final List<Map<String, dynamic>> budgetAllocation;
+  final DateTime startsAt;
+  final DateTime endsAt;
+  final List<OrganizerTicketTier> ticketTiers;
 }
 
 class EventWizardDraft {

@@ -86,6 +86,36 @@ class OperationsStore {
     return updated;
   }
 
+  OpsGuest addGuest(
+    String eventId, {
+    required String name,
+    required String email,
+    String tierName = 'General Admission',
+    GuestTier tier = GuestTier.general,
+  }) {
+    final state = _state(eventId);
+    final id = 'att_${DateTime.now().millisecondsSinceEpoch}';
+    final ticketId = 'tkt_${DateTime.now().millisecondsSinceEpoch}';
+    final guest = OpsGuest(
+      id: id,
+      name: name,
+      email: email,
+      ticketId: ticketId,
+      tierName: tierName,
+      tier: tier,
+    );
+    state.guests.add(guest);
+    state._syncOrganizerAddAttendee(eventId, guest);
+    return guest;
+  }
+
+  List<OpsGuest> importGuests(
+    String eventId,
+    List<({String name, String email})> contacts,
+  ) {
+    return contacts.map((c) => addGuest(eventId, name: c.name, email: c.email)).toList();
+  }
+
   OpsIncident logIncident({
     required String eventId,
     required String title,
@@ -243,6 +273,28 @@ class _EventOpsState {
           return a.copyWith(checkedIn: true);
         }).toList();
         return e.copyWith(attendees: attendees);
+      });
+    } catch (_) {}
+  }
+
+  void _syncOrganizerAddAttendee(String eventId, OpsGuest guest) {
+    try {
+      OrganizerEventStore.instance.update(eventId, (e) {
+        if (e.attendees.any((a) => a.id == guest.id || a.ticketId == guest.ticketId)) {
+          return e;
+        }
+        return e.copyWith(
+          attendees: [
+            ...e.attendees,
+            OrganizerAttendee(
+              id: guest.id,
+              name: guest.name,
+              email: guest.email,
+              tierName: guest.tierName,
+              ticketId: guest.ticketId,
+            ),
+          ],
+        );
       });
     } catch (_) {}
   }

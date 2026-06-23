@@ -254,7 +254,6 @@ class _KpiGrid extends StatelessWidget {
         FinanceAttentionLevel.info => EosKpiAttention.info,
         FinanceAttentionLevel.none => EosKpiAttention.none,
       };
-  }
 }
 
 class _ErrorCard extends StatelessWidget {

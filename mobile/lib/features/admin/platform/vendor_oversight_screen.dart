@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/money.dart';
 import '../../../eos/eos.dart';
+import '../widgets/admin_async_body.dart';
+import '../widgets/admin_error_states.dart';
+import '../widgets/admin_page_layout.dart';
 import 'admin_platform_providers.dart';
 
 class VendorOversightScreen extends ConsumerWidget {
@@ -16,10 +19,10 @@ class VendorOversightScreen extends ConsumerWidget {
     final selected = ref.watch(selectedAdminVendorIdProvider);
     final detail = selected == null ? null : ref.watch(adminVendorDetailProvider(selected));
 
-    return EosPageScaffold(
-      title: 'Vendor oversight',
+    return AdminPageLayout(
+      title: 'Vendors',
       subtitle: 'Approve, suspend, and review vendor participation',
-      floatingHeader: EosSearchField(
+      header: EosSearchField(
         hint: 'Search vendors…',
         onChanged: (v) => ref.read(adminVendorSearchProvider.notifier).state = v,
       ),
@@ -28,8 +31,10 @@ class VendorOversightScreen extends ConsumerWidget {
         children: [
           Expanded(
             flex: 2,
-            child: list.when(
-              data: (items) => EosDataTable(
+            child: AdminAsyncBody(
+              value: list,
+              onRetry: () => ref.invalidate(adminVendorsProvider(query)),
+              builder: (items) => EosDataTable(
                 columns: const [
                   DataColumn(label: Text('Vendor')),
                   DataColumn(label: Text('Status')),
@@ -50,18 +55,18 @@ class VendorOversightScreen extends ConsumerWidget {
                   );
                 }).toList(),
               ),
-              loading: () => const CircularProgressIndicator(),
-              error: (e, _) => Text('$e'),
+              isEmpty: (items) => items.isEmpty,
+              empty: const EmptyStateCard(title: 'No vendors found'),
             ),
           ),
           SizedBox(width: context.eos.spacing.lg),
           Expanded(
             child: selected == null
-                ? EosSurfaceCard(child: Text('Select a vendor', style: context.eosText.bodyMedium))
-                : detail!.when(
-                    data: (d) => _VendorDetailPanel(vendorId: selected, data: d),
-                    loading: () => const CircularProgressIndicator(),
-                    error: (e, _) => Text('$e'),
+                ? const EmptyStateCard(title: 'Select a vendor')
+                : AdminAsyncBody(
+                    value: detail!,
+                    onRetry: () => ref.invalidate(adminVendorDetailProvider(selected)),
+                    builder: (d) => _VendorDetailPanel(vendorId: selected, data: d),
                   ),
           ),
         ],
@@ -81,6 +86,7 @@ class _VendorDetailPanel extends ConsumerWidget {
     final parts = (data['participations'] as List<dynamic>? ?? []).length;
     final wallet = data['wallet'] as Map<String, dynamic>? ?? {};
     return EosSurfaceCard(
+      elevated: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

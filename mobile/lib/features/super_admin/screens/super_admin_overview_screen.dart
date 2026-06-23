@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/utils/money.dart';
-import '../../eos/eos.dart';
-import 'super_admin_providers.dart';
+import '../../../core/utils/money.dart';
+import '../../../eos/eos.dart';
+import '../super_admin_providers.dart';
 
 class SuperAdminOverviewScreen extends ConsumerWidget {
   const SuperAdminOverviewScreen({super.key});

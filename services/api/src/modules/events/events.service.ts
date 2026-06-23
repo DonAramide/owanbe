@@ -27,6 +27,14 @@ export interface EventView {
   organizerId: string;
   createdAt: string;
   publishedAt: string | null;
+  eventAccessMode: string;
+  budgetMinor: string | null;
+  expectedGuests: number | null;
+  venueName: string;
+  venueAddress: string;
+  venueLatitude: number | null;
+  venueLongitude: number | null;
+  googlePlaceId: string | null;
   ticketTiers?: Array<Record<string, unknown>>;
   ticketsSold?: number;
   revenueMinor?: string;
@@ -76,6 +84,14 @@ export class EventsService {
       organizerId: row.organizer_id,
       createdAt: row.created_at.toISOString(),
       publishedAt: m.publishedAt ? String(m.publishedAt) : null,
+      eventAccessMode: String(m.eventAccessMode ?? 'PRIVATE_INVITATION'),
+      budgetMinor: m.budgetMinor != null ? String(m.budgetMinor) : null,
+      expectedGuests: m.expectedGuests != null ? Number(m.expectedGuests) : null,
+      venueName: String(m.venueName ?? m.venue ?? ''),
+      venueAddress: String(m.venueAddress ?? ''),
+      venueLatitude: m.venueLatitude != null ? Number(m.venueLatitude) : null,
+      venueLongitude: m.venueLongitude != null ? Number(m.venueLongitude) : null,
+      googlePlaceId: m.googlePlaceId != null ? String(m.googlePlaceId) : null,
     };
   }
 
@@ -184,8 +200,9 @@ export class EventsService {
       [actor.tenantId, organizerId, title, slug, startsAt, endsAt, externalRef, JSON.stringify(metadata)],
     );
     const eventId = rows[0]!.id;
+    const accessMode = String(metadata.eventAccessMode ?? 'PRIVATE_INVITATION');
     const tiers = body.ticketTiers as Array<Record<string, unknown>> | undefined;
-    if (tiers?.length) {
+    if (accessMode === 'PUBLIC_TICKETED' && tiers?.length) {
       for (const t of tiers) {
         await this.insertTier(actor.tenantId, eventId, t);
       }
@@ -245,6 +262,9 @@ export class EventsService {
     const keys = [
       'tagline', 'description', 'city', 'venue', 'category', 'venueType', 'tags',
       'bannerLabel', 'mediaLabels', 'coverGradientStart', 'coverGradientEnd', 'isFeatured',
+      'eventAccessMode', 'budgetMinor', 'expectedGuests', 'categorySlug',
+      'venueName', 'venueAddress', 'venueLatitude', 'venueLongitude', 'googlePlaceId',
+      'budgetAllocation', 'selectedTemplateSlug',
     ];
     for (const k of keys) {
       if (body[k] !== undefined) out[k] = body[k];

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../auth/auth_notifier.dart';
 import '../../eos/eos.dart';
@@ -31,7 +32,10 @@ class SuperAdminHomeScreen extends ConsumerWidget {
       onSelected: (v) => ref.read(superAdminShellTabProvider.notifier).select(v),
       topBar: _TopBar(
         displayName: session?.displayName ?? 'Super Admin',
-        onSignOut: () => ref.read(authSessionProvider.notifier).signOut(),
+        onSignOut: () async {
+          await ref.read(authSessionProvider.notifier).signOut();
+          if (context.mounted) context.go('/');
+        },
       ),
       body: _bodyForTab(tab),
     );

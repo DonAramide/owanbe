@@ -9,19 +9,28 @@ import '../features/auth/login_screen.dart';
 import '../features/public/screens/attendee_dashboard_screen.dart';
 import '../features/public/screens/checkout_screen.dart';
 import '../features/public/screens/discover_screen.dart';
-import '../features/public/screens/event_detail_screen.dart';
+import '../portals/customer/screens/customer_event_ai_planner_screen.dart';
+import '../portals/customer/screens/customer_event_budget_screen.dart';
+import '../portals/customer/screens/marketplace_screen.dart';
+import '../portals/customer/screens/marketplace_vendor_detail_screen.dart';
+import '../portals/customer/screens/customer_event_guests_screen.dart';
+import '../portals/customer/screens/customer_event_invitations_screen.dart';
+import '../portals/customer/screens/customer_event_route_screen.dart';
+import '../portals/customer/screens/customer_event_day_screen.dart';
 import '../features/public/screens/landing_screen.dart';
 import '../features/public/screens/payment_success_screen.dart';
 import '../features/public/screens/public_auth_screen.dart';
 import '../features/public/screens/ticket_select_screen.dart';
-import '../features/organizer/screens/event_create_wizard_screen.dart';
+import '../features/organizer/wizard_v2/event_create_wizard_v2_screen.dart';
 import '../features/organizer/screens/event_workspace_screen.dart';
 import '../features/organizer/screens/organizer_home_screen.dart';
 import '../features/vendor/vendor_home_screen.dart';
+import '../portals/customer/router/customer_routes.dart';
+import '../portals/customer/router/customer_shell_route.dart';
 import 'router_notifier.dart';
 
 String _homePath(UserRole role) => switch (role) {
-      UserRole.client => '/attendee',
+      UserRole.client => '/home',
       UserRole.organizer => '/organizer',
       UserRole.vendor => '/vendor',
       UserRole.admin => '/admin',
@@ -30,14 +39,24 @@ String _homePath(UserRole role) => switch (role) {
 
 bool _isPublicPath(String loc) {
   if (loc == '/') return true;
-  if (loc.startsWith('/events')) return true;
+  if (loc == '/events') return true;
+  if (loc == '/vendors' || loc.startsWith('/vendors/')) return true;
   if (loc == '/checkout') return true;
   if (loc.startsWith('/auth')) return true;
   if (loc == '/payment/success') return true;
+
+  if (CustomerRoutes.isShellPath(loc)) return false;
+
+  final match = RegExp(r'^/events/([^/]+)').firstMatch(loc);
+  if (match != null) {
+    final segment = match.group(1)!;
+    if (segment != 'mine' && segment != 'create') return true;
+  }
   return false;
 }
 
 bool _pathAllowedForRole(String location, UserRole role) {
+  if (CustomerRoutes.isShellPath(location)) return role == UserRole.client;
   if (location.startsWith('/attendee')) return role == UserRole.client;
   if (location.startsWith('/organizer')) return role == UserRole.organizer;
   if (location.startsWith('/vendor')) return role == UserRole.vendor;
@@ -57,6 +76,16 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final session = ref.read(authSessionProvider);
       final loc = state.matchedLocation;
+
+      if (CustomerRoutes.isShellPath(loc)) {
+        if (session == null) {
+          return '/auth?return=${Uri.encodeComponent(loc)}';
+        }
+        if (session.role != UserRole.client) {
+          return _homePath(session.role);
+        }
+        return null;
+      }
 
       // Public marketplace — always accessible (except attendee dashboard).
       if (_isPublicPath(loc)) {
@@ -101,11 +130,28 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         return null;
       }
 
-      if (session == null) {
-        if (loc.startsWith('/super-admin')) {
+      if (loc.startsWith('/admin')) {
+        if (session == null) {
+          return '/staff/login?role=admin';
+        }
+        if (session.role != UserRole.admin) {
+          return _homePath(session.role);
+        }
+        return null;
+      }
+
+      if (loc.startsWith('/super-admin')) {
+        if (session == null) {
           return '/staff/login?role=superAdmin';
         }
-        return '/';
+        if (session.role != UserRole.superAdmin) {
+          return _homePath(session.role);
+        }
+        return null;
+      }
+
+      if (session == null) {
+        return null;
       }
 
       if (loc == '/login' || loc == '/client') {
@@ -119,15 +165,72 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      customerShellRoute(),
       GoRoute(path: '/', builder: (context, state) => const LandingScreen()),
-      GoRoute(path: '/events', builder: (context, state) => const DiscoverScreen()),
       GoRoute(
-        path: '/events/:id',
-        builder: (context, state) => EventDetailScreen(eventId: state.pathParameters['id']!),
+        path: '/events',
+        builder: (context, state) => const DiscoverScreen(),
         routes: [
           GoRoute(
-            path: 'tickets',
-            builder: (context, state) => TicketSelectScreen(eventId: state.pathParameters['id']!),
+            path: ':id',
+            redirect: (context, state) {
+              final id = state.pathParameters['id'];
+              if (id == 'mine') return CustomerRoutes.myEvents;
+              if (id == 'create') return CustomerRoutes.createEvent;
+              return null;
+            },
+            builder: (context, state) {
+              final id = state.pathParameters['id']!;
+              return CustomerEventRouteScreen(eventId: id);
+            },
+            routes: [
+              GoRoute(
+                path: 'tickets',
+                builder: (context, state) => TicketSelectScreen(eventId: state.pathParameters['id']!),
+              ),
+              GoRoute(
+                path: 'budget',
+                builder: (context, state) => CustomerEventBudgetScreen(
+                  eventId: state.pathParameters['id']!,
+                ),
+              ),
+              GoRoute(
+                path: 'guests',
+                builder: (context, state) => CustomerEventGuestsScreen(
+                  eventId: state.pathParameters['id']!,
+                ),
+              ),
+              GoRoute(
+                path: 'invitations',
+                builder: (context, state) => CustomerEventInvitationsScreen(
+                  eventId: state.pathParameters['id']!,
+                ),
+              ),
+              GoRoute(
+                path: 'ai-planner',
+                builder: (context, state) => CustomerEventAiPlannerScreen(
+                  eventId: state.pathParameters['id']!,
+                ),
+              ),
+              GoRoute(
+                path: 'day',
+                builder: (context, state) => CustomerEventDayScreen(
+                  eventId: state.pathParameters['id']!,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/vendors',
+        builder: (context, state) => const MarketplaceScreen(),
+        routes: [
+          GoRoute(
+            path: ':vendorId',
+            builder: (context, state) => MarketplaceVendorDetailScreen(
+              vendorId: state.pathParameters['vendorId']!,
+            ),
           ),
         ],
       ),
@@ -135,7 +238,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/auth',
         builder: (context, state) => PublicAuthScreen(
-          returnPath: state.uri.queryParameters['return'] ?? '/attendee',
+          returnPath: state.uri.queryParameters['return'] ?? '/home',
         ),
       ),
       GoRoute(path: '/payment/success', builder: (context, state) => const PaymentSuccessScreen()),
@@ -157,7 +260,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: 'events/new',
-            builder: (context, state) => const EventCreateWizardScreen(),
+            builder: (context, state) => const EventCreateWizardV2Screen(),
           ),
           GoRoute(
             path: 'events/:eventId',
@@ -168,7 +271,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
-      GoRoute(path: '/client', redirect: (context, state) => '/attendee'),
+      GoRoute(path: '/client', redirect: (context, state) => '/home'),
     ],
   );
 });

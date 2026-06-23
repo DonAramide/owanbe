@@ -8,6 +8,7 @@ import '../../operations/providers/operations_providers.dart';
 import '../data/organizer_persistence.dart';
 import '../models/organizer_models.dart';
 import '../providers/organizer_providers.dart';
+import '../finance/organizer_finance_api.dart';
 import '../finance/organizer_finance_providers.dart';
 import '../widgets/organizer_shared.dart';
 import '../../../auth/auth_notifier.dart';

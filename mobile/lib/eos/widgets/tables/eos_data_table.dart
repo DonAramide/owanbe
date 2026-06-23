@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../extensions/eos_context.dart';
 import '../../tokens/eos_radius.dart';
+import '../cards/eos_surface_card.dart';
 
 class EosDataTable extends StatelessWidget {
   const EosDataTable({

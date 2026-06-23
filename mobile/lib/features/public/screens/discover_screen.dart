@@ -12,7 +12,7 @@ class DiscoverScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final events = ref.watch(publicEventsProvider);
-    final categories = ref.watch(eventCategoriesProvider);
+    final categoriesAsync = ref.watch(eventCategoriesProvider);
     final selected = ref.watch(discoverCategoryProvider);
 
     return buildPublicShell(
@@ -36,21 +36,25 @@ class DiscoverScreen extends ConsumerWidget {
               onChanged: (v) => ref.read(discoverQueryProvider.notifier).state = v,
             ),
             SizedBox(height: context.eos.spacing.md),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: categories.map((cat) {
-                  final active = selected == cat;
-                  return Padding(
-                    padding: EdgeInsets.only(right: context.eos.spacing.xs),
-                    child: FilterChip(
-                      label: Text(cat == 'all' ? 'All' : cat),
-                      selected: active,
-                      onSelected: (_) => ref.read(discoverCategoryProvider.notifier).state = cat,
-                    ),
-                  );
-                }).toList(),
+            categoriesAsync.when(
+              data: (categories) => SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: categories.map((cat) {
+                    final active = selected == cat;
+                    return Padding(
+                      padding: EdgeInsets.only(right: context.eos.spacing.xs),
+                      child: FilterChip(
+                        label: Text(cat == 'all' ? 'All' : cat),
+                        selected: active,
+                        onSelected: (_) => ref.read(discoverCategoryProvider.notifier).state = cat,
+                      ),
+                    );
+                  }).toList(),
+                ),
               ),
+              loading: () => const SizedBox(height: 40, child: Center(child: CircularProgressIndicator())),
+              error: (_, __) => const SizedBox.shrink(),
             ),
             SizedBox(height: context.eos.spacing.lg),
             events.when(

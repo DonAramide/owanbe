@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/money.dart';
 import '../../../eos/eos.dart';
 import 'admin_platform_providers.dart';
+import '../widgets/admin_async_body.dart';
+import '../widgets/admin_error_states.dart';
+import '../widgets/admin_page_layout.dart';
 
 class OrganizerOversightScreen extends ConsumerWidget {
   const OrganizerOversightScreen({super.key});
@@ -16,10 +19,10 @@ class OrganizerOversightScreen extends ConsumerWidget {
     final selected = ref.watch(selectedAdminOrganizerIdProvider);
     final detail = selected == null ? null : ref.watch(adminOrganizerDetailProvider(selected));
 
-    return EosPageScaffold(
-      title: 'Organizer oversight',
+    return AdminPageLayout(
+      title: 'Tenants',
       subtitle: 'Search, review, and manage organizer accounts',
-      floatingHeader: EosSearchField(
+      header: EosSearchField(
         hint: 'Search organizers…',
         onChanged: (v) => ref.read(adminOrganizerSearchProvider.notifier).state = v,
       ),
@@ -28,8 +31,10 @@ class OrganizerOversightScreen extends ConsumerWidget {
         children: [
           Expanded(
             flex: 2,
-            child: list.when(
-              data: (items) => EosDataTable(
+            child: AdminAsyncBody(
+              value: list,
+              onRetry: () => ref.invalidate(adminOrganizersProvider(query)),
+              builder: (items) => EosDataTable(
                 columns: const [
                   DataColumn(label: Text('Organizer')),
                   DataColumn(label: Text('Status')),
@@ -50,18 +55,18 @@ class OrganizerOversightScreen extends ConsumerWidget {
                   );
                 }).toList(),
               ),
-              loading: () => const CircularProgressIndicator(),
-              error: (e, _) => Text('$e'),
+              isEmpty: (items) => items.isEmpty,
+              empty: const EmptyStateCard(title: 'No organizers found'),
             ),
           ),
           SizedBox(width: context.eos.spacing.lg),
           Expanded(
             child: selected == null
-                ? EosSurfaceCard(child: Text('Select an organizer', style: context.eosText.bodyMedium))
-                : detail!.when(
-                    data: (d) => _OrganizerDetailPanel(organizerId: selected, data: d),
-                    loading: () => const CircularProgressIndicator(),
-                    error: (e, _) => Text('$e'),
+                ? const EmptyStateCard(title: 'Select a tenant', message: 'Choose an organizer from the list to view details.')
+                : AdminAsyncBody(
+                    value: detail!,
+                    onRetry: () => ref.invalidate(adminOrganizerDetailProvider(selected)),
+                    builder: (d) => _OrganizerDetailPanel(organizerId: selected, data: d),
                   ),
           ),
         ],

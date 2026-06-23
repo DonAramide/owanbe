@@ -158,7 +158,6 @@ class VendorDashboardScreen extends ConsumerWidget {
             ),
           ),
         ],
-      ),
     );
   }
 
