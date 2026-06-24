@@ -28,7 +28,7 @@ class HomeVendorCarousel extends StatelessWidget {
     }
 
     return SizedBox(
-      height: 200,
+      height: 300,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: vendors.length,

@@ -21,7 +21,6 @@ class CustomerEventDayScreen extends ConsumerWidget {
     final snapshot = ref.watch(customerEventCommandProvider(eventId));
 
     return Scaffold(
-      backgroundColor: EosColors.canvas,
       appBar: AppBar(
         backgroundColor: EosColors.plum,
         foregroundColor: Colors.white,
@@ -77,6 +76,17 @@ class CustomerEventDayScreen extends ConsumerWidget {
                       subtitle: Text('${data.vendorCompleted} completed setup'),
                     ),
                   ],
+                ),
+              ),
+              SizedBox(height: context.eos.spacing.lg),
+              const SectionHeader(title: 'Celebration wall', subtitle: 'Large-screen display for the venue'),
+              EosSurfaceCard(
+                onTap: () => context.push(CustomerRoutes.eventWallDisplay(eventId)),
+                child: ListTile(
+                  leading: const Icon(Icons.tv_outlined, color: EosColors.plum),
+                  title: const Text('Open wall display'),
+                  subtitle: const Text('Show guest messages on a projector or TV'),
+                  trailing: const Icon(Icons.chevron_right),
                 ),
               ),
               SizedBox(height: context.eos.spacing.lg),

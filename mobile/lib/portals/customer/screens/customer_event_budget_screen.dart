@@ -24,9 +24,7 @@ class CustomerEventBudgetScreen extends ConsumerWidget {
     final budget = ref.watch(customerEventBudgetProvider(eventId));
 
     return Scaffold(
-      backgroundColor: EosColors.canvas,
       appBar: AppBar(
-        backgroundColor: EosColors.canvas,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),

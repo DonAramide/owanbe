@@ -14,7 +14,7 @@ class CustomerProfileScreen extends ConsumerWidget {
     final session = ref.watch(authSessionProvider);
 
     return ColoredBox(
-      color: EosColors.canvas,
+      color: context.eosCanvas,
       child: ListView(
         padding: EdgeInsets.all(context.eos.spacing.lg),
         children: [
@@ -22,6 +22,8 @@ class CustomerProfileScreen extends ConsumerWidget {
             title: 'More',
             subtitle: 'Account, tickets, and settings.',
           ),
+          const EosThemeModeSection(),
+          SizedBox(height: context.eos.spacing.md),
           EosSurfaceCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

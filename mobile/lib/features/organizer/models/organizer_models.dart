@@ -53,6 +53,7 @@ class OrganizerEvent {
     this.venueLatitude,
     this.venueLongitude,
     this.googlePlaceId,
+    this.celebrantImageUrl,
   });
 
   final String id;
@@ -88,6 +89,7 @@ class OrganizerEvent {
   final double? venueLatitude;
   final double? venueLongitude;
   final String? googlePlaceId;
+  final String? celebrantImageUrl;
 
   bool get isPrivateCelebration => eventAccessMode == EventAccessMode.privateInvitation;
 
@@ -139,6 +141,7 @@ class OrganizerEvent {
     double? venueLatitude,
     double? venueLongitude,
     String? googlePlaceId,
+    String? celebrantImageUrl,
   }) {
     return OrganizerEvent(
       id: id,
@@ -174,6 +177,7 @@ class OrganizerEvent {
       venueLatitude: venueLatitude ?? this.venueLatitude,
       venueLongitude: venueLongitude ?? this.venueLongitude,
       googlePlaceId: googlePlaceId ?? this.googlePlaceId,
+      celebrantImageUrl: celebrantImageUrl ?? this.celebrantImageUrl,
     );
   }
 
@@ -282,6 +286,8 @@ class OrganizerVendorSlot {
     required this.category,
     required this.tier,
     required this.status,
+    this.catalogVendorId,
+    this.city,
     this.contactEmail,
     this.revenueMinor = 0,
     this.ordersCount = 0,
@@ -292,6 +298,8 @@ class OrganizerVendorSlot {
   final String category;
   final String tier;
   final VendorSlotStatus status;
+  final String? catalogVendorId;
+  final String? city;
   final String? contactEmail;
   final int revenueMinor;
   final int ordersCount;
@@ -303,6 +311,8 @@ class OrganizerVendorSlot {
         category: category,
         tier: tier,
         status: status ?? this.status,
+        catalogVendorId: catalogVendorId,
+        city: city,
         contactEmail: contactEmail,
         revenueMinor: revenueMinor ?? this.revenueMinor,
         ordersCount: ordersCount ?? this.ordersCount,
@@ -431,6 +441,12 @@ class EventWizardV2Draft {
     DateTime? startsAt,
     DateTime? endsAt,
     this.ticketTiers = const [],
+    this.preferredVendorIds = const [],
+    this.requiredServices = const [],
+    this.venueDeferred = false,
+    this.state = '',
+    this.lga = '',
+    this.celebrantImageUrl,
   })  : startsAt = startsAt ?? DateTime.now().add(const Duration(days: 60)),
         endsAt = endsAt ?? DateTime.now().add(const Duration(days: 60, hours: 6));
 
@@ -452,6 +468,12 @@ class EventWizardV2Draft {
   final DateTime startsAt;
   final DateTime endsAt;
   final List<OrganizerTicketTier> ticketTiers;
+  final List<String> preferredVendorIds;
+  final List<String> requiredServices;
+  final bool venueDeferred;
+  final String state;
+  final String lga;
+  final String? celebrantImageUrl;
 }
 
 class EventWizardDraft {

@@ -19,6 +19,8 @@ class CommandActivityFeed extends StatelessWidget {
         FeedEventType.orderPlaced => Icons.receipt_long_outlined,
         FeedEventType.refundRequested => Icons.undo_outlined,
         FeedEventType.incidentLogged => Icons.warning_amber_outlined,
+        FeedEventType.wallPost => Icons.forum_outlined,
+        FeedEventType.wallPinned => Icons.push_pin_outlined,
       };
 
   @override

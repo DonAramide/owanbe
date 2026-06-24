@@ -2,23 +2,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/persistence_providers.dart';
 import '../../../core/api/vendors_api.dart';
+import '../models/marketplace_filters.dart';
 import '../models/marketplace_models.dart';
 import 'customer_home_providers.dart';
 
-final marketplaceSearchProvider = StateProvider.autoDispose<String>((ref) => '');
-
-final marketplaceCategoryProvider = StateProvider.autoDispose<String>((ref) => 'All');
-
 final marketplaceVendorsProvider = FutureProvider.autoDispose<List<MarketplaceVendor>>((ref) async {
   ref.watch(customerHomeRefreshProvider);
-  final query = ref.watch(marketplaceSearchProvider);
-  final category = ref.watch(marketplaceCategoryProvider);
 
   List<MarketplaceVendor> vendors;
   try {
-    vendors = await ref.read(vendorsApiProvider).listCatalog(
-          query: query.isEmpty ? null : query,
-        );
+    vendors = await ref.read(vendorsApiProvider).listCatalog();
     if (vendors.isEmpty) {
       vendors = await ref.read(customerMarketplaceVendorsProvider.future);
     }
@@ -26,25 +19,47 @@ final marketplaceVendorsProvider = FutureProvider.autoDispose<List<MarketplaceVe
     vendors = await ref.read(customerMarketplaceVendorsProvider.future);
   }
 
-  vendors = enrichCatalog(vendors);
+  return enrichCatalog(vendors);
+});
 
-  if (category != 'All') {
-    vendors = vendors.where((v) => v.categoryLabel == category).toList();
-  }
+final marketplaceFilteredVendorsProvider = Provider.autoDispose<List<MarketplaceVendor>>((ref) {
+  final filters = ref.watch(marketplaceFiltersProvider);
+  final vendors = ref.watch(marketplaceVendorsProvider);
+  return vendors.when(
+    data: (list) => applyMarketplaceFilters(list, filters),
+    loading: () => const [],
+    error: (_, _) => const [],
+  );
+});
 
-  if (query.isNotEmpty) {
-    final q = query.toLowerCase();
-    vendors = vendors
-        .where(
-          (v) =>
-              v.businessName.toLowerCase().contains(q) ||
-              v.categoryLabel.toLowerCase().contains(q) ||
-              (v.city ?? '').toLowerCase().contains(q),
-        )
-        .toList();
-  }
+final marketplaceCategoriesProvider = Provider.autoDispose<List<String>>((ref) {
+  final vendors = ref.watch(marketplaceVendorsProvider);
+  return vendors.when(
+    data: marketplaceServiceCategories,
+    loading: () => const [
+      'All',
+      'Rentals & Event Equipment',
+      'Chairs',
+      'Tents',
+      'Aso-Ebi',
+      'Traditional Wear',
+      'Wedding Gowns',
+      'Venue',
+      'Catering',
+      'Decorator',
+      'Photographer',
+    ],
+    error: (_, _) => const ['All'],
+  );
+});
 
-  return vendors;
+final marketplaceCitiesProvider = Provider.autoDispose<List<String>>((ref) {
+  final vendors = ref.watch(marketplaceVendorsProvider);
+  return vendors.when(
+    data: marketplaceCities,
+    loading: () => const ['Lagos', 'Abuja'],
+    error: (_, _) => const [],
+  );
 });
 
 final marketplaceVendorProfileProvider =
@@ -71,16 +86,4 @@ final marketplaceVendorProfileProvider =
   }
 
   return buildVendorProfile(vendor);
-});
-
-final marketplaceCategoriesProvider = Provider.autoDispose<List<String>>((ref) {
-  final vendors = ref.watch(marketplaceVendorsProvider);
-  return vendors.when(
-    data: (list) {
-      final cats = list.map((v) => v.categoryLabel).toSet().toList()..sort();
-      return ['All', ...cats];
-    },
-    loading: () => const ['All', 'Catering', 'DJ & Music', 'Photography', 'Décor'],
-    error: (_, _) => const ['All'],
-  );
 });

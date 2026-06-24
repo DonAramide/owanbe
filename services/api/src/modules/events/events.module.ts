@@ -8,6 +8,10 @@ import { EventTiersService } from './event-tiers.service';
 import { OrganizerPortalService } from './organizer-portal.service';
 import { VendorParticipationService } from './vendor-participation.service';
 import { EventOperationsService } from './event-operations.service';
+import { EventWebsiteService } from './event-website.service';
+import { CelebrationWallService } from './celebration-wall.service';
+import { AsoEbiService } from './aso-ebi.service';
+import { SeatingService } from './seating.service';
 
 @Module({
   imports: [DatabaseModule, CommerceModule],
@@ -19,6 +23,10 @@ import { EventOperationsService } from './event-operations.service';
     OrganizerPortalService,
     VendorParticipationService,
     EventOperationsService,
+    EventWebsiteService,
+    CelebrationWallService,
+    AsoEbiService,
+    SeatingService,
   ],
   exports: [EventsService, EventsAccessService],
 })

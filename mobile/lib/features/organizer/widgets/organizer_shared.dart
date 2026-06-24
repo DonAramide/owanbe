@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/money.dart';
 import '../../../eos/eos.dart';
+import '../../../portals/customer/router/customer_routes.dart';
 import '../models/organizer_models.dart';
 import '../providers/organizer_providers.dart';
 
@@ -118,7 +119,10 @@ class OrganizerVendorManageCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(vendor.businessName, style: context.eosText.titleSmall),
-                    Text(vendor.category, style: context.eosText.bodySmall),
+                    Text(
+                      [vendor.category, if (vendor.city != null) vendor.city].join(' · '),
+                      style: context.eosText.bodySmall,
+                    ),
                   ],
                 ),
               ),
@@ -173,6 +177,16 @@ class OrganizerQuickActions extends ConsumerWidget {
           },
           icon: const Icon(Icons.confirmation_number_outlined, size: 18),
           label: const Text('Create ticket tier'),
+        ),
+        OutlinedButton.icon(
+          onPressed: () => context.push('/attendee'),
+          icon: const Icon(Icons.confirmation_number_outlined, size: 18),
+          label: const Text('Events I\'m attending'),
+        ),
+        OutlinedButton.icon(
+          onPressed: () => context.push(CustomerRoutes.vendors),
+          icon: const Icon(Icons.storefront_outlined, size: 18),
+          label: const Text('Browse marketplace'),
         ),
         OutlinedButton.icon(
           onPressed: () {

@@ -68,6 +68,9 @@ export class EventConfigService {
   }
 
   async listVendorCategories(tenantId: string) {
+    await this.seedVendorCategoriesIfEmpty(tenantId);
+    await this.ensureFashionAttireCategories(tenantId);
+    await this.ensureRentalCategories(tenantId);
     const { rows } = await this.pool.query<ConfigRow>(
       `SELECT id, slug, label, icon_key, sort_order
        FROM tenant_vendor_categories
@@ -208,6 +211,102 @@ export class EventConfigService {
       await this.pool.query(
         `INSERT INTO tenant_event_tags (tenant_id, slug, label, sort_order) VALUES ($1, $2, $3, $4)`,
         [tenantId, tags[i], tags[i]!.replace('-', ' '), i],
+      );
+    }
+  }
+
+  async seedVendorCategoriesIfEmpty(tenantId: string) {
+    const { rows } = await this.pool.query(
+      `SELECT 1 FROM tenant_vendor_categories WHERE tenant_id = $1 LIMIT 1`,
+      [tenantId],
+    );
+    if (rows.length) return;
+    const categories: Array<[string, string, string]> = [
+      ['venue', 'Venue', 'apartment'],
+      ['decorator', 'Decorator', 'brush'],
+      ['photographer', 'Photographer', 'photo_camera'],
+      ['dj', 'DJ', 'music_note'],
+      ['mc', 'MC', 'mic'],
+      ['security', 'Security', 'shield'],
+      ['cake', 'Cake', 'cake'],
+      ['drinks', 'Drinks', 'local_bar'],
+      ['ushers', 'Ushers', 'groups'],
+      ['live-band', 'Live Band', 'nightlife'],
+      ['catering', 'Catering', 'restaurant'],
+      ['florist', 'Florist', 'local_florist'],
+      ['av-production', 'AV Production', 'videocam'],
+      ['fashion-attire', 'Fashion & Attire', 'checkroom'],
+      ['aso-ebi', 'Aso-Ebi', 'style'],
+      ['traditional-wear', 'Traditional Wear', 'dry_cleaning'],
+      ['wedding-gowns', 'Wedding Gowns', 'favorite_border'],
+      ['bridesmaid-dresses', 'Bridesmaid Dresses', 'groups'],
+      ['suits', 'Suits', 'business_center'],
+      ['gele', 'Gele', 'face_retouching_natural'],
+      ['fashion-accessories', 'Accessories', 'diamond'],
+      ['tailoring', 'Tailoring', 'content_cut'],
+    ];
+    for (let i = 0; i < categories.length; i++) {
+      const [slug, label, icon] = categories[i]!;
+      await this.pool.query(
+        `INSERT INTO tenant_vendor_categories (tenant_id, slug, label, icon_key, sort_order)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [tenantId, slug, label, icon, i],
+      );
+    }
+  }
+
+  async ensureFashionAttireCategories(tenantId: string) {
+    const categories: Array<[string, string, string, number]> = [
+      ['fashion-attire', 'Fashion & Attire', 'checkroom', 50],
+      ['aso-ebi', 'Aso-Ebi', 'style', 51],
+      ['traditional-wear', 'Traditional Wear', 'dry_cleaning', 52],
+      ['wedding-gowns', 'Wedding Gowns', 'favorite_border', 53],
+      ['bridesmaid-dresses', 'Bridesmaid Dresses', 'groups', 54],
+      ['suits', 'Suits', 'business_center', 55],
+      ['gele', 'Gele', 'face_retouching_natural', 56],
+      ['fashion-accessories', 'Accessories', 'diamond', 57],
+      ['tailoring', 'Tailoring', 'content_cut', 58],
+    ];
+    for (const [slug, label, icon, sortOrder] of categories) {
+      await this.pool.query(
+        `INSERT INTO tenant_vendor_categories (tenant_id, slug, label, icon_key, sort_order, is_active)
+         VALUES ($1, $2, $3, $4, $5, true)
+         ON CONFLICT (tenant_id, slug) DO UPDATE
+           SET label = EXCLUDED.label, icon_key = EXCLUDED.icon_key, is_active = true`,
+        [tenantId, slug, label, icon, sortOrder],
+      );
+    }
+  }
+
+  async ensureRentalCategories(tenantId: string) {
+    const categories: Array<[string, string, string, number]> = [
+      ['rentals-equipment', 'Rentals & Event Equipment', 'inventory_2', 60],
+      ['chairs', 'Chairs', 'chair', 61],
+      ['tables', 'Tables', 'table_restaurant', 62],
+      ['canopies', 'Canopies', 'umbrella', 63],
+      ['tents', 'Tents', 'cabin', 64],
+      ['stage-platforms', 'Stage Platforms', 'foundation', 65],
+      ['led-screens', 'LED Screens', 'tv', 66],
+      ['sound-systems', 'Sound Systems', 'speaker', 67],
+      ['lighting-systems', 'Lighting Systems', 'lightbulb', 68],
+      ['generators', 'Generators', 'bolt', 69],
+      ['mobile-toilets', 'Mobile Toilets', 'wc', 70],
+      ['cooling-fans', 'Cooling Fans', 'mode_fan', 71],
+      ['air-conditioners', 'Air Conditioners', 'ac_unit', 72],
+      ['dance-floors', 'Dance Floors', 'grid_on', 73],
+      ['cutlery-crockery', 'Cutlery & Crockery', 'restaurant', 74],
+      ['thrones-vip-seating', 'Thrones & VIP Seating', 'king_bed', 75],
+      ['backdrops', 'Backdrops', 'wallpaper', 76],
+      ['photo-booths', 'Photo Booths', 'photo_camera', 77],
+      ['event-equipment', 'Event Equipment', 'construction', 78],
+    ];
+    for (const [slug, label, icon, sortOrder] of categories) {
+      await this.pool.query(
+        `INSERT INTO tenant_vendor_categories (tenant_id, slug, label, icon_key, sort_order, is_active)
+         VALUES ($1, $2, $3, $4, $5, true)
+         ON CONFLICT (tenant_id, slug) DO UPDATE
+           SET label = EXCLUDED.label, icon_key = EXCLUDED.icon_key, is_active = true`,
+        [tenantId, slug, label, icon, sortOrder],
       );
     }
   }

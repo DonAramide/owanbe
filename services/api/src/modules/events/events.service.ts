@@ -264,7 +264,8 @@ export class EventsService {
       'bannerLabel', 'mediaLabels', 'coverGradientStart', 'coverGradientEnd', 'isFeatured',
       'eventAccessMode', 'budgetMinor', 'expectedGuests', 'categorySlug',
       'venueName', 'venueAddress', 'venueLatitude', 'venueLongitude', 'googlePlaceId',
-      'budgetAllocation', 'selectedTemplateSlug',
+      'budgetAllocation', 'selectedTemplateSlug', 'preferredVendorIds',
+      'requiredServices', 'venueDeferred', 'state', 'lga', 'celebrantImageUrl',
     ];
     for (const k of keys) {
       if (body[k] !== undefined) out[k] = body[k];

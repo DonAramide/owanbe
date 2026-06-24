@@ -25,7 +25,11 @@ class BudgetPieChart extends StatelessWidget {
                     child: Text('No spend data yet', style: context.eosText.bodyMedium),
                   )
                 : CustomPaint(
-                    painter: _BudgetPiePainter(slices: slices, total: total),
+                    painter: _BudgetPiePainter(
+                      slices: slices,
+                      total: total,
+                      holeColor: context.eosCanvas,
+                    ),
                     child: const SizedBox.expand(),
                   ),
           ),
@@ -59,10 +63,15 @@ class BudgetPieChart extends StatelessWidget {
 }
 
 class _BudgetPiePainter extends CustomPainter {
-  _BudgetPiePainter({required this.slices, required this.total});
+  _BudgetPiePainter({
+    required this.slices,
+    required this.total,
+    required this.holeColor,
+  });
 
   final List<BudgetPieSlice> slices;
   final int total;
+  final Color holeColor;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -87,7 +96,7 @@ class _BudgetPiePainter extends CustomPainter {
     }
 
     final holePaint = Paint()
-      ..color = EosColors.canvas
+      ..color = holeColor
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, holeRadius, holePaint);
   }

@@ -38,7 +38,7 @@ class CustomerGuestsScreen extends ConsumerWidget {
 
     return ColoredBox(
 
-      color: EosColors.canvas,
+      color: context.eosCanvas,
 
       child: events.when(
 
@@ -128,7 +128,7 @@ class CustomerGuestsScreen extends ConsumerWidget {
 
               SizedBox(
 
-                height: 200,
+                height: 216,
 
                 child: ListView.separated(
 

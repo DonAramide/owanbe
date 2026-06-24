@@ -197,10 +197,25 @@ class PlannerMissingRequirement {
   final String? actionRoute;
 }
 
+class PlannerRentalRecommendation {
+  const PlannerRentalRecommendation({
+    required this.categorySlug,
+    required this.categoryLabel,
+    required this.suggestedQuantity,
+    required this.rationale,
+  });
+
+  final String categorySlug;
+  final String categoryLabel;
+  final int suggestedQuantity;
+  final String rationale;
+}
+
 class AiPlannerPlan {
   const AiPlannerPlan({
     required this.summary,
     required this.recommendedVendors,
+    required this.rentalRecommendations,
     required this.budgetSlices,
     required this.checklist,
     required this.timeline,
@@ -210,6 +225,7 @@ class AiPlannerPlan {
 
   final String summary;
   final List<PlannerRecommendedVendor> recommendedVendors;
+  final List<PlannerRentalRecommendation> rentalRecommendations;
   final List<PlannerBudgetSlice> budgetSlices;
   final List<PlannerChecklistItem> checklist;
   final List<PlannerTimelineItem> timeline;
@@ -257,6 +273,7 @@ AiPlannerPlan buildAiPlannerPlan({
   final checklist = _buildChecklist(inputs, event);
   final timeline = _buildTimeline(event.startsAt);
   final missing = _detectMissingRequirements(inputs, event, budget);
+  final rentals = _recommendRentals(inputs, event);
   final doneCount = checklist.where((c) => c.done).length;
   final readiness = checklist.isEmpty ? 0 : ((doneCount / checklist.length) * 100).round();
 
@@ -265,6 +282,7 @@ AiPlannerPlan buildAiPlannerPlan({
   return AiPlannerPlan(
     summary: summary,
     recommendedVendors: recommended,
+    rentalRecommendations: rentals,
     budgetSlices: slices,
     checklist: checklist,
     timeline: timeline,
@@ -515,4 +533,88 @@ List<PlannerMissingRequirement> _detectMissingRequirements(
   }
 
   return items;
+}
+
+List<PlannerRentalRecommendation> _recommendRentals(AiPlannerInputs inputs, OrganizerEvent event) {
+  final guests = inputs.guestCount > 0 ? inputs.guestCount : 150;
+  final venue = '${event.venue} ${event.city} ${inputs.location}'.toLowerCase();
+  final outdoor = venue.contains('outdoor') || venue.contains('garden') || venue.contains('beach');
+  final tables = (guests / 8).ceil();
+  final chairs = guests;
+  final toilets = (guests / 75).ceil().clamp(2, 20);
+  final canopies = outdoor ? (guests / 50).ceil().clamp(1, 12) : 0;
+
+  final base = <PlannerRentalRecommendation>[
+    PlannerRentalRecommendation(
+      categorySlug: 'chairs',
+      categoryLabel: 'Chairs',
+      suggestedQuantity: chairs,
+      rationale: 'Seat every guest comfortably ($guests attendees).',
+    ),
+    PlannerRentalRecommendation(
+      categorySlug: 'tables',
+      categoryLabel: 'Tables',
+      suggestedQuantity: tables,
+      rationale: 'Approx. 8 guests per table for dining and reception.',
+    ),
+    PlannerRentalRecommendation(
+      categorySlug: 'sound-systems',
+      categoryLabel: 'Sound Systems',
+      suggestedQuantity: 1,
+      rationale: 'PA for announcements, music, and MC at $guests-guest scale.',
+    ),
+    PlannerRentalRecommendation(
+      categorySlug: 'lighting-systems',
+      categoryLabel: 'Lighting Systems',
+      suggestedQuantity: outdoor ? 2 : 1,
+      rationale: outdoor ? 'Outdoor events need accent and safety lighting.' : 'Hall uplighting for atmosphere.',
+    ),
+  ];
+
+  if (outdoor) {
+    base.addAll([
+      PlannerRentalRecommendation(
+        categorySlug: 'canopies',
+        categoryLabel: 'Canopies',
+        suggestedQuantity: canopies,
+        rationale: 'Shade and rain cover for outdoor celebration space.',
+      ),
+      PlannerRentalRecommendation(
+        categorySlug: 'generators',
+        categoryLabel: 'Generators',
+        suggestedQuantity: 1,
+        rationale: 'Backup power for sound, lighting, and catering outdoors.',
+      ),
+      PlannerRentalRecommendation(
+        categorySlug: 'mobile-toilets',
+        categoryLabel: 'Mobile Toilets',
+        suggestedQuantity: toilets,
+        rationale: 'Sanitation capacity for large outdoor guest count.',
+      ),
+    ]);
+  }
+
+  if (inputs.eventType == AiPlannerEventType.wedding) {
+    base.add(
+      const PlannerRentalRecommendation(
+        categorySlug: 'thrones-vip-seating',
+        categoryLabel: 'Thrones & VIP Seating',
+        suggestedQuantity: 2,
+        rationale: 'Reserved seating for the couple and parents.',
+      ),
+    );
+  }
+
+  if (guests >= 200) {
+    base.add(
+      PlannerRentalRecommendation(
+        categorySlug: 'dance-floors',
+        categoryLabel: 'Dance Floors',
+        suggestedQuantity: 1,
+        rationale: 'Dedicated dance floor for large owambe crowd.',
+      ),
+    );
+  }
+
+  return base;
 }

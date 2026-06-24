@@ -4,36 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../auth/auth_notifier.dart';
 import '../../../eos/eos.dart';
-import '../models/public_models.dart';
-import '../providers/public_providers.dart';
-import '../providers/ticket_commerce_providers.dart';
-
-final attendeeTicketsSyncProvider = FutureProvider.autoDispose<List<AttendeeTicket>>((ref) async {
-  final session = ref.watch(authSessionProvider);
-  if (session == null) return ref.watch(attendeeTicketsProvider);
-
-  try {
-    final api = ref.read(ticketCommerceApiProvider);
-    final remote = await api.fetchMyEntitlements(session);
-    return remote
-        .map(
-          (e) => AttendeeTicket(
-            id: e.id,
-            eventId: e.eventId,
-            eventTitle: e.eventTitle,
-            tierName: e.tierName,
-            venue: e.eventVenue,
-            city: e.eventCity,
-            startsAt: e.startsAt,
-            qrPayload: e.qrPayload,
-            purchasedAt: e.issuedAt ?? DateTime.now(),
-          ),
-        )
-        .toList();
-  } catch (_) {
-    return ref.watch(attendeeTicketsProvider);
-  }
-});
+import '../../../theme/theme_mode_provider.dart';
+import '../models/attendee_event_models.dart';
+import '../providers/attendee_events_provider.dart';
+import '../widgets/attendee_event_card.dart';
 
 class AttendeeDashboardScreen extends ConsumerStatefulWidget {
   const AttendeeDashboardScreen({super.key});
@@ -46,19 +20,25 @@ class _AttendeeDashboardScreenState extends ConsumerState<AttendeeDashboardScree
   int _tab = 1;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => seedDemoAttendeeTicketsIfEmpty(ref));
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final ticketsAsync = ref.watch(attendeeTicketsSyncProvider);
     final session = ref.watch(authSessionProvider);
-    final localTickets = ref.watch(attendeeTicketsProvider);
-    final tickets = ticketsAsync.hasValue ? ticketsAsync.requireValue : localTickets;
 
     return EosAppShell(
       brandLabel: 'Owanbe',
-      brandSubtitle: 'My events',
+      brandSubtitle: 'My celebrations',
       destinations: EosRoleDestinations.attendee,
       selectedIndex: _tab,
       onSelected: (i) {
-        if (i == 0) context.go('/events');
+        if (i == 0) {
+          context.go('/events');
+          return;
+        }
         setState(() => _tab = i);
       },
       topBar: _AttendeeTopBar(
@@ -68,22 +48,23 @@ class _AttendeeDashboardScreenState extends ConsumerState<AttendeeDashboardScree
           context.go('/');
         },
       ),
-      body: _tab == 1
-          ? _TicketsTab(tickets: tickets)
-          : _tab == 2
-              ? _ScheduleTab(tickets: tickets)
-              : _TicketsTab(tickets: tickets),
+      body: switch (_tab) {
+        2 => const _ScheduleTab(),
+        _ => const _AttendeeHomeTab(),
+      },
     );
   }
 }
 
-class _AttendeeTopBar extends StatelessWidget {
+class _AttendeeTopBar extends ConsumerWidget {
   const _AttendeeTopBar({required this.name, required this.onSignOut});
+
   final String name;
   final VoidCallback onSignOut;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = ref.watch(themeModeProvider) == ThemeMode.dark;
     return Material(
       color: context.eosColors.surface,
       child: DecoratedBox(
@@ -92,8 +73,13 @@ class _AttendeeTopBar extends StatelessWidget {
           padding: EdgeInsets.symmetric(horizontal: context.eos.spacing.lg, vertical: context.eos.spacing.sm),
           child: Row(
             children: [
-              Text('My tickets', style: context.eosText.titleLarge),
+              Text('My events', style: context.eosText.titleLarge),
               const Spacer(),
+              IconButton(
+                tooltip: isDark ? 'Light mode' : 'Dark mode',
+                onPressed: () => ref.read(themeModeProvider.notifier).toggleLightDark(),
+                icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+              ),
               EosAttendeeChip(name: name, compact: true),
               IconButton(onPressed: onSignOut, icon: const Icon(Icons.logout)),
             ],
@@ -104,102 +90,144 @@ class _AttendeeTopBar extends StatelessWidget {
   }
 }
 
-class _TicketsTab extends StatelessWidget {
-  const _TicketsTab({required this.tickets});
-  final List<AttendeeTicket> tickets;
+class _AttendeeHomeTab extends ConsumerWidget {
+  const _AttendeeHomeTab();
 
   @override
-  Widget build(BuildContext context) {
-    if (tickets.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: EdgeInsets.all(context.eos.spacing.xl),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.confirmation_number_outlined, size: 48, color: context.eosColors.outline),
-              SizedBox(height: context.eos.spacing.md),
-              Text('No tickets yet', style: context.eosText.titleMedium),
-              SizedBox(height: context.eos.spacing.sm),
-              FilledButton(onPressed: () => context.go('/events'), child: const Text('Discover events')),
-            ],
-          ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final eventsAsync = ref.watch(attendeeEventsProvider);
+    final statsAsync = ref.watch(attendeeDashboardStatsProvider);
+
+    return EosPageScaffold(
+      title: 'My celebrations',
+      subtitle: 'Events you are attending — full details, tickets, and check-in',
+      actions: [
+        OutlinedButton.icon(
+          onPressed: () => context.go('/events'),
+          icon: const Icon(Icons.explore_outlined, size: 18),
+          label: const Text('Discover events'),
         ),
-      );
-    }
-
-    return ListView.builder(
-      padding: EdgeInsets.all(context.eos.spacing.lg),
-      itemCount: tickets.length,
-      itemBuilder: (context, i) => Padding(
-        padding: EdgeInsets.only(bottom: context.eos.spacing.md),
-        child: _TicketCard(ticket: tickets[i]),
-      ),
-    );
-  }
-}
-
-class _TicketCard extends StatelessWidget {
-  const _TicketCard({required this.ticket});
-  final AttendeeTicket ticket;
-
-  @override
-  Widget build(BuildContext context) {
-    return EosSurfaceCard(
-      elevated: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(ticket.eventTitle, style: context.eosText.titleMedium),
-          SizedBox(height: context.eos.spacing.xxs),
-          Text('${ticket.tierName} · ${ticket.city}', style: context.eosText.bodySmall),
-          SizedBox(height: context.eos.spacing.sm),
-          EosCheckinStatus(checkedIn: ticket.checkedIn),
-          SizedBox(height: context.eos.spacing.md),
-          Center(
-            child: Container(
-              padding: EdgeInsets.all(context.eos.spacing.md),
-              decoration: BoxDecoration(
-                color: context.eosColors.surfaceContainerHighest,
-                borderRadius: context.eos.radius.card,
-              ),
+      ],
+      body: eventsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => EosSurfaceCard(child: Text('$e')),
+        data: (events) {
+          if (events.isEmpty) {
+            return EosSurfaceCard(
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(Icons.qr_code_2, size: 120, color: context.eosColors.primary),
-                  SizedBox(height: context.eos.spacing.xs),
-                  Text(ticket.qrPayload, style: context.eosText.labelSmall),
+                  Text('No events yet', style: context.eosText.titleMedium),
+                  SizedBox(height: context.eos.spacing.sm),
+                  Text(
+                    'When you buy a ticket or accept an invitation, the full event details will appear here — just like the organizer dashboard, but for celebrations you attend.',
+                    style: context.eosText.bodyMedium,
+                  ),
+                  SizedBox(height: context.eos.spacing.md),
+                  FilledButton(
+                    onPressed: () => context.go('/events'),
+                    child: const Text('Discover events'),
+                  ),
                 ],
               ),
-            ),
-          ),
-        ],
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              statsAsync.when(
+                data: (stats) => Wrap(
+                  spacing: context.eos.spacing.md,
+                  runSpacing: context.eos.spacing.md,
+                  children: [
+                    _kpi(context, 'My tickets', '${stats.totalTickets}', Icons.confirmation_number_outlined),
+                    _kpi(context, 'Upcoming', '${stats.upcoming}', Icons.event_outlined),
+                    _kpi(context, 'Checked in', '${stats.checkedIn}', Icons.how_to_reg_outlined),
+                  ],
+                ),
+                loading: () => const SizedBox.shrink(),
+                error: (_, _) => const SizedBox.shrink(),
+              ),
+              SizedBox(height: context.eos.spacing.lg),
+              if (statsAsync.valueOrNull?.nextEvent != null) ...[
+                EosAttentionBanner(
+                  headline: 'Next up',
+                  message:
+                      '${statsAsync.valueOrNull!.nextEvent!.eventTitle} · ${formatAttendeeDateRange(statsAsync.valueOrNull!.nextEvent!.startsAt, statsAsync.valueOrNull!.nextEvent!.endsAt)}',
+                  severity: 'INFO',
+                  actionLabel: 'View details',
+                  onAction: () => context.push('/events/${statsAsync.valueOrNull!.nextEvent!.eventId}'),
+                ),
+                SizedBox(height: context.eos.spacing.lg),
+              ],
+              EosSection(
+                title: 'Events you are attending',
+                subtitle: 'Tap a card for the full event page, venue map, and your QR ticket',
+                child: Column(
+                  children: [
+                    for (final event in events) ...[
+                      AttendeeEventCard(
+                        event: event,
+                        onOpenDetail: () => context.push('/events/${event.eventId}'),
+                        onShowQr: () => showAttendeeQrSheet(context, event),
+                      ),
+                      SizedBox(height: context.eos.spacing.md),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
+    );
+  }
+
+  Widget _kpi(BuildContext context, String title, String value, IconData icon) {
+    return SizedBox(
+      width: 220,
+      child: EosKpiCard(title: title, value: value, icon: icon),
     );
   }
 }
 
-class _ScheduleTab extends StatelessWidget {
-  const _ScheduleTab({required this.tickets});
-  final List<AttendeeTicket> tickets;
+class _ScheduleTab extends ConsumerWidget {
+  const _ScheduleTab();
 
   @override
-  Widget build(BuildContext context) {
-    final sorted = [...tickets]..sort((a, b) => a.startsAt.compareTo(b.startsAt));
-    return ListView(
-      padding: EdgeInsets.all(context.eos.spacing.lg),
-      children: [
-        for (final t in sorted)
-          EosFeedItem(
-            title: t.eventTitle,
-            subtitle: '${t.venue} · ${t.tierName}',
-            timestamp: _fmt(t.startsAt),
-            leading: Icon(Icons.event, color: context.eosColors.primary),
-          ),
-      ],
-    );
-  }
+  Widget build(BuildContext context, WidgetRef ref) {
+    final eventsAsync = ref.watch(attendeeEventsProvider);
 
-  String _fmt(DateTime dt) {
-    return '${dt.month}/${dt.day}/${dt.year}';
+    return EosPageScaffold(
+      title: 'Schedule',
+      subtitle: 'Your celebration timeline',
+      body: eventsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Text('$e'),
+        data: (events) {
+          if (events.isEmpty) {
+            return EosSurfaceCard(
+              child: Text('No upcoming events on your schedule.', style: context.eosText.bodyMedium),
+            );
+          }
+          return Column(
+            children: [
+              for (final event in events)
+                Padding(
+                  padding: EdgeInsets.only(bottom: context.eos.spacing.sm),
+                  child: EosFeedItem(
+                    title: event.eventTitle,
+                    subtitle: '${event.venue}, ${event.city} · ${event.tierName}',
+                    timestamp: formatAttendeeDateRange(event.startsAt, event.endsAt),
+                    leading: Icon(Icons.celebration_outlined, color: context.eosColors.primary),
+                    onTap: () => context.push('/events/${event.eventId}'),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
   }
 }

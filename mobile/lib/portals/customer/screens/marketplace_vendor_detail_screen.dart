@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../eos/eos.dart';
+import '../models/marketplace_filters.dart';
+import '../models/marketplace_models.dart';
 import '../providers/marketplace_providers.dart';
 import '../router/customer_routes.dart';
 import '../widgets/empty_state_card.dart';
@@ -39,9 +41,7 @@ class MarketplaceVendorDetailScreen extends ConsumerWidget {
     final profile = ref.watch(marketplaceVendorProfileProvider(vendorId));
 
     return Scaffold(
-      backgroundColor: EosColors.canvas,
       appBar: AppBar(
-        backgroundColor: EosColors.canvas,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -78,38 +78,79 @@ class MarketplaceVendorDetailScreen extends ConsumerWidget {
         ),
         data: (data) {
           final vendor = data.vendor;
+          final guestCount = ref.watch(marketplaceExpectedGuestsProvider);
+          final imageUrl = vendor.imageUrl ?? vendorCoverImageUrl(vendor);
           return ListView(
             padding: EdgeInsets.all(context.eos.spacing.lg),
             children: [
-              Container(
-                height: 180,
-                decoration: BoxDecoration(
-                  borderRadius: EosRadius.card,
-                  gradient: LinearGradient(
-                    colors: [Color(data.coverColorStart), Color(data.coverColorEnd)],
-                  ),
-                ),
-                padding: EdgeInsets.all(context.eos.spacing.lg),
-                alignment: Alignment.bottomLeft,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.end,
+              ClipRRect(
+                borderRadius: EosRadius.card,
+                child: Stack(
                   children: [
-                    if (data.isVerified) ...[
-                      const VerifiedVendorBadge(),
-                      SizedBox(height: context.eos.spacing.sm),
-                    ],
-                    Text(
-                      vendor.businessName,
-                      style: context.eosText.headlineSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
+                    Image.network(
+                      imageUrl,
+                      height: 220,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(
+                        height: 220,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Color(data.coverColorStart), Color(data.coverColorEnd)],
+                          ),
+                        ),
                       ),
                     ),
-                    Text(
-                      '${vendor.categoryLabel}${vendor.city != null ? ' · ${vendor.city}' : ''}',
-                      style: context.eosText.bodyMedium?.copyWith(color: Colors.white.withValues(alpha: 0.9)),
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Colors.transparent, Colors.black.withValues(alpha: 0.65)],
+                          ),
+                        ),
+                      ),
                     ),
+                    Positioned(
+                      left: context.eos.spacing.lg,
+                      right: context.eos.spacing.lg,
+                      bottom: context.eos.spacing.lg,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (data.isVerified) ...[
+                            const VerifiedVendorBadge(),
+                            SizedBox(height: context.eos.spacing.sm),
+                          ],
+                          Text(
+                            vendor.businessName,
+                            style: context.eosText.headlineSmall?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          Text(
+                            '${vendor.categoryLabel}${vendor.city != null ? ' · ${vendor.city}' : ''}',
+                            style: context.eosText.bodyMedium?.copyWith(color: Colors.white.withValues(alpha: 0.9)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (vendorPreviewVideoUrl(vendor) != null)
+                      Positioned(
+                        top: 12,
+                        right: 12,
+                        child: FilledButton.tonalIcon(
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Opening vendor highlight reel…')),
+                            );
+                          },
+                          icon: const Icon(Icons.play_arrow),
+                          label: const Text('Watch reel'),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -127,6 +168,10 @@ class MarketplaceVendorDetailScreen extends ConsumerWidget {
                     Text(data.priceLabel!, style: context.eosText.titleSmall),
                 ],
               ),
+              if (data.pricePerGuestLabel(guestCount).isNotEmpty) ...[
+                SizedBox(height: context.eos.spacing.xs),
+                Text(data.pricePerGuestLabel(guestCount), style: context.eosText.bodySmall),
+              ],
               SizedBox(height: context.eos.spacing.lg),
               const SectionHeader(
                 title: 'Vendor metrics',

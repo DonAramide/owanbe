@@ -25,6 +25,23 @@ class EosSurfaceCard extends StatelessWidget {
     final tokens = context.eos;
     final scheme = context.eosColors;
 
+    final paddedChild = Padding(
+      padding: padding ?? tokens.spacing.card,
+      child: child,
+    );
+
+    final body = accentColor != null
+        ? IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(width: 4, color: accentColor),
+                Expanded(child: paddedChild),
+              ],
+            ),
+          )
+        : paddedChild;
+
     Widget content = Container(
       decoration: BoxDecoration(
         color: scheme.surface,
@@ -34,21 +51,7 @@ class EosSurfaceCard extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: EosRadius.card,
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (accentColor != null)
-                Container(width: 4, color: accentColor),
-              Expanded(
-                child: Padding(
-                  padding: padding ?? tokens.spacing.card,
-                  child: child,
-                ),
-              ),
-            ],
-          ),
-        ),
+        child: body,
       ),
     );
 

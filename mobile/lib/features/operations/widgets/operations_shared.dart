@@ -396,4 +396,6 @@ IconData feedIcon(FeedEventType type) => switch (type) {
       FeedEventType.orderPlaced => Icons.receipt_long_outlined,
       FeedEventType.refundRequested => Icons.undo,
       FeedEventType.incidentLogged => Icons.report_problem_outlined,
+      FeedEventType.wallPost => Icons.forum_outlined,
+      FeedEventType.wallPinned => Icons.push_pin_outlined,
     };

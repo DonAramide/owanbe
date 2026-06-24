@@ -1,4 +1,5 @@
 import '../models/organizer_models.dart';
+import '../../../core/api/vendors_api.dart';
 
 /// In-memory organizer event store — publishes to public marketplace when status is published/live.
 class OrganizerEventStore {
@@ -84,12 +85,23 @@ class OrganizerEventStore {
     }).ticketTiers.firstWhere((t) => t.id == tierId);
   }
 
-  OrganizerVendorSlot inviteVendor(String eventId, {required String businessName, required String category}) {
+  OrganizerVendorSlot inviteVendor(String eventId, {required MarketplaceVendor vendor}) {
+    final event = _events.firstWhere((e) => e.id == eventId);
+    final alreadyInvited = event.vendors.any(
+      (v) =>
+          v.catalogVendorId == vendor.id ||
+          v.businessName.toLowerCase() == vendor.businessName.toLowerCase(),
+    );
+    if (alreadyInvited) {
+      throw StateError('${vendor.businessName} is already on this event');
+    }
     final slot = OrganizerVendorSlot(
-      id: 'v_${DateTime.now().millisecondsSinceEpoch}',
-      businessName: businessName,
-      category: category,
-      tier: 'standard',
+      id: 'v_${vendor.id}',
+      catalogVendorId: vendor.id,
+      businessName: vendor.businessName,
+      category: vendor.categoryLabel,
+      city: vendor.city,
+      tier: vendor.isVerified ? 'verified' : 'standard',
       status: VendorSlotStatus.invited,
     );
     update(eventId, (e) => e.copyWith(vendors: [...e.vendors, slot]));
@@ -258,6 +270,7 @@ class OrganizerEventStore {
         refundRequests: 1,
         publishedAt: DateTime(2026, 3, 1),
         createdAt: DateTime(2026, 2, 15),
+        celebrantImageUrl: 'https://picsum.photos/seed/lagos-owanbe/400/500',
         ticketTiers: [
           OrganizerTicketTier(
             id: 'tier_ga',
@@ -356,6 +369,7 @@ class OrganizerEventStore {
         vendors: const [],
         attendees: const [],
         createdAt: DateTime(2026, 4, 1),
+        celebrantImageUrl: 'https://picsum.photos/seed/abuja-wedding/400/500',
       ),
     ];
   }

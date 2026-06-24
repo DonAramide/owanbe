@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../eos/tokens/eos_colors.dart';
 import 'admin_nav.dart';
 import 'admin_sidebar.dart';
 import 'admin_top_bar.dart';
@@ -28,7 +27,6 @@ class AdminShell extends StatelessWidget {
     if (useSidebar) {
       final extended = width >= 1200;
       return Scaffold(
-        backgroundColor: EosColors.canvas,
         body: Row(
           children: [
             AdminSidebar(
@@ -50,7 +48,6 @@ class AdminShell extends StatelessWidget {
     }
 
     return Scaffold(
-      backgroundColor: EosColors.canvas,
       body: Column(
         children: [
           topBar,

@@ -1,8 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/api/event_config_api.dart';
+import '../../../core/utils/currency_input.dart';
 import '../../../core/utils/money.dart';
 import '../../../eos/eos.dart';
 import '../../../shared/models/event_access_mode.dart';
@@ -11,9 +15,11 @@ import '../models/organizer_models.dart';
 import '../providers/event_config_providers.dart';
 import '../providers/organizer_providers.dart';
 import 'widgets/celebration_type_cards.dart';
+import 'widgets/wizard_celebrant_image_picker.dart';
+import 'widgets/wizard_service_picker.dart';
 import 'widgets/wizard_venue_budget_widgets.dart';
 
-const _stepLabels = ['Celebrate', 'Details', 'Venue', 'Budget', 'Vendors'];
+const _stepLabels = ['Celebrate', 'Details', 'Venue', 'Budget', 'Services'];
 
 /// Celebration-first event creation wizard (OWANBE EVENT CREATION V2).
 class EventCreateWizardV2Screen extends ConsumerStatefulWidget {
@@ -32,13 +38,23 @@ class _EventCreateWizardV2ScreenState extends ConsumerState<EventCreateWizardV2S
   final _address = TextEditingController();
   final _city = TextEditingController(text: 'Lagos');
   final _guests = TextEditingController(text: '150');
-  final _budget = TextEditingController(text: '5000000');
+  final _budget = TextEditingController(text: '5,000,000');
   DateTime _starts = DateTime.now().add(const Duration(days: 60));
   int _venueMethod = 0;
   double? _lat;
   double? _lng;
   String? _placeId;
   bool _saving = false;
+  bool _venueDeferred = false;
+  String _state = 'Lagos';
+  String _lga = 'Eti-Osa';
+  String? _selectedCenterId;
+  final Set<String> _requiredServices = {};
+  Uint8List? _celebrantImageBytes;
+  List<WizardBudgetSlice> _budgetSlices = [];
+  bool _budgetSlicesCustomized = false;
+  int _lastAutoBudgetMinor = 0;
+  String _lastAutoCategorySlug = '';
 
   @override
   void dispose() {
@@ -54,10 +70,12 @@ class _EventCreateWizardV2ScreenState extends ConsumerState<EventCreateWizardV2S
 
   int get _guestCount => int.tryParse(_guests.text.replaceAll(',', '')) ?? 0;
 
-  int get _budgetMinor {
-    final raw = _budget.text.replaceAll(RegExp(r'[^0-9]'), '');
-    final n = int.tryParse(raw) ?? 0;
-    return n < 10000 ? n * 100 : n;
+  int get _budgetMinor => parseNairaInputToMinor(_budget.text);
+
+  String? get _celebrantImageUrl {
+    if (_celebrantImageBytes == null) return null;
+    final b64 = base64Encode(_celebrantImageBytes!);
+    return 'data:image/jpeg;base64,$b64';
   }
 
   @override
@@ -65,9 +83,8 @@ class _EventCreateWizardV2ScreenState extends ConsumerState<EventCreateWizardV2S
     final categoriesAsync = ref.watch(eventCategoriesProvider);
 
     return Scaffold(
-      backgroundColor: EosColors.canvas,
       appBar: AppBar(
-        backgroundColor: EosColors.canvas,
+        backgroundColor: context.eosCanvas,
         elevation: 0,
         title: Text('Create celebration · ${_stepLabels[_step]}'),
       ),
@@ -116,7 +133,12 @@ class _EventCreateWizardV2ScreenState extends ConsumerState<EventCreateWizardV2S
                 FilterChip(
                   label: Text(_stepLabels[i]),
                   selected: i == _step,
-                  onSelected: i <= _step ? (_) => setState(() => _step = i) : null,
+                  onSelected: i <= _step
+                      ? (_) => setState(() {
+                            if (i == 3) _syncBudgetSlicesIfNeeded();
+                            _step = i;
+                          })
+                      : null,
                 ),
             ],
           ),
@@ -131,7 +153,7 @@ class _EventCreateWizardV2ScreenState extends ConsumerState<EventCreateWizardV2S
       1 => _detailsStep(),
       2 => _venueStep(),
       3 => _budgetStep(),
-      _ => _vendorsStep(),
+      _ => _servicesStep(),
     };
   }
 
@@ -160,6 +182,12 @@ class _EventCreateWizardV2ScreenState extends ConsumerState<EventCreateWizardV2S
       children: [
         Text('Tell us about your celebration', style: context.eosText.headlineSmall),
         SizedBox(height: context.eos.spacing.md),
+        WizardCelebrantImagePicker(
+          imageBytes: _celebrantImageBytes,
+          onPicked: (bytes) => setState(() => _celebrantImageBytes = bytes),
+          onClear: () => setState(() => _celebrantImageBytes = null),
+        ),
+        SizedBox(height: context.eos.spacing.md),
         EosTextField(controller: _title, label: 'Event name', hint: 'Ada & Emeka\'s Wedding'),
         SizedBox(height: context.eos.spacing.md),
         EosTextField(controller: _tagline, label: 'Tagline', hint: 'Love, laughter, and jollof'),
@@ -179,12 +207,24 @@ class _EventCreateWizardV2ScreenState extends ConsumerState<EventCreateWizardV2S
           keyboardType: TextInputType.number,
         ),
         SizedBox(height: context.eos.spacing.md),
-        EosTextField(
+        TextFormField(
           controller: _budget,
-          label: 'Total budget (₦)',
-          hint: '5,000,000',
           keyboardType: TextInputType.number,
+          inputFormatters: [NairaInputFormatter()],
+          decoration: const InputDecoration(
+            labelText: 'Total budget',
+            prefixText: '₦ ',
+            hintText: '5,000,000',
+          ),
         ),
+        if (_budgetMinor > 0)
+          Padding(
+            padding: EdgeInsets.only(top: context.eos.spacing.xs),
+            child: Text(
+              'Budget: ${formatRevenue(_budgetMinor)}',
+              style: context.eosText.bodySmall?.copyWith(color: EosColors.plum),
+            ),
+          ),
       ],
     );
   }
@@ -197,7 +237,19 @@ class _EventCreateWizardV2ScreenState extends ConsumerState<EventCreateWizardV2S
       latitude: _lat,
       longitude: _lng,
       methodIndex: _venueMethod,
-      onMethodChanged: (v) => setState(() => _venueMethod = v),
+      state: _state,
+      lga: _lga,
+      selectedCenterId: _selectedCenterId,
+      venueDeferred: _venueDeferred,
+      budgetMinor: _budgetMinor,
+      onStateChanged: (v) => setState(() => _state = v),
+      onLgaChanged: (v) => setState(() => _lga = v),
+      onCenterSelected: (c) => setState(() => _selectedCenterId = c?.id),
+      onDeferredChanged: (v) => setState(() => _venueDeferred = v),
+      onMethodChanged: (v) => setState(() {
+        _venueMethod = v;
+        _venueDeferred = v == 3;
+      }),
       onPinDropped: () => setState(() {
         _lat = 6.4281;
         _lng = 3.4219;
@@ -209,52 +261,82 @@ class _EventCreateWizardV2ScreenState extends ConsumerState<EventCreateWizardV2S
   }
 
   Widget _budgetStep() {
+    if (_budgetSlices.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _budgetSlices.isNotEmpty) return;
+        setState(_syncBudgetSlicesIfNeeded);
+      });
+      return const Center(child: CircularProgressIndicator());
+    }
     final slug = _category?.slug ?? 'other';
-    final slices = buildWizardBudgetSlices(budgetMinor: _budgetMinor, categorySlug: slug);
     final perGuest = _guestCount > 0 ? _budgetMinor / _guestCount : 0;
-    final health = perGuest >= 80000
+    final health = perGuest >= 8000000
         ? 'Healthy'
-        : perGuest >= 50000
+        : perGuest >= 5000000
             ? 'Tight'
             : 'At risk';
     final warnings = <String>[];
-    if (perGuest < 50000) {
-      warnings.add('Budget per guest is low for a ${ _category?.label ?? 'celebration' } — consider trimming the guest list or increasing budget.');
+    if (perGuest < 5000000) {
+      warnings.add('Budget per guest is low for a ${_category?.label ?? 'celebration'} — consider trimming the guest list or increasing budget.');
     }
-    if (_budgetMinor < 50000000 && slug == 'wedding' && _guestCount > 300) {
+    if (_budgetMinor < 5000000000 && slug == 'wedding' && _guestCount > 300) {
       warnings.add('Large weddings often need ₦50M+ — venue and catering may exceed this plan.');
     }
     return WizardBudgetStep(
-      budgetMinor: _budgetMinor,
+      budgetController: _budget,
+      onBudgetTotalChanged: () => setState(() {
+        if (!_budgetSlicesCustomized) _syncBudgetSlicesIfNeeded();
+      }),
       guestCount: _guestCount,
-      slices: slices,
+      slices: _budgetSlices,
       healthLabel: health,
       warnings: warnings,
+      onSlicesChanged: (slices) => setState(() {
+        _budgetSlices = slices;
+        _budgetSlicesCustomized = true;
+      }),
+      onResetToSuggestion: () => setState(() {
+        _budgetSlices = buildWizardBudgetSliceModels(budgetMinor: _budgetMinor, categorySlug: slug);
+        _budgetSlicesCustomized = false;
+        _lastAutoBudgetMinor = _budgetMinor;
+        _lastAutoCategorySlug = slug;
+      }),
     );
   }
 
-  Widget _vendorsStep() {
+  void _syncBudgetSlicesIfNeeded() {
     final slug = _category?.slug ?? 'other';
-    final categories = vendorCategoriesForSlug(slug);
+    final shouldRegenerate = _budgetSlices.isEmpty ||
+        (!_budgetSlicesCustomized &&
+            (_lastAutoBudgetMinor != _budgetMinor || _lastAutoCategorySlug != slug));
+    if (!shouldRegenerate) return;
+    _budgetSlices = buildWizardBudgetSliceModels(budgetMinor: _budgetMinor, categorySlug: slug);
+    _lastAutoBudgetMinor = _budgetMinor;
+    _lastAutoCategorySlug = slug;
+  }
+
+  Widget _servicesStep() {
+    final slug = _category?.slug ?? 'other';
+    final services = vendorCategoriesForSlug(slug);
     return ListView(
       children: [
-        Text('Recommended vendors', style: context.eosText.headlineSmall),
+        Text('Services you will need', style: context.eosText.headlineSmall),
         SizedBox(height: context.eos.spacing.xs),
         Text(
-          'We will help you book trusted partners for your ${_category?.label ?? 'event'}.',
+          'Select the types of vendors your ${_category?.label ?? 'event'} needs. You will choose and negotiate with specific vendors on your event page.',
           style: context.eosText.bodyMedium?.copyWith(color: EosColors.slate500),
         ),
-        SizedBox(height: context.eos.spacing.md),
-        Wrap(
-          spacing: context.eos.spacing.sm,
-          runSpacing: context.eos.spacing.sm,
-          children: [
-            for (final c in categories)
-              Chip(
-                avatar: const Icon(Icons.storefront_outlined, size: 18),
-                label: Text(c),
-              ),
-          ],
+        SizedBox(height: context.eos.spacing.lg),
+        WizardServicePicker(
+          services: services,
+          selected: _requiredServices,
+          onToggle: (service, on) => setState(() {
+            if (on) {
+              _requiredServices.add(service);
+            } else {
+              _requiredServices.remove(service);
+            }
+          }),
         ),
         SizedBox(height: context.eos.spacing.lg),
         EosSurfaceCard(
@@ -268,18 +350,27 @@ class _EventCreateWizardV2ScreenState extends ConsumerState<EventCreateWizardV2S
                 Text(_tagline.text.trim(), style: context.eosText.bodyMedium),
               SizedBox(height: context.eos.spacing.sm),
               Text(
-                '${_category?.label ?? 'Event'} · ${_city.text.trim()} · ${_guestCount} guests',
+                '${_category?.label ?? 'Event'} · ${_city.text.trim()} · $_guestCount guests',
                 style: context.eosText.bodySmall,
               ),
               Text('Budget ${formatRevenue(_budgetMinor)}', style: context.eosText.bodySmall),
-              if (_venue.text.trim().isNotEmpty)
+              if (_budgetSlices.isNotEmpty)
+                Text(
+                  'Allocation: ${_budgetSlices.map((s) => '${s.label} ${formatRevenue(s.amountMinor)}').join(' · ')}',
+                  style: context.eosText.bodySmall,
+                ),
+              if (_venueDeferred)
+                Text('Venue: Decide later', style: context.eosText.bodySmall)
+              else if (_venue.text.trim().isNotEmpty)
                 Text('Venue: ${_venue.text.trim()}', style: context.eosText.bodySmall),
+              if (_requiredServices.isNotEmpty)
+                Text('Services: ${_requiredServices.join(', ')}', style: context.eosText.bodySmall),
             ],
           ),
         ),
         SizedBox(height: context.eos.spacing.md),
         Text(
-          'Your event will be saved as a draft. Open the command center to invite guests, negotiate with vendors, and publish when ready.',
+          'Saved as a draft — open the command center to invite guests, shop vendors, and publish when ready.',
           style: context.eosText.bodySmall?.copyWith(color: EosColors.slate500),
         ),
       ],
@@ -317,11 +408,39 @@ class _EventCreateWizardV2ScreenState extends ConsumerState<EventCreateWizardV2S
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Add an event name')));
       return;
     }
-    if (_step == 2 && _city.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Add a city')));
-      return;
+    if (_step == 2) {
+      if (_venueDeferred) {
+        setState(() {
+          _syncBudgetSlicesIfNeeded();
+          _step++;
+        });
+        return;
+      }
+      if (_venueMethod == 0 && _selectedCenterId == null && _venue.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select an event centre or choose Later')));
+        return;
+      }
+      if (_venueMethod == 1 && _address.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter your venue address')));
+        return;
+      }
+      if (_city.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Add a city')));
+        return;
+      }
     }
-    setState(() => _step++);
+    setState(() {
+      if (_step == 2) _syncBudgetSlicesIfNeeded();
+      if (_step == 3) _prefillServicesFromBudget();
+      _step++;
+    });
+  }
+
+  void _prefillServicesFromBudget() {
+    final slug = _category?.slug ?? 'other';
+    for (final name in serviceNamesFromBudgetSlices(_budgetSlices, slug)) {
+      _requiredServices.add(name);
+    }
   }
 
   Future<void> _pickDateTime() async {
@@ -339,9 +458,13 @@ class _EventCreateWizardV2ScreenState extends ConsumerState<EventCreateWizardV2S
 
   Future<void> _save() async {
     if (_category == null || _title.text.trim().isEmpty) return;
+    if (_requiredServices.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select at least one service')));
+      return;
+    }
     setState(() => _saving = true);
     final slug = _category!.slug;
-    final slices = buildWizardBudgetSlices(budgetMinor: _budgetMinor, categorySlug: slug);
+    _syncBudgetSlicesIfNeeded();
     final draft = EventWizardV2Draft(
       categorySlug: slug,
       categoryLabel: _category!.label,
@@ -349,18 +472,21 @@ class _EventCreateWizardV2ScreenState extends ConsumerState<EventCreateWizardV2S
       title: _title.text.trim(),
       tagline: _tagline.text.trim(),
       city: _city.text.trim(),
-      venueName: _venue.text.trim(),
-      venueAddress: _address.text.trim(),
-      venueLatitude: _lat,
-      venueLongitude: _lng,
-      googlePlaceId: _placeId,
+      venueName: _venueDeferred ? '' : _venue.text.trim(),
+      venueAddress: _venueDeferred ? '' : _address.text.trim(),
+      venueLatitude: _venueDeferred ? null : _lat,
+      venueLongitude: _venueDeferred ? null : _lng,
+      googlePlaceId: _venueDeferred ? null : _placeId,
       budgetMinor: _budgetMinor,
       expectedGuests: _guestCount,
       startsAt: _starts,
       endsAt: _starts.add(const Duration(hours: 6)),
-      budgetAllocation: slices
-          .map((s) => {'label': s.label, 'amountMinor': s.amountMinor, 'fraction': s.fraction})
-          .toList(),
+      budgetAllocation: _budgetSlices.map((s) => s.toMap(_budgetMinor)).toList(),
+      requiredServices: _requiredServices.toList(),
+      venueDeferred: _venueDeferred,
+      state: _state,
+      lga: _lga,
+      celebrantImageUrl: _celebrantImageUrl,
     );
     try {
       final event = await createEventFromV2Draft(ref, draft);

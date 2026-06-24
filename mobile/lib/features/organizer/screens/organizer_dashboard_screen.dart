@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../eos/eos.dart';
+import '../../../portals/customer/router/customer_routes.dart';
 import '../models/organizer_models.dart';
 import '../providers/organizer_providers.dart';
 import '../widgets/organizer_shared.dart';
@@ -20,6 +21,16 @@ class OrganizerDashboardScreen extends ConsumerWidget {
       title: 'Organizer dashboard',
       subtitle: 'Command center for events, vendors, and attendees',
       actions: [
+        OutlinedButton.icon(
+          onPressed: () => context.push('/attendee'),
+          icon: const Icon(Icons.confirmation_number_outlined, size: 18),
+          label: const Text('Events I\'m attending'),
+        ),
+        OutlinedButton.icon(
+          onPressed: () => context.push(CustomerRoutes.vendors),
+          icon: const Icon(Icons.storefront_outlined, size: 18),
+          label: const Text('Browse marketplace'),
+        ),
         FilledButton.icon(
           onPressed: () => context.push('/organizer/events/new'),
           icon: const Icon(Icons.add, size: 18),
@@ -34,21 +45,61 @@ class OrganizerDashboardScreen extends ConsumerWidget {
               spacing: context.eos.spacing.md,
               runSpacing: context.eos.spacing.md,
               children: [
-                _kpi(context, 'Active events', '${s.activeEvents}', Icons.celebration_outlined,
-                    s.activeEvents > 0 ? EosKpiAttention.info : EosKpiAttention.none),
-                _kpi(context, 'Upcoming', '${s.upcomingEvents}', Icons.event_outlined, EosKpiAttention.none),
-                _kpi(context, 'Tickets sold', '${s.ticketsSold}', Icons.confirmation_number_outlined,
-                    s.ticketsSold > 0 ? EosKpiAttention.info : EosKpiAttention.none),
+                _kpi(
+                  context,
+                  ref,
+                  'Active events',
+                  '${s.activeEvents}',
+                  Icons.celebration_outlined,
+                  s.activeEvents > 0 ? EosKpiAttention.info : EosKpiAttention.none,
+                  tabIndex: 1,
+                ),
+                _kpi(
+                  context,
+                  ref,
+                  'Upcoming',
+                  '${s.upcomingEvents}',
+                  Icons.event_outlined,
+                  EosKpiAttention.none,
+                  tabIndex: 1,
+                ),
+                _kpi(
+                  context,
+                  ref,
+                  'Tickets sold',
+                  '${s.ticketsSold}',
+                  Icons.confirmation_number_outlined,
+                  s.ticketsSold > 0 ? EosKpiAttention.info : EosKpiAttention.none,
+                  tabIndex: 2,
+                ),
                 SizedBox(
                   width: 260,
                   child: EosKpiCard(
                     title: 'Revenue',
                     value: formatRevenue(s.revenueMinor),
                     icon: Icons.payments_outlined,
+                    actionLabel: 'View analytics',
+                    onTap: () => ref.read(organizerShellTabProvider.notifier).select(5),
                   ),
                 ),
-                _kpi(context, 'Vendors', '${s.vendorCount}', Icons.storefront_outlined, EosKpiAttention.none),
-                _kpi(context, 'Attendees', '${s.attendeeCount}', Icons.people_outline, EosKpiAttention.none),
+                _kpi(
+                  context,
+                  ref,
+                  'Vendors',
+                  '${s.vendorCount}',
+                  Icons.storefront_outlined,
+                  EosKpiAttention.none,
+                  tabIndex: 3,
+                ),
+                _kpi(
+                  context,
+                  ref,
+                  'Attendees',
+                  '${s.attendeeCount}',
+                  Icons.people_outline,
+                  EosKpiAttention.none,
+                  tabIndex: 4,
+                ),
               ],
             ),
             loading: () => const CircularProgressIndicator(),
@@ -136,11 +187,13 @@ class OrganizerDashboardScreen extends ConsumerWidget {
 
   Widget _kpi(
     BuildContext context,
+    WidgetRef ref,
     String title,
     String value,
     IconData icon,
     EosKpiAttention attention, {
     String? subtitle,
+    required int tabIndex,
   }) {
     return SizedBox(
       width: 260,
@@ -150,6 +203,8 @@ class OrganizerDashboardScreen extends ConsumerWidget {
         subtitle: subtitle,
         icon: icon,
         attention: attention,
+        actionLabel: 'View details',
+        onTap: () => ref.read(organizerShellTabProvider.notifier).select(tabIndex),
       ),
     );
   }

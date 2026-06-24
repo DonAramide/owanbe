@@ -38,6 +38,7 @@ export 'widgets/forms/eos_text_field.dart';
 export 'widgets/monitoring/eos_feed_item.dart';
 export 'widgets/monitoring/eos_live_indicator.dart';
 export 'widgets/monitoring/eos_status_pulse.dart';
+export 'widgets/settings/eos_theme_mode_section.dart';
 export 'widgets/tables/eos_data_table.dart';
 export 'widgets/vendors/eos_vendor_card.dart';
 export 'widgets/vendors/eos_vendor_tier_chip.dart';

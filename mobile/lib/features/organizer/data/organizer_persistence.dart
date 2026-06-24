@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/persistence_providers.dart';
 import '../../../shared/models/event_access_mode.dart';
 import '../models/organizer_models.dart';
+import '../../../core/api/vendors_api.dart';
 import '../providers/organizer_providers.dart';
 import '../data/organizer_event_store.dart';
 
@@ -26,6 +27,11 @@ Future<OrganizerEvent> createEventFromV2Draft(WidgetRef ref, EventWizardV2Draft 
     'startsAt': draft.startsAt.toIso8601String(),
     'endsAt': draft.endsAt.toIso8601String(),
     'budgetAllocation': draft.budgetAllocation,
+    'requiredServices': draft.requiredServices,
+    'venueDeferred': draft.venueDeferred,
+    if (draft.state.isNotEmpty) 'state': draft.state,
+    if (draft.lga.isNotEmpty) 'lga': draft.lga,
+    if (draft.celebrantImageUrl != null) 'celebrantImageUrl': draft.celebrantImageUrl,
   };
   if (draft.eventAccessMode == EventAccessMode.publicTicketed && draft.ticketTiers.isNotEmpty) {
     body['ticketTiers'] = draft.ticketTiers
@@ -69,6 +75,7 @@ Future<OrganizerEvent> createEventFromV2Draft(WidgetRef ref, EventWizardV2Draft 
           venueLatitude: draft.venueLatitude,
           venueLongitude: draft.venueLongitude,
           googlePlaceId: draft.googlePlaceId,
+          celebrantImageUrl: draft.celebrantImageUrl,
         );
     bumpOrganizerRevision(ref);
     return event;
@@ -211,12 +218,11 @@ Future<void> updateVendorSlot(
 
 Future<void> inviteVendor(
   WidgetRef ref,
-  String eventId, {
-  required String businessName,
-  required String category,
-}) async {
+  String eventId,
+  MarketplaceVendor vendor,
+) async {
   if (!allowMockPersistenceFallback()) return;
-  OrganizerEventStore.instance.inviteVendor(eventId, businessName: businessName, category: category);
+  OrganizerEventStore.instance.inviteVendor(eventId, vendor: vendor);
   bumpOrganizerRevision(ref);
 }
 

@@ -33,12 +33,7 @@ class _RequestVendorSheetState extends ConsumerState<RequestVendorSheet> {
     if (_eventId == null) return;
     setState(() => _submitting = true);
     try {
-      await inviteVendor(
-        ref,
-        _eventId!,
-        businessName: widget.vendor.businessName,
-        category: widget.vendor.categoryLabel,
-      );
+      await inviteVendor(ref, _eventId!, widget.vendor);
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {

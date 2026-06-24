@@ -18,6 +18,23 @@ abstract final class CustomerRoutes {
 
   static String eventDay(String eventId) => '/events/$eventId/day';
 
+  static String eventWebsite(String eventId) => '/events/$eventId/website';
+
+  static String eventWall(String eventId) => '/events/$eventId/wall';
+
+  static String eventWallDisplay(String eventId) => '/events/$eventId/wall/display';
+
+  static String eventAsoEbi(String eventId) => '/events/$eventId/aso-ebi';
+
+  static String eventAttire(String eventId) => '/events/$eventId/attire';
+
+  static String eventRentals(String eventId) => '/events/$eventId/rentals';
+
+  static String eventSeating(String eventId) => '/events/$eventId/seating';
+
+  static String rentalsMarketplace({String? eventId}) =>
+      eventId != null ? '/vendors/rentals?eventId=$eventId' : '/vendors/rentals';
+
   static const vendors = '/vendors';
 
   static String vendorDetail(String vendorId) => '/vendors/$vendorId';

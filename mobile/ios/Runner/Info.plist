@@ -45,5 +45,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSContactsUsageDescription</key>
+	<string>Owanbe uses your contacts to invite guests and share celebration invitations.</string>
 </dict>
 </plist>

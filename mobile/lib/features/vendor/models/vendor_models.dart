@@ -11,6 +11,8 @@ enum VendorCatalogType {
   security('Security'),
   rentals('Rentals'),
   beauty('Beauty'),
+  fashionAttire('Fashion & Attire'),
+  rentalsEquipment('Rentals & Equipment'),
   logistics('Logistics');
 
   const VendorCatalogType(this.label);

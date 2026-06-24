@@ -8,6 +8,7 @@ import '../finance/admin_finance_providers.dart';
 import '../finance/finance_status_chip.dart';
 import '../widgets/admin_page_layout.dart';
 import 'admin_event_config_screen.dart';
+import 'admin_vendor_categories_screen.dart';
 
 class AdminSettingsScreen extends ConsumerWidget {
   const AdminSettingsScreen({super.key});
@@ -22,6 +23,8 @@ class AdminSettingsScreen extends ConsumerWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const EosThemeModeSection(),
+          SizedBox(height: context.eos.spacing.lg),
           EosSurfaceCard(
             elevated: true,
             child: Column(
@@ -78,7 +81,12 @@ class AdminSettingsScreen extends ConsumerWidget {
                     ),
                     OutlinedButton(onPressed: null, child: const Text('Event tags')),
                     OutlinedButton(onPressed: null, child: const Text('Templates')),
-                    OutlinedButton(onPressed: null, child: const Text('Vendor categories')),
+                    OutlinedButton(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const AdminVendorCategoriesScreen()),
+                      ),
+                      child: const Text('Vendor categories'),
+                    ),
                     OutlinedButton(onPressed: null, child: const Text('Budget templates')),
                   ],
                 ),

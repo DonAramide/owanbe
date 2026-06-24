@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../auth/auth_notifier.dart';
 import '../auth/user_role.dart';
+import '../features/super_admin/screens/platform_configuration_screen.dart';
 import '../features/super_admin/super_admin_home_screen.dart';
 import '../features/admin/admin_home_screen.dart';
 import '../features/auth/login_screen.dart';
@@ -17,6 +18,16 @@ import '../portals/customer/screens/customer_event_guests_screen.dart';
 import '../portals/customer/screens/customer_event_invitations_screen.dart';
 import '../portals/customer/screens/customer_event_route_screen.dart';
 import '../portals/customer/screens/customer_event_day_screen.dart';
+import '../portals/customer/screens/customer_event_website_screen.dart';
+import '../portals/customer/screens/customer_event_wall_screen.dart';
+import '../portals/customer/screens/customer_event_wall_display_screen.dart';
+import '../portals/customer/screens/customer_event_attire_screen.dart';
+import '../portals/customer/screens/customer_event_rentals_screen.dart';
+import '../portals/customer/screens/customer_event_seating_screen.dart';
+import '../portals/customer/screens/marketplace_rentals_screen.dart';
+import '../portals/customer/screens/customer_event_aso_ebi_screen.dart';
+import '../features/vendor/screens/vendor_fashion_attire_screen.dart';
+import '../features/vendor/screens/vendor_rentals_screen.dart';
 import '../features/public/screens/landing_screen.dart';
 import '../features/public/screens/payment_success_screen.dart';
 import '../features/public/screens/public_auth_screen.dart';
@@ -57,7 +68,7 @@ bool _isPublicPath(String loc) {
 
 bool _pathAllowedForRole(String location, UserRole role) {
   if (CustomerRoutes.isShellPath(location)) return role == UserRole.client;
-  if (location.startsWith('/attendee')) return role == UserRole.client;
+  if (location.startsWith('/attendee')) return true;
   if (location.startsWith('/organizer')) return role == UserRole.organizer;
   if (location.startsWith('/vendor')) return role == UserRole.vendor;
   if (location.startsWith('/admin')) return role == UserRole.admin;
@@ -96,9 +107,6 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       if (loc == '/attendee') {
         if (session == null) {
           return '/auth?return=/attendee';
-        }
-        if (session.role != UserRole.client) {
-          return _homePath(session.role);
         }
         return null;
       }
@@ -218,6 +226,49 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                   eventId: state.pathParameters['id']!,
                 ),
               ),
+              GoRoute(
+                path: 'website',
+                builder: (context, state) => CustomerEventWebsiteScreen(
+                  eventId: state.pathParameters['id']!,
+                ),
+              ),
+              GoRoute(
+                path: 'wall',
+                builder: (context, state) => CustomerEventWallScreen(
+                  eventId: state.pathParameters['id']!,
+                ),
+                routes: [
+                  GoRoute(
+                    path: 'display',
+                    builder: (context, state) => CustomerEventWallDisplayScreen(
+                      eventId: state.pathParameters['id']!,
+                    ),
+                  ),
+                ],
+              ),
+              GoRoute(
+                path: 'attire',
+                builder: (context, state) => CustomerEventAttireScreen(
+                  eventId: state.pathParameters['id']!,
+                ),
+              ),
+              GoRoute(
+                path: 'rentals',
+                builder: (context, state) => CustomerEventRentalsScreen(
+                  eventId: state.pathParameters['id']!,
+                ),
+              ),
+              GoRoute(
+                path: 'seating',
+                builder: (context, state) => CustomerEventSeatingScreen(
+                  eventId: state.pathParameters['id']!,
+                ),
+              ),
+              GoRoute(
+                path: 'aso-ebi',
+                redirect: (context, state) =>
+                    '/events/${state.pathParameters['id']}/attire',
+              ),
             ],
           ),
         ],
@@ -226,6 +277,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: '/vendors',
         builder: (context, state) => const MarketplaceScreen(),
         routes: [
+          GoRoute(
+            path: 'rentals',
+            builder: (context, state) => MarketplaceRentalsScreen(
+              eventId: state.uri.queryParameters['eventId'],
+            ),
+          ),
           GoRoute(
             path: ':vendorId',
             builder: (context, state) => MarketplaceVendorDetailScreen(
@@ -251,9 +308,26 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(path: '/login', redirect: (context, state) => '/staff/login'),
-      GoRoute(path: '/vendor', builder: (context, state) => const VendorHomeScreen()),
+      GoRoute(
+        path: '/vendor',
+        builder: (context, state) => const VendorHomeScreen(),
+        routes: [
+          GoRoute(
+            path: 'fashion-attire',
+            builder: (context, state) => const VendorFashionAttireScreen(),
+          ),
+          GoRoute(
+            path: 'rentals',
+            builder: (context, state) => const VendorRentalsScreen(),
+          ),
+        ],
+      ),
       GoRoute(path: '/admin', builder: (context, state) => const AdminHomeScreen()),
       GoRoute(path: '/super-admin', builder: (context, state) => const SuperAdminHomeScreen()),
+      GoRoute(
+        path: '/super-admin/platform-config',
+        builder: (context, state) => const PlatformConfigurationScreen(),
+      ),
       GoRoute(
         path: '/organizer',
         builder: (context, state) => const OrganizerHomeScreen(),
@@ -267,6 +341,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => EventWorkspaceScreen(
               eventId: state.pathParameters['eventId']!,
               initialTab: int.tryParse(state.uri.queryParameters['tab'] ?? '0') ?? 0,
+              initialTabKey: state.uri.queryParameters['tabKey'],
             ),
           ),
         ],

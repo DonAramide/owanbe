@@ -12,6 +12,7 @@ import '../widgets/ai_planner/planner_hero_banner.dart';
 import '../widgets/ai_planner/planner_input_card.dart';
 import '../widgets/ai_planner/planner_missing_requirements.dart';
 import '../widgets/ai_planner/planner_recommended_vendors.dart';
+import '../widgets/ai_planner/planner_rental_recommendations.dart';
 import '../widgets/ai_planner/planner_timeline.dart';
 import '../widgets/empty_state_card.dart';
 import '../widgets/section_header.dart';
@@ -52,10 +53,13 @@ class _CustomerEventAiPlannerScreenState extends ConsumerState<CustomerEventAiPl
   void _seedInputs(AiPlannerInputs inputs) {
     if (_initialized) return;
     _initialized = true;
-    ref.read(aiPlannerInputsProvider(widget.eventId).notifier).setInputs(inputs);
-    _budgetController.text = inputs.budgetMinor > 0 ? '${inputs.budgetMinor ~/ 100}' : '';
-    _guestController.text = inputs.guestCount > 0 ? '${inputs.guestCount}' : '';
-    _locationController.text = inputs.location;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(aiPlannerInputsProvider(widget.eventId).notifier).setInputs(inputs);
+      _budgetController.text = inputs.budgetMinor > 0 ? '${inputs.budgetMinor ~/ 100}' : '';
+      _guestController.text = inputs.guestCount > 0 ? '${inputs.guestCount}' : '';
+      _locationController.text = inputs.location;
+    });
   }
 
   Future<void> _generate() async {
@@ -76,9 +80,7 @@ class _CustomerEventAiPlannerScreenState extends ConsumerState<CustomerEventAiPl
     final generated = ref.watch(aiPlannerGeneratedProvider(widget.eventId));
 
     return Scaffold(
-      backgroundColor: EosColors.canvas,
       appBar: AppBar(
-        backgroundColor: EosColors.canvas,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -184,6 +186,18 @@ class _CustomerEventAiPlannerScreenState extends ConsumerState<CustomerEventAiPl
                     subtitle: 'Matched to your event type and location.',
                   ),
                   PlannerRecommendedVendors(vendors: plan.recommendedVendors),
+                  SizedBox(height: context.eos.spacing.lg),
+                  const SectionHeader(
+                    title: 'Rental equipment',
+                    subtitle: 'Suggested quantities from guest count, event type, and venue.',
+                  ),
+                  PlannerRentalRecommendations(items: plan.rentalRecommendations),
+                  SizedBox(height: context.eos.spacing.sm),
+                  OutlinedButton.icon(
+                    onPressed: () => context.push(CustomerRoutes.eventRentals(widget.eventId)),
+                    icon: const Icon(Icons.inventory_2_outlined),
+                    label: const Text('Open equipment & rentals'),
+                  ),
                   SizedBox(height: context.eos.spacing.lg),
                   const SectionHeader(
                     title: 'Budget allocation',

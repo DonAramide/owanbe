@@ -45,7 +45,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
     final sectionGap = context.eos.spacing.xl;
 
     return ColoredBox(
-      color: EosColors.canvas,
+      color: context.eosCanvas,
       child: homeAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => ListView(

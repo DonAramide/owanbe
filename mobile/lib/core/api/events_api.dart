@@ -260,6 +260,7 @@ OrganizerEvent mapOrganizerEvent(Map<String, dynamic> json) {
     venueLatitude: (json['venueLatitude'] as num?)?.toDouble(),
     venueLongitude: (json['venueLongitude'] as num?)?.toDouble(),
     googlePlaceId: json['googlePlaceId']?.toString(),
+    celebrantImageUrl: json['celebrantImageUrl']?.toString(),
   );
 }
 

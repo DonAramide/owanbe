@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../eos/eos.dart';
+import '../../../portals/customer/router/customer_routes.dart';
 import '../data/organizer_persistence.dart';
 import '../models/organizer_models.dart';
 import '../providers/organizer_providers.dart';
+import '../widgets/invite_vendor_sheet.dart';
 import '../widgets/organizer_shared.dart';
 
 class VendorManagementScreen extends ConsumerWidget {
@@ -20,9 +22,24 @@ class VendorManagementScreen extends ConsumerWidget {
       title: 'Vendor management',
       subtitle: 'Invite, approve, and monitor event vendors',
       actions: [
+        FilledButton.icon(
+          onPressed: () => context.push(CustomerRoutes.vendors),
+          icon: const Icon(Icons.storefront_outlined, size: 18),
+          label: const Text('Browse marketplace'),
+        ),
         if (eventId != null)
           OutlinedButton.icon(
-            onPressed: () => _inviteVendor(context, ref, eventId),
+            onPressed: () async {
+              final event = await ref.read(organizerEventProvider(eventId).future);
+              if (!context.mounted || event == null) return;
+              await showInviteVendorSheet(
+                context,
+                eventId: eventId,
+                alreadyInvitedCatalogIds: invitedCatalogIdsFromEvent(event),
+                alreadyInvitedNames: invitedVendorNamesFromEvent(event),
+                cityHint: event.city,
+              );
+            },
             icon: const Icon(Icons.person_add_outlined, size: 18),
             label: const Text('Invite vendor'),
           ),
@@ -42,9 +59,20 @@ class VendorManagementScreen extends ConsumerWidget {
                   return EosSurfaceCard(
                     child: Padding(
                       padding: EdgeInsets.all(context.eos.spacing.lg),
-                      child: Text(
-                        'No vendors assigned yet. Invite caterers, AV, décor, and more.',
-                        style: context.eosText.bodyMedium,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'No vendors assigned yet. Browse the marketplace to compare caterers, décor, DJs, and venues with photos, ratings, and pricing.',
+                            style: context.eosText.bodyMedium,
+                          ),
+                          SizedBox(height: context.eos.spacing.md),
+                          FilledButton.icon(
+                            onPressed: () => context.push(CustomerRoutes.vendors),
+                            icon: const Icon(Icons.storefront_outlined),
+                            label: const Text('Find vendors in marketplace'),
+                          ),
+                        ],
                       ),
                     ),
                   );
@@ -86,42 +114,5 @@ class VendorManagementScreen extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  Future<void> _inviteVendor(BuildContext context, WidgetRef ref, String eventId) async {
-    final name = TextEditingController();
-    final category = TextEditingController(text: 'Catering');
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Invite vendor'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            EosTextField(controller: name, label: 'Business name'),
-            SizedBox(height: context.eos.spacing.sm),
-            EosTextField(controller: category, label: 'Category'),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () async {
-              if (name.text.trim().isEmpty) return;
-              await inviteVendor(
-                ref,
-                eventId,
-                businessName: name.text.trim(),
-                category: category.text.trim(),
-              );
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: const Text('Send invite'),
-          ),
-        ],
-      ),
-    );
-    name.dispose();
-    category.dispose();
   }
 }

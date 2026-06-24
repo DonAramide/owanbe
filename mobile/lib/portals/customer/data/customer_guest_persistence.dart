@@ -6,6 +6,7 @@ import '../../../features/operations/models/operations_models.dart';
 import '../../../features/operations/providers/operations_providers.dart';
 import '../../../features/organizer/providers/organizer_providers.dart';
 import '../providers/customer_guest_providers.dart';
+import '../services/contact_import_service.dart';
 
 Future<OpsGuest> addCustomerGuest(
   WidgetRef ref,
@@ -35,13 +36,21 @@ Future<OpsGuest> addCustomerGuest(
 Future<List<OpsGuest>> importCustomerContacts(
   WidgetRef ref,
   String eventId,
-  List<({String name, String email})> contacts,
+  List<DeviceContact> contacts,
 ) async {
   if (!allowMockPersistenceFallback()) {
     throw StateError('Import contacts is available in development mode.');
   }
   OperationsStore.instance.ensureLive(eventId);
-  final guests = OperationsStore.instance.importGuests(eventId, contacts);
+  final normalized = contacts
+      .map(
+        (c) => (
+          name: c.name,
+          email: c.email.isNotEmpty ? c.email : '${c.phone.replaceAll(RegExp(r'\D'), '')}@invite.local',
+        ),
+      )
+      .toList();
+  final guests = OperationsStore.instance.importGuests(eventId, normalized);
   bumpOperationsRevision(ref);
   bumpOrganizerRevision(ref);
   refreshCustomerGuests(ref);

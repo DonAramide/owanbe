@@ -24,6 +24,7 @@ class HomeActiveEventCard extends StatelessWidget {
         onTap: onTap,
         elevated: true,
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
@@ -89,9 +90,13 @@ class HomeActiveEventCard extends StatelessWidget {
               children: [
                 Icon(Icons.groups_outlined, size: 14, color: context.eosColors.onSurfaceVariant),
                 SizedBox(width: context.eos.spacing.xxs),
-                Text(
-                  '${event.guestCount} guest${event.guestCount == 1 ? '' : 's'}',
-                  style: context.eosText.labelSmall,
+                Expanded(
+                  child: Text(
+                    '${event.guestCount} guest${event.guestCount == 1 ? '' : 's'}',
+                    style: context.eosText.labelSmall,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),

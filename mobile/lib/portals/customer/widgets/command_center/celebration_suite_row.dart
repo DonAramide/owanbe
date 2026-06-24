@@ -38,13 +38,13 @@ class CelebrationSuiteRow extends StatelessWidget {
   const CelebrationSuiteRow({
     super.key,
     required this.onWebsite,
-    required this.onAsoEbi,
+    required this.onAttire,
     required this.onWall,
     required this.onRegistry,
   });
 
   final VoidCallback onWebsite;
-  final VoidCallback onAsoEbi;
+  final VoidCallback onAttire;
   final VoidCallback onWall;
   final VoidCallback onRegistry;
 
@@ -70,10 +70,10 @@ class CelebrationSuiteRow extends StatelessWidget {
           SizedBox(
             width: cardWidth,
             child: CelebrationSuiteCard(
-              title: 'Aso-Ebi',
-              subtitle: 'Fabric & reservations',
+              title: 'Attire',
+              subtitle: 'Fashion vendors & guest packages',
               icon: Icons.checkroom_outlined,
-              onTap: onAsoEbi,
+              onTap: onAttire,
             ),
           ),
           SizedBox(width: context.eos.spacing.md),

@@ -64,6 +64,8 @@ IconData catalogTypeIcon(VendorCatalogType? type) => switch (type) {
       VendorCatalogType.security => Icons.security_outlined,
       VendorCatalogType.rentals => Icons.chair_outlined,
       VendorCatalogType.beauty => Icons.face_retouching_natural_outlined,
+      VendorCatalogType.fashionAttire => Icons.checkroom_outlined,
+      VendorCatalogType.rentalsEquipment => Icons.inventory_2_outlined,
       VendorCatalogType.logistics => Icons.local_shipping_outlined,
       null => Icons.inventory_2_outlined,
     };

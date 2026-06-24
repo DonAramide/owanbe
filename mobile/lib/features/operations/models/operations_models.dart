@@ -12,6 +12,8 @@ enum FeedEventType {
   orderPlaced,
   refundRequested,
   incidentLogged,
+  wallPost,
+  wallPinned,
 }
 
 enum QrScanResult { valid, alreadyUsed, expired, invalid, vip, vvip }

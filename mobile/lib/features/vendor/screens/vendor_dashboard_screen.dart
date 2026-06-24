@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../eos/eos.dart';
 import '../models/vendor_models.dart';
@@ -98,6 +99,26 @@ class VendorDashboardScreen extends ConsumerWidget {
                 subtitle: '${profile.completedEvents} events',
               ),
             ],
+          ),
+          SizedBox(height: context.eos.spacing.lg),
+          EosSurfaceCard(
+            onTap: () => context.push('/vendor/rentals'),
+            child: ListTile(
+              leading: const Icon(Icons.inventory_2_outlined, color: EosColors.plum),
+              title: const Text('Rentals & equipment'),
+              subtitle: const Text('Inventory, orders, delivery, returns, and claims'),
+              trailing: const Icon(Icons.chevron_right),
+            ),
+          ),
+          SizedBox(height: context.eos.spacing.lg),
+          EosSurfaceCard(
+            onTap: () => context.push('/vendor/fashion-attire'),
+            child: ListTile(
+              leading: const Icon(Icons.checkroom_outlined, color: EosColors.plum),
+              title: const Text('Fashion & Attire'),
+              subtitle: const Text('Upload fabrics, manage inventory, orders, and collection'),
+              trailing: const Icon(Icons.chevron_right),
+            ),
           ),
           SizedBox(height: context.eos.spacing.xl),
           EosSection(

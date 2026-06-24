@@ -32,9 +32,7 @@ class CustomerEventCommandCenterScreen extends ConsumerWidget {
     final snapshot = ref.watch(customerEventCommandProvider(eventId));
 
     return Scaffold(
-      backgroundColor: EosColors.canvas,
       appBar: AppBar(
-        backgroundColor: EosColors.canvas,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -122,13 +120,41 @@ class CustomerEventCommandCenterScreen extends ConsumerWidget {
                 ),
                 SizedBox(height: context.eos.spacing.lg),
                 const SectionHeader(
+                  title: 'Seating',
+                  subtitle: 'Tables, guest assignment, and VIP seating.',
+                ),
+                EosSurfaceCard(
+                  onTap: () => context.push(CustomerRoutes.eventSeating(eventId)),
+                  child: ListTile(
+                    leading: const Icon(Icons.table_restaurant_outlined, color: EosColors.plum),
+                    title: const Text('Seating planner'),
+                    subtitle: const Text('Drag guests to tables and export your layout'),
+                    trailing: const Icon(Icons.chevron_right),
+                  ),
+                ),
+                SizedBox(height: context.eos.spacing.lg),
+                const SectionHeader(
+                  title: 'Equipment & rentals',
+                  subtitle: 'Chairs, tents, sound, lighting, and event equipment.',
+                ),
+                EosSurfaceCard(
+                  onTap: () => context.push(CustomerRoutes.eventRentals(eventId)),
+                  child: ListTile(
+                    leading: const Icon(Icons.inventory_2_outlined, color: EosColors.plum),
+                    title: const Text('Manage equipment & rentals'),
+                    subtitle: const Text('Book rentals, track delivery, and returns'),
+                    trailing: const Icon(Icons.chevron_right),
+                  ),
+                ),
+                SizedBox(height: context.eos.spacing.lg),
+                const SectionHeader(
                   title: 'Celebration suite',
-                  subtitle: 'Website, Aso-Ebi, wall, and registry.',
+                  subtitle: 'Website, attire, wall, and registry.',
                 ),
                 CelebrationSuiteRow(
-                  onWebsite: () => _comingSoon(context, 'Website builder'),
-                  onAsoEbi: () => _comingSoon(context, 'Aso-Ebi'),
-                  onWall: () => _comingSoon(context, 'Celebration wall'),
+                  onWebsite: () => context.push(CustomerRoutes.eventWebsite(eventId)),
+                  onAttire: () => context.push(CustomerRoutes.eventAttire(eventId)),
+                  onWall: () => context.push(CustomerRoutes.eventWall(eventId)),
                   onRegistry: () => _comingSoon(context, 'Gift registry'),
                 ),
                 SizedBox(height: context.eos.spacing.lg),

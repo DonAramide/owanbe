@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../auth/auth_notifier.dart';
 import '../../../eos/eos.dart';
+import '../../../portals/customer/router/customer_routes.dart';
+import '../../../theme/theme_mode_provider.dart';
 import '../../operations/screens/operations_shell.dart';
 import '../providers/organizer_providers.dart';
 import 'attendee_management_screen.dart';
@@ -30,6 +32,7 @@ class OrganizerHomeScreen extends ConsumerWidget {
       topBar: _OrganizerTopBar(
         name: session?.displayName ?? 'Organizer',
         onCreateEvent: () => context.push('/organizer/events/new'),
+        onBrowseMarketplace: () => context.push(CustomerRoutes.vendors),
         onSignOut: () {
           ref.read(authSessionProvider.notifier).signOut();
           context.go('/');
@@ -51,19 +54,22 @@ class OrganizerHomeScreen extends ConsumerWidget {
       };
 }
 
-class _OrganizerTopBar extends StatelessWidget {
+class _OrganizerTopBar extends ConsumerWidget {
   const _OrganizerTopBar({
     required this.name,
     required this.onCreateEvent,
+    required this.onBrowseMarketplace,
     required this.onSignOut,
   });
 
   final String name;
   final VoidCallback onCreateEvent;
+  final VoidCallback onBrowseMarketplace;
   final VoidCallback onSignOut;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = ref.watch(themeModeProvider) == ThemeMode.dark;
     return Material(
       color: context.eosColors.surface,
       child: DecoratedBox(
@@ -74,12 +80,29 @@ class _OrganizerTopBar extends StatelessWidget {
             children: [
               Expanded(child: EosSearchField(hint: 'Search events, vendors, attendees…')),
               SizedBox(width: context.eos.spacing.sm),
+              OutlinedButton.icon(
+                onPressed: onBrowseMarketplace,
+                icon: const Icon(Icons.storefront_outlined, size: 18),
+                label: const Text('Marketplace'),
+              ),
+              SizedBox(width: context.eos.spacing.sm),
+              OutlinedButton.icon(
+                onPressed: () => context.push('/attendee'),
+                icon: const Icon(Icons.confirmation_number_outlined, size: 18),
+                label: const Text('Attending'),
+              ),
+              SizedBox(width: context.eos.spacing.sm),
               FilledButton.icon(
                 onPressed: onCreateEvent,
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Create event'),
               ),
               SizedBox(width: context.eos.spacing.sm),
+              IconButton(
+                tooltip: isDark ? 'Switch to light mode' : 'Switch to dark mode',
+                onPressed: () => ref.read(themeModeProvider.notifier).toggleLightDark(),
+                icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+              ),
               Text(name, style: context.eosText.titleSmall),
               IconButton(onPressed: onSignOut, icon: const Icon(Icons.logout)),
             ],

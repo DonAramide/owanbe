@@ -7,4 +7,5 @@ extension EosContext on BuildContext {
   ThemeData get eosTheme => Theme.of(this);
   ColorScheme get eosColors => Theme.of(this).colorScheme;
   TextTheme get eosText => Theme.of(this).textTheme;
+  Color get eosCanvas => Theme.of(this).scaffoldBackgroundColor;
 }

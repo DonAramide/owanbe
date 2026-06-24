@@ -38,7 +38,7 @@ class CustomerMyEventsScreen extends ConsumerWidget {
 
     return ColoredBox(
 
-      color: EosColors.canvas,
+      color: context.eosCanvas,
 
       child: events.when(
 
@@ -132,7 +132,7 @@ class CustomerMyEventsScreen extends ConsumerWidget {
 
               SizedBox(
 
-                height: 200,
+                height: 216,
 
                 child: ListView.separated(
 

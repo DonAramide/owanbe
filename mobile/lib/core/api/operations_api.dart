@@ -194,6 +194,8 @@ FeedEventType mapFeedType(String raw) => switch (raw) {
       'order_placed' => FeedEventType.orderPlaced,
       'refund_requested' => FeedEventType.refundRequested,
       'incident_logged' => FeedEventType.incidentLogged,
+      'wall_post' => FeedEventType.wallPost,
+      'wall_pinned' => FeedEventType.wallPinned,
       _ => FeedEventType.guestCheckedIn,
     };
 

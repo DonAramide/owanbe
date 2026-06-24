@@ -32,7 +32,6 @@ class EosPublicShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final isMobile = EosResponsive.isMobile(context);
     return Scaffold(
-      backgroundColor: EosColors.canvas,
       body: Column(
         children: [
           _PublicHeader(

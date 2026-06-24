@@ -108,6 +108,52 @@ class EventTagConfig {
   }
 }
 
+class VendorCategoryConfig {
+  const VendorCategoryConfig({
+    required this.id,
+    required this.slug,
+    required this.label,
+    this.iconKey = 'storefront',
+  });
+
+  final String id;
+  final String slug;
+  final String label;
+  final String iconKey;
+
+  static List<VendorCategoryConfig> get fallbackDefaults => const [
+        VendorCategoryConfig(id: 'venue', slug: 'venue', label: 'Venue', iconKey: 'apartment'),
+        VendorCategoryConfig(id: 'decorator', slug: 'decorator', label: 'Decorator', iconKey: 'brush'),
+        VendorCategoryConfig(id: 'photographer', slug: 'photographer', label: 'Photographer', iconKey: 'photo_camera'),
+        VendorCategoryConfig(id: 'dj', slug: 'dj', label: 'DJ', iconKey: 'music_note'),
+        VendorCategoryConfig(id: 'mc', slug: 'mc', label: 'MC', iconKey: 'mic'),
+        VendorCategoryConfig(id: 'security', slug: 'security', label: 'Security', iconKey: 'shield'),
+        VendorCategoryConfig(id: 'cake', slug: 'cake', label: 'Cake', iconKey: 'cake'),
+        VendorCategoryConfig(id: 'drinks', slug: 'drinks', label: 'Drinks', iconKey: 'local_bar'),
+        VendorCategoryConfig(id: 'ushers', slug: 'ushers', label: 'Ushers', iconKey: 'groups'),
+        VendorCategoryConfig(id: 'live-band', slug: 'live-band', label: 'Live Band', iconKey: 'nightlife'),
+        VendorCategoryConfig(id: 'catering', slug: 'catering', label: 'Catering', iconKey: 'restaurant'),
+        VendorCategoryConfig(id: 'fashion-attire', slug: 'fashion-attire', label: 'Fashion & Attire', iconKey: 'checkroom'),
+        VendorCategoryConfig(id: 'aso-ebi', slug: 'aso-ebi', label: 'Aso-Ebi', iconKey: 'style'),
+        VendorCategoryConfig(id: 'traditional-wear', slug: 'traditional-wear', label: 'Traditional Wear', iconKey: 'dry_cleaning'),
+        VendorCategoryConfig(id: 'wedding-gowns', slug: 'wedding-gowns', label: 'Wedding Gowns', iconKey: 'favorite_border'),
+        VendorCategoryConfig(id: 'bridesmaid-dresses', slug: 'bridesmaid-dresses', label: 'Bridesmaid Dresses', iconKey: 'groups'),
+        VendorCategoryConfig(id: 'suits', slug: 'suits', label: 'Suits', iconKey: 'business_center'),
+        VendorCategoryConfig(id: 'gele', slug: 'gele', label: 'Gele', iconKey: 'face_retouching_natural'),
+        VendorCategoryConfig(id: 'fashion-accessories', slug: 'fashion-accessories', label: 'Accessories', iconKey: 'diamond'),
+        VendorCategoryConfig(id: 'tailoring', slug: 'tailoring', label: 'Tailoring', iconKey: 'content_cut'),
+      ];
+
+  factory VendorCategoryConfig.fromJson(Map<String, dynamic> json) {
+    return VendorCategoryConfig(
+      id: (json['id'] ?? json['slug'] ?? '').toString(),
+      slug: (json['slug'] ?? '').toString(),
+      label: (json['label'] ?? '').toString(),
+      iconKey: (json['iconKey'] ?? 'storefront').toString(),
+    );
+  }
+}
+
 class EventTemplateConfig {
   const EventTemplateConfig({
     required this.id,
@@ -180,6 +226,15 @@ class EventConfigApi {
     final body = jsonDecode(res.body) as Map<String, dynamic>;
     return (body['items'] as List<dynamic>)
         .map((e) => EventTemplateConfig.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<List<VendorCategoryConfig>> listVendorCategories() async {
+    final res = await _http.get(_u('event-config/vendor-categories'), headers: await _headers());
+    if (res.statusCode >= 400) throw EventConfigApiException(res.statusCode, res.body);
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return (body['items'] as List<dynamic>)
+        .map((e) => VendorCategoryConfig.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 }

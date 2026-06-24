@@ -74,7 +74,6 @@ class _CustomerEventGuestsScreenState extends ConsumerState<CustomerEventGuestsS
 
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: EosColors.canvas,
       endDrawer: selectedGuest == null
           ? null
           : GuestDetailDrawer(
@@ -86,7 +85,6 @@ class _CustomerEventGuestsScreenState extends ConsumerState<CustomerEventGuestsS
               },
             ),
       appBar: AppBar(
-        backgroundColor: EosColors.canvas,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),

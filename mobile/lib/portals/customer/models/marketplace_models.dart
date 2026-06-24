@@ -64,6 +64,34 @@ class VendorProfile {
     if (minor == null || minor <= 0) return null;
     return 'From ${formatRevenue(minor)}';
   }
+
+  String pricePerGuestLabel(int guestCount) => formatVendorPricePerGuest(vendor, guestCount);
+}
+
+String vendorCoverImageUrl(MarketplaceVendor vendor) {
+  if (vendor.imageUrl != null && vendor.imageUrl!.isNotEmpty) return vendor.imageUrl!;
+  final seed = vendor.id.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
+  return 'https://picsum.photos/seed/owanbe-$seed/800/480';
+}
+
+String? vendorPreviewVideoUrl(MarketplaceVendor vendor) {
+  if (vendor.videoPreviewUrl != null && vendor.videoPreviewUrl!.isNotEmpty) {
+    return vendor.videoPreviewUrl;
+  }
+  return 'https://samplelib.com/lib/preview/mp4/sample-5s.mp4';
+}
+
+String formatVendorPricePerGuest(MarketplaceVendor vendor, int guestCount) {
+  final from = vendor.priceFromMinor;
+  if (from == null || from <= 0) return '';
+  final guests = guestCount <= 0 ? 150 : guestCount;
+  final to = vendor.priceToMinor ?? (from * 1.35).round();
+  final perLow = (from / guests).ceil();
+  final perHigh = (to / guests).ceil();
+  if (perLow == perHigh) {
+    return '≈ ${formatRevenue(perLow)} per guest ($guests attendees)';
+  }
+  return '≈ ${formatRevenue(perLow)}–${formatRevenue(perHigh)} per guest ($guests attendees)';
 }
 
 const _palette = <(int, int)>[
@@ -88,8 +116,11 @@ VendorProfile buildVendorProfile(MarketplaceVendor vendor) {
     description: vendor.description ?? _defaultDescription(vendor),
     reviewCount: vendor.reviewCount ?? 12 + seed % 40,
     priceFromMinor: vendor.priceFromMinor ?? _defaultPrice(vendor),
+    priceToMinor: vendor.priceToMinor ?? ((vendor.priceFromMinor ?? _defaultPrice(vendor)) * 1.35).round(),
     currency: vendor.currency ?? 'NGN',
     countryCode: vendor.countryCode ?? 'NG',
+    imageUrl: vendor.imageUrl ?? vendorCoverImageUrl(vendor),
+    videoPreviewUrl: vendor.videoPreviewUrl,
   );
 
   return VendorProfile(

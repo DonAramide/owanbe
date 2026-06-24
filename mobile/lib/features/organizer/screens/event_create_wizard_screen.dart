@@ -77,7 +77,6 @@ class _EventCreateWizardScreenState extends ConsumerState<EventCreateWizardScree
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: EosColors.canvas,
       appBar: AppBar(
         title: Text('Create event · ${_stepLabels[_step]}'),
         leading: IconButton(icon: const Icon(Icons.close), onPressed: () => context.go('/organizer')),
