@@ -4,6 +4,10 @@ import '../../../core/api/admin_platform_api.dart';
 
 final adminPlatformApiProvider = Provider<AdminPlatformApi>((ref) => AdminPlatformApi());
 
+final launchOpsDashboardProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  return ref.read(adminPlatformApiProvider).getLaunchOpsDashboard();
+});
+
 final platformDashboardProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
   return ref.read(adminPlatformApiProvider).getPlatformDashboard();
 });

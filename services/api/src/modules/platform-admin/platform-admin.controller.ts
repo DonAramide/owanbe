@@ -23,6 +23,7 @@ import { AdminVendorsService } from './admin-vendors.service';
 import { AdminOperationsCenterService } from './admin-operations-center.service';
 import { AdminFinanceSupervisionService } from './admin-finance-supervision.service';
 import { AdminAuditService } from './admin-audit.service';
+import { LaunchOpsDashboardService } from './launch-ops-dashboard.service';
 
 @Controller('admin')
 export class PlatformAdminController {
@@ -34,7 +35,14 @@ export class PlatformAdminController {
     private readonly operations: AdminOperationsCenterService,
     private readonly finance: AdminFinanceSupervisionService,
     private readonly audit: AdminAuditService,
+    private readonly launchOps: LaunchOpsDashboardService,
   ) {}
+
+  @Roles(...ADMIN_TIERS)
+  @Get('ops/launch-dashboard')
+  async launchOpsDashboard(@TenantId() tenantId: string) {
+    return this.launchOps.getDashboard(tenantId);
+  }
 
   @Roles(...ADMIN_TIERS)
   @Get('platform/dashboard')

@@ -13,7 +13,7 @@ class AdminNavItem {
 }
 
 const adminNavItems = <AdminNavItem>[
-  AdminNavItem(label: 'Dashboard', icon: Icons.space_dashboard_outlined, selectedIcon: Icons.space_dashboard),
+  AdminNavItem(label: 'Launch ops', icon: Icons.rocket_launch_outlined, selectedIcon: Icons.rocket_launch),
   AdminNavItem(label: 'Tenants', icon: Icons.apartment_outlined, selectedIcon: Icons.apartment),
   AdminNavItem(label: 'Events', icon: Icons.celebration_outlined, selectedIcon: Icons.celebration),
   AdminNavItem(label: 'Vendors', icon: Icons.storefront_outlined, selectedIcon: Icons.storefront),

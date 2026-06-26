@@ -43,6 +43,12 @@ class AdminPlatformApi {
     }
   }
 
+  Future<Map<String, dynamic>> getLaunchOpsDashboard() async {
+    final res = await _http.get(_u('admin/ops/launch-dashboard'), headers: await _headers());
+    if (res.statusCode >= 400) _throw(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> getPlatformDashboard() async {
     final res = await _http.get(_u('admin/platform/dashboard'), headers: await _headers());
     if (res.statusCode >= 400) _throw(res);

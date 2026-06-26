@@ -7,6 +7,7 @@ import '../../auth/auth_notifier.dart';
 import '../../auth/user_role.dart';
 import 'finance/admin_finance_providers.dart';
 import 'platform/event_oversight_screen.dart';
+import 'platform/launch_ops_dashboard_screen.dart';
 import 'platform/operations_center_screen.dart';
 import 'platform/organizer_oversight_screen.dart';
 import 'platform/platform_dashboard_screen.dart';
@@ -49,7 +50,7 @@ class AdminHomeScreen extends ConsumerWidget {
   }
 
   Widget _bodyForTab(AdminShellState shell) => switch (shell.tab) {
-        0 => const PlatformDashboardScreen(),
+        0 => const LaunchOpsDashboardScreen(),
         1 => const OrganizerOversightScreen(),
         2 => const EventOversightScreen(),
         3 => const VendorOversightScreen(),

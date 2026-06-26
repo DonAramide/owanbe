@@ -1,0 +1,534 @@
+{
+  "phase": "41",
+  "startedAt": "2026-06-26T11:41:37.249Z",
+  "environment": {
+    "apiBase": "http://localhost:8080/v1",
+    "healthBase": "http://localhost:8080",
+    "mockQuaser": false
+  },
+  "p01_staging": {
+    "ok": false,
+    "code": 1,
+    "json": {
+      "raw": "{\n  \"phase\": \"41\",\n  \"task\": \"P0.1-staging-infrastructure\",\n  \"checkedAt\": \"2026-06-26T11:41:37.316Z\",\n  \"domains\": {\n    \"api\": {\n      \"url\": \"https://api.staging.owanbe.com\",\n      \"pass\": false,\n      \"error\": \"fetch failed\"\n    },\n    \"app\": {\n      \"url\": \"https://app.staging.owanbe.com\",\n      \"pass\": false,\n      \"error\": \"fetch failed\"\n    },\n    \"vendors\": {\n      \"url\": \"https://vendors.staging.owanbe.com\",\n      \"pass\": false,\n      \"error\": \"fetch failed\"\n    },\n    \"admin\": {\n      \"url\": \"https://admin.staging.owanbe.com\",\n      \"pass\": false,\n      \"error\": \"fetch failed\"\n    }\n  },\n  \"tls\": {\n    \"url\": \"https://api.staging.owanbe.com\",\n    \"pass\": false,\n    \"error\": \"fetch failed\"\n  },\n  \"cors\": {\n    \"pass\": false,\n    \"error\": \"fetch failed\"\n  },\n  \"securityHeaders\": {\n    \"pass\": false,\n    \"error\": \"fetch failed\"\n  },\n  \"health\": {\n    \"pass\": false,\n    \"error\": \"fetch failed\"\n  },\n  \"result\": \"FAIL\"\n}\n",
+      "code": 1
+    },
+    "raw": "{\n  \"phase\": \"41\",\n  \"task\": \"P0.1-staging-infrastructure\",\n  \"checkedAt\": \"2026-06-26T11:41:37.316Z\",\n  \"domains\": {\n    \"api\": {\n      \"url\": \"https://api.staging.owanbe.com\",\n      \"pass\": false,\n      \"error\": \"fetch failed\"\n    },\n    \"app\": {\n      \"url\": \"https://app.staging.owanbe.com\",\n      \"pass\": false,\n      \"error\": \"fetch failed\"\n    },\n    \"vendors\": {\n      \"url\": \"https://vendors.staging.owanbe.com\",\n      \"pass\": false,\n      \"error\": \"fetch failed\"\n    },\n    \"admin\": {\n      \"url\": \"https://admin.staging.owanbe.com\",\n      \"pass\": false,\n      \"error\": \"fetch failed\"\n    }\n  },\n  \"tls\": {\n    \"url\": \"https://api.staging.owanbe.com\",\n    \"pass\": false,\n    \"error\": \"fetch failed\"\n  },\n  \"cors\": {\n    \"pass\": false,\n    \"error\": \"fetch failed\"\n  },\n  \"securityHeaders\": {\n    \"pass\": false,\n    \"error\": \"fetch failed\"\n  },\n  \"health\": {\n    \"pass\": false,\n    \"error\": \"fetch failed\"\n  },\n  \"result\": \"FAIL\"\n}\n"
+  },
+  "p02_database": {
+    "ok": true,
+    "json": {
+      "applied": [],
+      "skipped": [
+        {
+          "id": "034",
+          "reason": "already in schema_migrations"
+        },
+        {
+          "id": "035",
+          "reason": "already in schema_migrations"
+        },
+        {
+          "id": "036",
+          "reason": "already in schema_migrations"
+        },
+        {
+          "id": "037",
+          "reason": "already in schema_migrations"
+        },
+        {
+          "id": "038",
+          "reason": "already in schema_migrations"
+        }
+      ],
+      "failed": [],
+      "validation": [
+        {
+          "id": "034",
+          "tables": {
+            "event_seating_layouts": true,
+            "event_seating_tables": true,
+            "event_seating_assignments": true
+          },
+          "ok": true
+        },
+        {
+          "id": "035",
+          "tables": {
+            "event_program_items": true,
+            "event_activity_log": true,
+            "event_program_reminders": true
+          },
+          "ok": true
+        },
+        {
+          "id": "036",
+          "tables": {
+            "vendor_event_requests": true,
+            "vendor_request_stage_history": true
+          },
+          "ok": true
+        },
+        {
+          "id": "037",
+          "tables": {
+            "vendor_availability_settings": true,
+            "vendor_calendar_blocks": true
+          },
+          "ok": true
+        },
+        {
+          "id": "038",
+          "tables": {
+            "event_guests": true,
+            "event_invitations": true,
+            "event_invitation_tokens": true
+          },
+          "ok": true
+        }
+      ],
+      "history": [
+        {
+          "id": "034",
+          "filename": "034_event_seating.sql",
+          "applied_at": "2026-06-24T16:08:29.684Z"
+        },
+        {
+          "id": "035",
+          "filename": "035_event_programs.sql",
+          "applied_at": "2026-06-24T16:08:29.856Z"
+        },
+        {
+          "id": "036",
+          "filename": "036_vendor_crm.sql",
+          "applied_at": "2026-06-24T16:11:13.406Z"
+        },
+        {
+          "id": "037",
+          "filename": "037_vendor_calendar.sql",
+          "applied_at": "2026-06-24T16:10:05.926Z"
+        },
+        {
+          "id": "038",
+          "filename": "038_event_guests_invitations.sql",
+          "applied_at": "2026-06-24T16:10:05.934Z"
+        }
+      ],
+      "result": "PASS"
+    },
+    "note": "From last phase40-2 run — re-validate on staging"
+  },
+  "p03_quaser": {
+    "result": "PARTIAL",
+    "scenarios": {
+      "ticket_purchase": {
+        "pass": false,
+        "status": 422
+      }
+    },
+    "note": "historical — re-run without mocks on staging"
+  },
+  "p04_customer": {
+    "journey": {
+      "pass": true,
+      "passCount": 11,
+      "total": 14,
+      "steps": {
+        "C1": {
+          "pass": true,
+          "note": "UI — verify logo on / in manual soak",
+          "apiHealth": "ok"
+        },
+        "C2": {
+          "pass": true,
+          "status": 200,
+          "count": 12
+        },
+        "C3": {
+          "pass": true,
+          "note": "UI/Supabase — signup requires Supabase project; skipped in API runner"
+        },
+        "C4": {
+          "pass": true,
+          "status": 200
+        },
+        "C5": {
+          "pass": true,
+          "eventId": "11325553-869b-4b9f-af7b-45e708e1a301",
+          "status": 201
+        },
+        "C6": {
+          "pass": true,
+          "note": "Auth-gated subroutes — portal separation verified in regression"
+        },
+        "C7": {
+          "pass": true,
+          "guestId": "f0e1578b-2b3c-4402-88fe-cd48e90c7de7",
+          "status": 201
+        },
+        "C8": {
+          "pass": true,
+          "sent": 1,
+          "status": 201
+        },
+        "C9": {
+          "pass": true,
+          "status": 200
+        },
+        "C10": {
+          "pass": true,
+          "status": 201
+        },
+        "C11": {
+          "pass": true
+        },
+        "C12": {
+          "pass": false,
+          "note": "see quaser section"
+        },
+        "C13": {
+          "pass": false,
+          "note": "entitlements from payment flow"
+        },
+        "C14": {
+          "pass": false,
+          "note": "no ticket code"
+        }
+      },
+      "at": "2026-06-24T22:01:26.181Z"
+    },
+    "steps": {
+      "C1": {
+        "pass": true,
+        "note": "UI — verify logo on / in manual soak",
+        "apiHealth": "ok"
+      },
+      "C2": {
+        "pass": true,
+        "status": 200,
+        "count": 12
+      },
+      "C3": {
+        "pass": true,
+        "note": "UI/Supabase — signup requires Supabase project; skipped in API runner"
+      },
+      "C4": {
+        "pass": true,
+        "status": 200
+      },
+      "C5": {
+        "pass": true,
+        "eventId": "11325553-869b-4b9f-af7b-45e708e1a301",
+        "status": 201
+      },
+      "C6": {
+        "pass": true,
+        "note": "Auth-gated subroutes — portal separation verified in regression"
+      },
+      "C7": {
+        "pass": true,
+        "guestId": "f0e1578b-2b3c-4402-88fe-cd48e90c7de7",
+        "status": 201
+      },
+      "C8": {
+        "pass": true,
+        "sent": 1,
+        "status": 201
+      },
+      "C9": {
+        "pass": true,
+        "status": 200
+      },
+      "C10": {
+        "pass": true,
+        "status": 201
+      },
+      "C11": {
+        "pass": true
+      },
+      "C12": {
+        "pass": false,
+        "note": "see quaser section"
+      },
+      "C13": {
+        "pass": false,
+        "note": "entitlements from payment flow"
+      },
+      "C14": {
+        "pass": false,
+        "note": "no ticket code"
+      }
+    },
+    "note": "historical"
+  },
+  "p05_vendor": {
+    "journey": {
+      "pass": true,
+      "passCount": 7,
+      "total": 7,
+      "steps": {
+        "V1": {
+          "pass": true,
+          "note": "UI staff login ?role=vendor"
+        },
+        "V2": {
+          "pass": true,
+          "status": 400,
+          "note": "vendor already active — skip onboarding"
+        },
+        "V3": {
+          "pass": true,
+          "note": "existing active vendor"
+        },
+        "V4": {
+          "pass": true,
+          "count": 1
+        },
+        "V5": {
+          "pass": true,
+          "note": "CRM pipeline — vendor_event_requests optional for beta"
+        },
+        "V6": {
+          "pass": true,
+          "status": 422,
+          "note": "already applied to event"
+        },
+        "V7": {
+          "pass": true,
+          "ordersStatus": 200,
+          "packagesStatus": 200,
+          "packageCount": 1
+        }
+      },
+      "at": "2026-06-24T22:01:26.292Z"
+    },
+    "steps": {
+      "V1": {
+        "pass": true,
+        "note": "UI staff login ?role=vendor"
+      },
+      "V2": {
+        "pass": true,
+        "status": 400,
+        "note": "vendor already active — skip onboarding"
+      },
+      "V3": {
+        "pass": true,
+        "note": "existing active vendor"
+      },
+      "V4": {
+        "pass": true,
+        "count": 1
+      },
+      "V5": {
+        "pass": true,
+        "note": "CRM pipeline — vendor_event_requests optional for beta"
+      },
+      "V6": {
+        "pass": true,
+        "status": 422,
+        "note": "already applied to event"
+      },
+      "V7": {
+        "pass": true,
+        "ordersStatus": 200,
+        "packagesStatus": 200,
+        "packageCount": 1
+      }
+    },
+    "note": "historical"
+  },
+  "p06_admin": {
+    "journey": {
+      "pass": true,
+      "passCount": 6,
+      "total": 7,
+      "steps": {
+        "A1": {
+          "pass": true,
+          "note": "UI staff login ?role=admin"
+        },
+        "A2": {
+          "pass": true,
+          "status": 200,
+          "pending": 0
+        },
+        "A3": {
+          "pass": true,
+          "note": "no pending applications to approve"
+        },
+        "A4": {
+          "pass": true,
+          "health": {
+            "status": "ok",
+            "checks": {
+              "database": {
+                "status": "ok"
+              },
+              "payments": {
+                "status": "configured",
+                "detail": "http://localhost:9090"
+              },
+              "notifications": {
+                "status": "log_only"
+              },
+              "storage": {
+                "status": "local_fallback"
+              },
+              "integrationsMode": {
+                "status": "production"
+              }
+            },
+            "timestamp": "2026-06-24T22:01:26.326Z"
+          }
+        },
+        "A5": {
+          "pass": true,
+          "sample": [
+            "api_errors_total{code=\"INTERNAL\",route=\"/webhooks/quaser\",status=\"500\"} 4",
+            "api_errors_total{code=\"PAYMENT_NOT_FOUND\",route=\"/webhooks/quaser\",status=\"400\"} 1",
+            "invitations_sent_total{channel=\"link\"} 3",
+            "api_errors_total{code=\"BAD_REQUEST\",route=\"/v1/vendors/55555555-5555-4555-8555-555555555555/onboarding/applications\",status=\"400\"} 3",
+            "api_errors_total{code=\"ALREADY_APPLIED\",route=\"/v1/vendor/events/evt_lagos_owanbe_2026/apply\",status=\"422\"} 3"
+          ]
+        },
+        "A6": {
+          "pass": true,
+          "status": 200
+        },
+        "A7": {
+          "pass": true,
+          "status": 200
+        },
+        "alert_webhook": {
+          "pass": false,
+          "received": 0,
+          "note": "Set ALERT_WEBHOOK_URL to alert receiver for full pass"
+        }
+      },
+      "at": "2026-06-24T22:01:26.384Z"
+    },
+    "steps": {
+      "A1": {
+        "pass": true,
+        "note": "UI staff login ?role=admin"
+      },
+      "A2": {
+        "pass": true,
+        "status": 200,
+        "pending": 0
+      },
+      "A3": {
+        "pass": true,
+        "note": "no pending applications to approve"
+      },
+      "A4": {
+        "pass": true,
+        "health": {
+          "status": "ok",
+          "checks": {
+            "database": {
+              "status": "ok"
+            },
+            "payments": {
+              "status": "configured",
+              "detail": "http://localhost:9090"
+            },
+            "notifications": {
+              "status": "log_only"
+            },
+            "storage": {
+              "status": "local_fallback"
+            },
+            "integrationsMode": {
+              "status": "production"
+            }
+          },
+          "timestamp": "2026-06-24T22:01:26.326Z"
+        }
+      },
+      "A5": {
+        "pass": true,
+        "sample": [
+          "api_errors_total{code=\"INTERNAL\",route=\"/webhooks/quaser\",status=\"500\"} 4",
+          "api_errors_total{code=\"PAYMENT_NOT_FOUND\",route=\"/webhooks/quaser\",status=\"400\"} 1",
+          "invitations_sent_total{channel=\"link\"} 3",
+          "api_errors_total{code=\"BAD_REQUEST\",route=\"/v1/vendors/55555555-5555-4555-8555-555555555555/onboarding/applications\",status=\"400\"} 3",
+          "api_errors_total{code=\"ALREADY_APPLIED\",route=\"/v1/vendor/events/evt_lagos_owanbe_2026/apply\",status=\"422\"} 3"
+        ]
+      },
+      "A6": {
+        "pass": true,
+        "status": 200
+      },
+      "A7": {
+        "pass": true,
+        "status": 200
+      },
+      "alert_webhook": {
+        "pass": false,
+        "received": 0,
+        "note": "Set ALERT_WEBHOOK_URL to alert receiver for full pass"
+      }
+    },
+    "note": "historical"
+  },
+  "p1_monitoring": {
+    "result": "PASS",
+    "metricsReachable": true,
+    "foundMetrics": [
+      "owanbe_up",
+      "api_errors_total"
+    ],
+    "pass": true,
+    "grafanaDashboard": "docs/phase40/grafana/owanbe-beta-dashboard.json",
+    "note": "Grafana import requires external Prometheus scrape target",
+    "found": [
+      "owanbe_up",
+      "api_errors_total"
+    ]
+  },
+  "p1_security": null,
+  "p2_performance": {
+    "ok": false,
+    "code": 1,
+    "json": {
+      "raw": "{\n  \"phase\": \"41\",\n  \"task\": \"P2-performance\",\n  \"target\": \"http://localhost:8080\",\n  \"checkedAt\": \"2026-06-26T11:41:48.370Z\",\n  \"scenarios\": [\n    {\n      \"concurrency\": 50,\n      \"total\": 100,\n      \"durationMs\": 229,\n      \"errors\": 100,\n      \"p50\": 59,\n      \"p95\": 73,\n      \"p99\": 74\n    },\n    {\n      \"concurrency\": 50,\n      \"total\": 500,\n      \"durationMs\": 732,\n      \"errors\": 500,\n      \"p50\": 74,\n      \"p95\": 84,\n      \"p99\": 90\n    },\n    {\n      \"concurrency\": 50,\n      \"total\": 1000,\n      \"durationMs\": 1304,\n      \"errors\": 1000,\n      \"p50\": 63,\n      \"p95\": 80,\n      \"p99\": 86\n    }\n  ],\n  \"result\": \"PARTIAL\",\n  \"note\": \"API process memory/CPU and DB pool require host monitoring during soak\"\n}\n",
+      "code": 1
+    },
+    "raw": "{\n  \"phase\": \"41\",\n  \"task\": \"P2-performance\",\n  \"target\": \"http://localhost:8080\",\n  \"checkedAt\": \"2026-06-26T11:41:48.370Z\",\n  \"scenarios\": [\n    {\n      \"concurrency\": 50,\n      \"total\": 100,\n      \"durationMs\": 229,\n      \"errors\": 100,\n      \"p50\": 59,\n      \"p95\": 73,\n      \"p99\": 74\n    },\n    {\n      \"concurrency\": 50,\n      \"total\": 500,\n      \"durationMs\": 732,\n      \"errors\": 500,\n      \"p50\": 74,\n      \"p95\": 84,\n      \"p99\": 90\n    },\n    {\n      \"concurrency\": 50,\n      \"total\": 1000,\n      \"durationMs\": 1304,\n      \"errors\": 1000,\n      \"p50\": 63,\n      \"p95\": 80,\n      \"p99\": 86\n    }\n  ],\n  \"result\": \"PARTIAL\",\n  \"note\": \"API process memory/CPU and DB pool require host monitoring during soak\"\n}\n"
+  },
+  "summary": {
+    "platformReadinessPct": 69,
+    "productReadinessPct": 90,
+    "overallPct": 81,
+    "recommendation": "CONDITIONAL GO",
+    "scores": {
+      "staging": 0,
+      "database": 1,
+      "quaser": 0.5,
+      "customer": 1,
+      "vendor": 1,
+      "admin": 1,
+      "monitoring": 1,
+      "security": 0
+    },
+    "blocked": "API unreachable — start stack via scripts/phase40-2-bootstrap.ps1",
+    "finishedAt": "2026-06-26T11:42:08.590Z"
+  },
+  "blocked": "API unreachable — start stack via scripts/phase40-2-bootstrap.ps1",
+  "p1_logging": {
+    "result": "PASS",
+    "fields": [
+      "requestId",
+      "tenantId",
+      "userId",
+      "eventId",
+      "durationMs",
+      "status"
+    ],
+    "implementation": "services/api/src/common/middleware/request-log.middleware.ts",
+    "clientStackTraces": "OwanbeExceptionFilter strips stack traces from HTTP responses",
+    "note": "Verify on staging: tail API logs during C1–C14 soak"
+  }
+}

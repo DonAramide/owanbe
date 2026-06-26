@@ -8,6 +8,7 @@ import { AdminVendorsService } from './admin-vendors.service';
 import { AdminOperationsCenterService } from './admin-operations-center.service';
 import { AdminFinanceSupervisionService } from './admin-finance-supervision.service';
 import { AdminAuditService } from './admin-audit.service';
+import { LaunchOpsDashboardService } from './launch-ops-dashboard.service';
 
 @Module({
   imports: [AuditModule],
@@ -20,6 +21,7 @@ import { AdminAuditService } from './admin-audit.service';
     AdminOperationsCenterService,
     AdminFinanceSupervisionService,
     AdminAuditService,
+    LaunchOpsDashboardService,
   ],
 })
 export class PlatformAdminModule {}

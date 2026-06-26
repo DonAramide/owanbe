@@ -11,6 +11,8 @@ import { RolesGuard } from './common/guards/roles.guard';
 import { TenantHeaderGuard } from './common/guards/tenant-header.guard';
 import { OwanbeThrottlerGuard } from './common/guards/owanbe-throttler.guard';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
+import { SecurityHeadersMiddleware } from './common/middleware/security-headers.middleware';
+import { RequestLogMiddleware } from './common/middleware/request-log.middleware';
 import { UsersModule } from './modules/users/users.module';
 import { VendorsModule } from './modules/vendors/vendors.module';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
@@ -82,6 +84,8 @@ import { VendorOperationsModule } from './modules/vendor-operations/vendor-opera
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(RequestIdMiddleware).forRoutes('*');
+    consumer
+      .apply(RequestIdMiddleware, SecurityHeadersMiddleware, RequestLogMiddleware)
+      .forRoutes('*');
   }
 }

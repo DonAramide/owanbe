@@ -1,6 +1,11 @@
-# Phase 40.2 — Staging Deployment Runbook
+# Phase 41 — Staging Deployment Runbook
 
-**Target:** `api.staging.owanbe.com` + `app.staging.owanbe.com`  
+**Targets:**
+- `api.staging.owanbe.com` — NestJS API
+- `app.staging.owanbe.com` — Flutter web (customer)
+- `vendors.staging.owanbe.com` — Flutter web (vendor portal)
+- `admin.staging.owanbe.com` — Flutter web (admin)
+
 **No product feature changes** — infrastructure and verification only.
 
 ---
@@ -12,7 +17,7 @@
 | Managed Postgres | Connection string in secret manager |
 | Supabase project | JWT secret, anon key, service role |
 | Quaser sandbox | Router URL, API key, webhook secret |
-| DNS | `api.staging.*`, `app.staging.*` |
+| DNS | `api`, `app`, `vendors`, `admin` under `staging.owanbe.com` |
 | TLS | Let's Encrypt or CDN (Cloudflare) |
 
 ---
@@ -33,7 +38,8 @@ QUASER_ROUTER_BASE_URL=https://sandbox.quaser.example
 QUASER_ROUTER_API_KEY=...
 QUASER_WEBHOOK_SECRET=...
 PUBLIC_API_BASE_URL=https://api.staging.owanbe.com
-CORS_ORIGINS=https://app.staging.owanbe.com
+CORS_ORIGINS=https://app.staging.owanbe.com,https://vendors.staging.owanbe.com,https://admin.staging.owanbe.com
+NODE_ENV=production
 ALERT_WEBHOOK_URL=https://hooks.slack.com/services/...
 ```
 
@@ -53,7 +59,14 @@ cp assets/env/supabase.env.staging.example assets/env/supabase.env
 # ALLOW_MOCK_PERSISTENCE_FALLBACK=false
 
 flutter build web --release
-# Deploy build/web/ to CDN or static host at app.staging.owanbe.com
+# Deploy build/web/ to each host (same artifact; role routing via ?role= or path prefix)
+```
+
+**Phase 41 verify:**
+
+```bash
+node scripts/phase41-staging-verify.js
+node scripts/phase41-certification.js
 ```
 
 ---

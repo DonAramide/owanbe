@@ -8,3 +8,4 @@ node_modules/
 **/.env copy.example
 .phase10-backup/
 .phase10-gate-output.json
+owanbe/

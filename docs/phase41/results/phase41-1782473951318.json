@@ -1,0 +1,47 @@
+{
+  "phase": "41",
+  "startedAt": "2026-06-26T11:38:44.568Z",
+  "environment": {
+    "apiBase": "http://localhost:8080/v1",
+    "healthBase": "http://localhost:8080",
+    "mockQuaser": false
+  },
+  "p01_staging": {
+    "ok": false,
+    "code": 1,
+    "json": {
+      "raw": "{\n  \"phase\": \"41\",\n  \"task\": \"P0.1-staging-infrastructure\",\n  \"checkedAt\": \"2026-06-26T11:38:44.621Z\",\n  \"domains\": {\n    \"api\": {\n      \"url\": \"https://api.staging.owanbe.com\",\n      \"pass\": false,\n      \"error\": \"fetch failed\"\n    },\n    \"app\": {\n      \"url\": \"https://app.staging.owanbe.com\",\n      \"pass\": false,\n      \"error\": \"fetch failed\"\n    },\n    \"vendors\": {\n      \"url\": \"https://vendors.staging.owanbe.com\",\n      \"pass\": false,\n      \"error\": \"fetch failed\"\n    },\n    \"admin\": {\n      \"url\": \"https://admin.staging.owanbe.com\",\n      \"pass\": false,\n      \"error\": \"fetch failed\"\n    }\n  },\n  \"tls\": {\n    \"url\": \"https://api.staging.owanbe.com\",\n    \"pass\": false,\n    \"error\": \"fetch failed\"\n  },\n  \"cors\": {\n    \"pass\": false,\n    \"error\": \"fetch failed\"\n  },\n  \"securityHeaders\": {\n    \"pass\": false,\n    \"error\": \"fetch failed\"\n  },\n  \"health\": {\n    \"pass\": false,\n    \"error\": \"fetch failed\"\n  },\n  \"result\": \"FAIL\"\n}\n",
+      "code": 1
+    },
+    "raw": "{\n  \"phase\": \"41\",\n  \"task\": \"P0.1-staging-infrastructure\",\n  \"checkedAt\": \"2026-06-26T11:38:44.621Z\",\n  \"domains\": {\n    \"api\": {\n      \"url\": \"https://api.staging.owanbe.com\",\n      \"pass\": false,\n      \"error\": \"fetch failed\"\n    },\n    \"app\": {\n      \"url\": \"https://app.staging.owanbe.com\",\n      \"pass\": false,\n      \"error\": \"fetch failed\"\n    },\n    \"vendors\": {\n      \"url\": \"https://vendors.staging.owanbe.com\",\n      \"pass\": false,\n      \"error\": \"fetch failed\"\n    },\n    \"admin\": {\n      \"url\": \"https://admin.staging.owanbe.com\",\n      \"pass\": false,\n      \"error\": \"fetch failed\"\n    }\n  },\n  \"tls\": {\n    \"url\": \"https://api.staging.owanbe.com\",\n    \"pass\": false,\n    \"error\": \"fetch failed\"\n  },\n  \"cors\": {\n    \"pass\": false,\n    \"error\": \"fetch failed\"\n  },\n  \"securityHeaders\": {\n    \"pass\": false,\n    \"error\": \"fetch failed\"\n  },\n  \"health\": {\n    \"pass\": false,\n    \"error\": \"fetch failed\"\n  },\n  \"result\": \"FAIL\"\n}\n"
+  },
+  "p02_database": {
+    "ok": false,
+    "code": 1,
+    "json": null,
+    "raw": "AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1134:18)\n    at afterConnectMultiple (node:net:1715:7) {\n  code: 'ECONNREFUSED',\n  [errors]: [\n    Error: connect ECONNREFUSED ::1:5432\n        at createConnectionError (node:net:1678:14)\n        at afterConnectMultiple (node:net:1708:16) {\n      errno: -4078,\n      code: 'ECONNREFUSED',\n      syscall: 'connect',\n      address: '::1',\n      port: 5432\n    },\n    Error: connect ECONNREFUSED 127.0.0.1:5432\n        at createConnectionError (node:net:1678:14)\n        at afterConnectMultiple (node:net:1708:16) {\n      errno: -4078,\n      code: 'ECONNREFUSED',\n      syscall: 'connect',\n      address: '127.0.0.1',\n      port: 5432\n    }\n  ]\n}\n"
+  },
+  "p03_quaser": null,
+  "p04_customer": null,
+  "p05_vendor": null,
+  "p06_admin": null,
+  "p1_monitoring": null,
+  "p1_security": null,
+  "p2_performance": {
+    "ok": false,
+    "code": 1,
+    "json": {
+      "raw": "{\n  \"phase\": \"41\",\n  \"task\": \"P2-performance\",\n  \"target\": \"http://localhost:8080\",\n  \"checkedAt\": \"2026-06-26T11:38:51.159Z\",\n  \"scenarios\": [\n    {\n      \"concurrency\": 50,\n      \"total\": 100,\n      \"durationMs\": 128,\n      \"errors\": 100,\n      \"p50\": 32,\n      \"p95\": 39,\n      \"p99\": 39\n    },\n    {\n      \"concurrency\": 50,\n      \"total\": 500,\n      \"durationMs\": 403,\n      \"errors\": 500,\n      \"p50\": 37,\n      \"p95\": 58,\n      \"p99\": 60\n    },\n    {\n      \"concurrency\": 50,\n      \"total\": 1000,\n      \"durationMs\": 669,\n      \"errors\": 1000,\n      \"p50\": 32,\n      \"p95\": 45,\n      \"p99\": 47\n    }\n  ],\n  \"result\": \"PARTIAL\",\n  \"note\": \"API process memory/CPU and DB pool require host monitoring during soak\"\n}\n",
+      "code": 1
+    },
+    "raw": "{\n  \"phase\": \"41\",\n  \"task\": \"P2-performance\",\n  \"target\": \"http://localhost:8080\",\n  \"checkedAt\": \"2026-06-26T11:38:51.159Z\",\n  \"scenarios\": [\n    {\n      \"concurrency\": 50,\n      \"total\": 100,\n      \"durationMs\": 128,\n      \"errors\": 100,\n      \"p50\": 32,\n      \"p95\": 39,\n      \"p99\": 39\n    },\n    {\n      \"concurrency\": 50,\n      \"total\": 500,\n      \"durationMs\": 403,\n      \"errors\": 500,\n      \"p50\": 37,\n      \"p95\": 58,\n      \"p99\": 60\n    },\n    {\n      \"concurrency\": 50,\n      \"total\": 1000,\n      \"durationMs\": 669,\n      \"errors\": 1000,\n      \"p50\": 32,\n      \"p95\": 45,\n      \"p99\": 47\n    }\n  ],\n  \"result\": \"PARTIAL\",\n  \"note\": \"API process memory/CPU and DB pool require host monitoring during soak\"\n}\n"
+  },
+  "summary": {
+    "platformReadinessPct": 0,
+    "productReadinessPct": 90,
+    "overallPct": 54,
+    "recommendation": "NO GO",
+    "finishedAt": "2026-06-26T11:39:11.318Z"
+  },
+  "blocked": "API unreachable — start stack via scripts/phase40-2-bootstrap.ps1"
+}
