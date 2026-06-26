@@ -2,6 +2,7 @@ import '../../../features/operations/models/operations_models.dart';
 import '../../../features/organizer/finance/organizer_finance_api.dart';
 import '../../../features/organizer/models/organizer_models.dart';
 import 'home_hub_models.dart';
+import 'vendor_crm_models.dart';
 
 class EventCommandCenterSnapshot {
   const EventCommandCenterSnapshot({
@@ -104,7 +105,15 @@ class GuestCommandStats {
   final int checkedIn;
 }
 
-VendorCommandStats vendorStats(OrganizerEvent event) {
+VendorCommandStats vendorStats(OrganizerEvent event, {VendorCrmSnapshot? crm}) {
+  if (crm != null) {
+    final s = crm.stats;
+    return VendorCommandStats(
+      requested: s.newCount + s.negotiating,
+      accepted: s.accepted + s.scheduled + s.arrived,
+      completed: s.completed,
+    );
+  }
   final vendors = event.vendors;
   return VendorCommandStats(
     requested: vendors
@@ -159,11 +168,12 @@ EventCommandCenterSnapshot buildCommandCenterSnapshot({
   required List<OpsGuest> opsGuests,
   required List<OpsFeedEvent> feed,
   OrganizerEventFinanceSummary? finance,
+  VendorCrmSnapshot? crm,
 }) {
   final tasks = buildPlanningTasks(event);
   final done = tasks.where((t) => t.done).length;
   final guests = guestStats(event, opsGuests);
-  final vendors = vendorStats(event);
+  final vendors = vendorStats(event, crm: crm);
   final budget = budgetStats(event, finance);
 
   return EventCommandCenterSnapshot(

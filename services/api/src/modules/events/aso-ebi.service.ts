@@ -3,10 +3,12 @@ import {
   Injectable,
   Inject,
   NotFoundException,
+  ForbiddenException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../../database/database.tokens';
+import { IntegrationsModeService } from '../../integrations/integrations-mode.service';
 import type { CommerceActor } from '../commerce/commerce-auth.service';
 import { EventsAccessService } from './events-access.service';
 
@@ -65,6 +67,7 @@ export class AsoEbiService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly access: EventsAccessService,
+    private readonly integrations: IntegrationsModeService,
   ) {}
 
   private assertPackageType(raw: string): AsoEbiPackageType {
@@ -515,12 +518,49 @@ export class AsoEbiService {
     }
   }
 
+  private async assertReservationActor(
+    actor: CommerceActor,
+    eventKey: string,
+    reservationId: string,
+  ): Promise<{ eventId: string; isOrganizer: boolean }> {
+    const event = await this.access.resolveEventRow(actor.tenantId, eventKey, true);
+    const { rows } = await this.pool.query<{ user_id: string | null }>(
+      `SELECT user_id FROM event_aso_ebi_reservations
+       WHERE id = $1::uuid AND tenant_id = $2 AND event_id = $3`,
+      [reservationId, actor.tenantId, event.id],
+    );
+    if (!rows[0]) {
+      throw new NotFoundException({ code: 'RESERVATION_NOT_FOUND', message: 'Reservation not found' });
+    }
+    const isOwner = rows[0].user_id === actor.userId;
+    let isOrganizer = false;
+    try {
+      await this.access.assertOrganizerOwnsEvent(actor.tenantId, actor.userId, eventKey);
+      isOrganizer = true;
+    } catch {
+      isOrganizer = false;
+    }
+    if (!isOwner && !isOrganizer) {
+      throw new ForbiddenException({
+        code: 'RESERVATION_ACCESS_DENIED',
+        message: 'Not allowed to modify this reservation',
+      });
+    }
+    return { eventId: event.id, isOrganizer };
+  }
+
   async markPaid(
-    tenantId: string,
+    actor: CommerceActor,
     eventKey: string,
     reservationId: string,
   ): Promise<AsoEbiReservationView> {
-    const event = await this.access.resolveEventRow(tenantId, eventKey, true);
+    const { eventId } = await this.assertReservationActor(actor, eventKey, reservationId);
+    if (!this.integrations.allowPaymentStubs()) {
+      throw new UnprocessableEntityException({
+        code: 'PAYMENT_REQUIRED',
+        message: 'Complete payment through checkout; direct pay is disabled in production',
+      });
+    }
     const { rows } = await this.pool.query<{
       id: string;
       fabric_id: string;
@@ -545,7 +585,7 @@ export class AsoEbiService {
        RETURNING r.id, r.fabric_id, f.name AS fabric_name, r.package_type, r.size,
                  r.guest_name, r.guest_email, r.price_minor, r.payment_status, r.fulfillment_status,
                  r.reserved_at, r.paid_at, r.collected_at`,
-      [tenantId, event.id, reservationId],
+      [actor.tenantId, eventId, reservationId],
     );
     const row = rows[0];
     if (!row) {
@@ -650,15 +690,12 @@ export class AsoEbiService {
   }
 
   async cancelReservation(
-    tenantId: string,
+    actor: CommerceActor,
     eventKey: string,
     reservationId: string,
-    actor?: CommerceActor,
   ): Promise<AsoEbiReservationView> {
-    const event = actor
-      ? await this.access.assertOrganizerOwnsEvent(actor.tenantId, actor.userId, eventKey)
-      : await this.access.resolveEventRow(tenantId, eventKey, true);
-    const tid = actor?.tenantId ?? tenantId;
+    const { eventId } = await this.assertReservationActor(actor, eventKey, reservationId);
+    const tid = actor.tenantId;
 
     const client = await this.pool.connect();
     try {
@@ -686,7 +723,7 @@ export class AsoEbiService {
          WHERE r.id = $3::uuid AND r.tenant_id = $1 AND r.event_id = $2
            AND r.fulfillment_status = 'reserved'
          FOR UPDATE OF r`,
-        [tid, event.id, reservationId],
+        [tid, eventId, reservationId],
       );
       const row = rows[0];
       if (!row) {
@@ -700,7 +737,7 @@ export class AsoEbiService {
              updated_at = now()
          WHERE tenant_id = $1 AND event_id = $2 AND fabric_id = $3::uuid
            AND package_type = $4 AND size = $5`,
-        [tid, event.id, row.fabric_id, row.package_type, row.size],
+        [tid, eventId, row.fabric_id, row.package_type, row.size],
       );
 
       await client.query(

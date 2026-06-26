@@ -86,14 +86,22 @@ final vendorDiscoverableEventsProvider = FutureProvider.autoDispose<List<VendorE
 
 final vendorCatalogProvider = FutureProvider.autoDispose<List<VendorCatalogItem>>((ref) async {
   ref.watch(vendorRevisionProvider);
-  await Future<void>.delayed(const Duration(milliseconds: 50));
-  return ref.read(vendorStoreProvider).catalog;
+  try {
+    return await ref.read(vendorCatalogApiProvider).listPackages();
+  } catch (e) {
+    if (!allowMockPersistenceFallback()) rethrow;
+    return ref.read(vendorStoreProvider).catalog;
+  }
 });
 
 final vendorOrdersProvider = FutureProvider.autoDispose<List<VendorOrder>>((ref) async {
   ref.watch(vendorRevisionProvider);
-  await Future<void>.delayed(const Duration(milliseconds: 50));
-  return ref.read(vendorStoreProvider).orders;
+  try {
+    return await ref.read(vendorBookingsApiProvider).listOrders();
+  } catch (e) {
+    if (!allowMockPersistenceFallback()) rethrow;
+    return ref.read(vendorStoreProvider).orders;
+  }
 });
 
 final vendorWalletProvider = FutureProvider.autoDispose<VendorWalletSnapshot>((ref) async {

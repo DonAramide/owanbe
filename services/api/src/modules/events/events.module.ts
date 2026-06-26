@@ -12,6 +12,9 @@ import { EventWebsiteService } from './event-website.service';
 import { CelebrationWallService } from './celebration-wall.service';
 import { AsoEbiService } from './aso-ebi.service';
 import { SeatingService } from './seating.service';
+import { ProgramService } from './program.service';
+import { EventGuestsService } from './event-guests.service';
+import { EventInvitationsService } from './event-invitations.service';
 
 @Module({
   imports: [DatabaseModule, CommerceModule],
@@ -27,6 +30,9 @@ import { SeatingService } from './seating.service';
     CelebrationWallService,
     AsoEbiService,
     SeatingService,
+    ProgramService,
+    EventGuestsService,
+    EventInvitationsService,
   ],
   exports: [EventsService, EventsAccessService],
 })

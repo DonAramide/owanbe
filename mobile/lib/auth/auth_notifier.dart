@@ -120,6 +120,36 @@ class AuthNotifier extends Notifier<AuthSession?> {
     );
   }
 
+  Future<void> signUpAttendee({
+    required String displayName,
+    required String email,
+    required String password,
+  }) async {
+    _preferredRole = UserRole.client;
+    final res = await Supabase.instance.client.auth.signUp(
+      email: email.trim(),
+      password: password,
+      data: {'display_name': displayName.trim()},
+    );
+    final session = res.session;
+    if (session == null) {
+      throw StateError(
+        'Account created — check your email to confirm, then sign in.',
+      );
+    }
+    await signInWithEmail(
+      email: email,
+      password: password,
+      expectedRole: UserRole.client,
+    );
+    state = AuthSession(
+      userId: state!.userId,
+      displayName: displayName,
+      role: UserRole.client,
+      email: email,
+    );
+  }
+
   List<String> _jwtRoles(Session session) {
     for (final source in [
       session.user.appMetadata['roles'],

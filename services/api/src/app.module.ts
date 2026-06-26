@@ -31,6 +31,7 @@ import { ComplianceModule } from './modules/compliance/compliance.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { EventConfigModule } from './modules/event-config/event-config.module';
 import { RentalsModule } from './modules/rentals/rentals.module';
+import { VendorOperationsModule } from './modules/vendor-operations/vendor-operations.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { RentalsModule } from './modules/rentals/rentals.module';
     IntegrationsModule,
     EventConfigModule,
     RentalsModule,
+    VendorOperationsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

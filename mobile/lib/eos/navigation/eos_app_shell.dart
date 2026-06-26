@@ -5,6 +5,7 @@ import '../layout/eos_responsive.dart';
 import '../navigation/eos_nav_destination.dart';
 import '../tokens/eos_colors.dart';
 import '../tokens/eos_spacing.dart';
+import '../widgets/owanbe_logo.dart';
 
 /// Role-aware app shell — rail on desktop/tablet, bottom bar on mobile.
 class EosAppShell extends StatelessWidget {
@@ -104,9 +105,9 @@ class _RailShell extends StatelessWidget {
                       ],
                     ),
                   )
-                : Padding(
-                    padding: const EdgeInsets.only(top: EosSpacing.md),
-                    child: Icon(Icons.celebration_outlined, color: context.eosColors.primary, size: 28),
+                : const Padding(
+                    padding: EdgeInsets.only(top: EosSpacing.md),
+                    child: OwanbeLogo(size: 28),
                   ),
             destinations: [
               for (final d in destinations)

@@ -10,6 +10,8 @@ import '../../../features/organizer/finance/organizer_finance_api.dart';
 import '../../../features/organizer/finance/organizer_finance_providers.dart';
 import '../../../features/organizer/providers/organizer_providers.dart';
 import '../models/command_center_models.dart';
+import '../models/vendor_crm_models.dart';
+import '../providers/vendor_crm_providers.dart';
 
 final customerEventCommandRefreshProvider = StateProvider<int>((ref) => 0);
 
@@ -73,10 +75,18 @@ final customerEventCommandProvider =
     finance = null;
   }
 
+  VendorCrmSnapshot? crm;
+  try {
+    crm = await ref.read(vendorCrmApiProvider).listForEvent(eventId);
+  } catch (_) {
+    crm = null;
+  }
+
   return buildCommandCenterSnapshot(
     event: event,
     opsGuests: opsGuests,
     feed: feed,
     finance: finance,
+    crm: crm,
   );
 });

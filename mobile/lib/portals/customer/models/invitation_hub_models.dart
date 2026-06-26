@@ -101,10 +101,11 @@ InvitationShareTargets buildShareTargets(OrganizerEvent event) {
 InvitationHubSnapshot buildInvitationHubSnapshot({
   required OrganizerEvent event,
   required List<CustomerGuestView> guests,
+  InvitationFunnelStats? apiStats,
 }) {
   return InvitationHubSnapshot(
     event: event,
-    stats: buildInvitationStats(guests),
+    stats: apiStats ?? buildInvitationStats(guests),
     share: buildShareTargets(event),
     guestCount: guests.length,
   );

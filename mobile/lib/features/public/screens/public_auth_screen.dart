@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../auth/auth_notifier.dart';
 import '../../../eos/eos.dart';
+import '../../../eos/widgets/owanbe_logo.dart';
 import '../widgets/public_shell_mixin.dart';
 
 class PublicAuthScreen extends ConsumerStatefulWidget {
@@ -52,6 +53,8 @@ class _PublicAuthScreenState extends ConsumerState<PublicAuthScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const Center(child: OwanbeLogo(size: 64)),
+                  SizedBox(height: context.eos.spacing.lg),
                   Text(
                     _isSignUp ? 'Create your account' : 'Welcome back',
                     style: context.eosText.headlineSmall,
@@ -124,11 +127,19 @@ class _PublicAuthScreenState extends ConsumerState<PublicAuthScreen> {
     if (email.isEmpty || password.isEmpty) return;
     final name = _name.text.trim().isNotEmpty ? _name.text.trim() : email.split('@').first;
     try {
-      await ref.read(authSessionProvider.notifier).signInAttendee(
-            displayName: name,
-            email: email,
-            password: password,
-          );
+      if (_isSignUp) {
+        await ref.read(authSessionProvider.notifier).signUpAttendee(
+              displayName: name,
+              email: email,
+              password: password,
+            );
+      } else {
+        await ref.read(authSessionProvider.notifier).signInAttendee(
+              displayName: name,
+              email: email,
+              password: password,
+            );
+      }
       if (!mounted) return;
       context.go(widget.returnPath);
     } catch (e) {

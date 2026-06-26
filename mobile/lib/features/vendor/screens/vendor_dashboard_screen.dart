@@ -39,6 +39,16 @@ class VendorDashboardScreen extends ConsumerWidget {
     return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          EosSurfaceCard(
+            child: ListTile(
+              leading: const Icon(Icons.verified_outlined),
+              title: const Text('Complete marketplace onboarding'),
+              subtitle: const Text('Submit your business profile for admin review.'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/vendor/onboarding'),
+            ),
+          ),
+          SizedBox(height: context.eos.spacing.md),
           if (stats.pendingPayoutsMinor > 0)
             EosAttentionBanner(
               headline: 'Pending payout in progress',
@@ -107,6 +117,26 @@ class VendorDashboardScreen extends ConsumerWidget {
               leading: const Icon(Icons.inventory_2_outlined, color: EosColors.plum),
               title: const Text('Rentals & equipment'),
               subtitle: const Text('Inventory, orders, delivery, returns, and claims'),
+              trailing: const Icon(Icons.chevron_right),
+            ),
+          ),
+          SizedBox(height: context.eos.spacing.lg),
+          EosSurfaceCard(
+            onTap: () => context.push('/vendor/crm'),
+            child: ListTile(
+              leading: const Icon(Icons.handshake_outlined, color: EosColors.plum),
+              title: const Text('Requests & pipeline'),
+              subtitle: const Text('New requests through completed service'),
+              trailing: const Icon(Icons.chevron_right),
+            ),
+          ),
+          SizedBox(height: context.eos.spacing.md),
+          EosSurfaceCard(
+            onTap: () => context.push('/vendor/calendar'),
+            child: ListTile(
+              leading: const Icon(Icons.calendar_month_outlined, color: EosColors.plum),
+              title: const Text('Schedule & availability'),
+              subtitle: const Text('Blackouts, vacation mode, and booking conflicts'),
               trailing: const Icon(Icons.chevron_right),
             ),
           ),

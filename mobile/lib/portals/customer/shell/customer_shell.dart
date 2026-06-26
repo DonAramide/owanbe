@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../eos/eos.dart';
+import '../../../eos/widgets/owanbe_logo.dart';
 import 'customer_nav_destinations.dart';
 
 /// Customer Portal shell — mobile bottom nav, tablet/desktop rail, route persistence.
@@ -73,7 +74,7 @@ class _CustomerTopBar extends StatelessWidget {
           bottom: false,
           child: Row(
             children: [
-              Icon(Icons.celebration, color: context.eosColors.primary, size: 28),
+              const OwanbeLogo(size: 28),
               SizedBox(width: context.eos.spacing.sm),
               Expanded(
                 child: Column(

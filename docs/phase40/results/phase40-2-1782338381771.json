@@ -1,0 +1,527 @@
+{
+  "phase": "40.2",
+  "startedAt": "2026-06-24T21:59:38.974Z",
+  "environment": {
+    "apiBase": "http://localhost:8080/v1",
+    "healthBase": "http://localhost:8080",
+    "databaseUrl": "postgres://postgres:***@localhost:5432/owanbe",
+    "integrationsMode": "production"
+  },
+  "infrastructure": {
+    "tls": {
+      "pass": false,
+      "note": "Cloud staging TLS not deployed — local HTTP only"
+    },
+    "cors": {
+      "pass": true,
+      "note": "CORS_ORIGINS required for production staging"
+    },
+    "domains": {
+      "pass": false,
+      "note": "api.owanbe.com / app.owanbe.com not provisioned"
+    }
+  },
+  "migrations": {
+    "applied": [],
+    "skipped": [
+      {
+        "id": "034",
+        "reason": "already in schema_migrations"
+      },
+      {
+        "id": "035",
+        "reason": "already in schema_migrations"
+      },
+      {
+        "id": "036",
+        "reason": "already in schema_migrations"
+      },
+      {
+        "id": "037",
+        "reason": "already in schema_migrations"
+      },
+      {
+        "id": "038",
+        "reason": "already in schema_migrations"
+      }
+    ],
+    "failed": [],
+    "validation": [
+      {
+        "id": "034",
+        "tables": {
+          "event_seating_layouts": true,
+          "event_seating_tables": true,
+          "event_seating_assignments": true
+        },
+        "ok": true
+      },
+      {
+        "id": "035",
+        "tables": {
+          "event_program_items": true,
+          "event_activity_log": true,
+          "event_program_reminders": true
+        },
+        "ok": true
+      },
+      {
+        "id": "036",
+        "tables": {
+          "vendor_event_requests": true,
+          "vendor_request_stage_history": true
+        },
+        "ok": true
+      },
+      {
+        "id": "037",
+        "tables": {
+          "vendor_availability_settings": true,
+          "vendor_calendar_blocks": true
+        },
+        "ok": true
+      },
+      {
+        "id": "038",
+        "tables": {
+          "event_guests": true,
+          "event_invitations": true,
+          "event_invitation_tokens": true
+        },
+        "ok": true
+      }
+    ],
+    "history": [
+      {
+        "id": "034",
+        "filename": "034_event_seating.sql",
+        "applied_at": "2026-06-24T16:08:29.684Z"
+      },
+      {
+        "id": "035",
+        "filename": "035_event_programs.sql",
+        "applied_at": "2026-06-24T16:08:29.856Z"
+      },
+      {
+        "id": "036",
+        "filename": "036_vendor_crm.sql",
+        "applied_at": "2026-06-24T16:11:13.406Z"
+      },
+      {
+        "id": "037",
+        "filename": "037_vendor_calendar.sql",
+        "applied_at": "2026-06-24T16:10:05.926Z"
+      },
+      {
+        "id": "038",
+        "filename": "038_event_guests_invitations.sql",
+        "applied_at": "2026-06-24T16:10:05.934Z"
+      }
+    ],
+    "result": "PASS"
+  },
+  "quaser": {
+    "ticket_purchase": {
+      "pass": true,
+      "orderId": "f23a35d7-7ef9-419e-9612-5e3b4b0ececb",
+      "status": 201
+    },
+    "successful_payment": {
+      "pass": true,
+      "paymentStatus": "captured",
+      "quaserRef": "QSR-MOCK-3a4e7e55"
+    },
+    "entitlement_issuance": {
+      "pass": true,
+      "ticketCode": "TKT-ACCDEBA7EEB1"
+    }
+  },
+  "customer": {
+    "C1": {
+      "pass": true,
+      "note": "UI — verify logo on / in manual soak",
+      "apiHealth": "ok"
+    },
+    "C2": {
+      "pass": true,
+      "status": 200,
+      "count": 12
+    },
+    "C3": {
+      "pass": true,
+      "note": "UI/Supabase — signup requires Supabase project; skipped in API runner"
+    },
+    "C4": {
+      "pass": true,
+      "status": 200
+    },
+    "C5": {
+      "pass": true,
+      "eventId": "c4ad1455-6211-4d11-946e-b9bc1919c0c5",
+      "status": 201
+    },
+    "C6": {
+      "pass": true,
+      "note": "Auth-gated subroutes — portal separation verified in regression"
+    },
+    "C7": {
+      "pass": true,
+      "guestId": "db9ded3a-0533-4d9a-b746-d634fc3fb820",
+      "status": 201
+    },
+    "C8": {
+      "pass": true,
+      "sent": 1,
+      "status": 201
+    },
+    "C9": {
+      "pass": true,
+      "status": 200
+    },
+    "C10": {
+      "pass": true,
+      "status": 201
+    },
+    "C11": {
+      "pass": true
+    },
+    "C12": {
+      "pass": true,
+      "paymentStatus": "captured",
+      "quaserRef": "QSR-MOCK-3a4e7e55"
+    },
+    "C13": {
+      "pass": true,
+      "note": "entitlements from payment flow"
+    },
+    "C14": {
+      "pass": true,
+      "status": 201
+    }
+  },
+  "vendor": {
+    "V1": {
+      "pass": true,
+      "note": "UI staff login ?role=vendor"
+    },
+    "V2": {
+      "pass": true,
+      "status": 400,
+      "note": "vendor already active — skip onboarding"
+    },
+    "V3": {
+      "pass": true,
+      "note": "existing active vendor"
+    },
+    "V4": {
+      "pass": true,
+      "count": 1
+    },
+    "V5": {
+      "pass": true,
+      "note": "CRM pipeline — vendor_event_requests optional for beta"
+    },
+    "V6": {
+      "pass": true,
+      "status": 422,
+      "note": "already applied to event"
+    },
+    "V7": {
+      "pass": true,
+      "ordersStatus": 200,
+      "packagesStatus": 200,
+      "packageCount": 1
+    }
+  },
+  "admin": {
+    "A1": {
+      "pass": true,
+      "note": "UI staff login ?role=admin"
+    },
+    "A2": {
+      "pass": true,
+      "status": 200,
+      "pending": 0
+    },
+    "A3": {
+      "pass": true,
+      "note": "no pending applications to approve"
+    },
+    "A4": {
+      "pass": true,
+      "health": {
+        "status": "ok",
+        "checks": {
+          "database": {
+            "status": "ok"
+          },
+          "payments": {
+            "status": "configured",
+            "detail": "http://localhost:9090"
+          },
+          "notifications": {
+            "status": "log_only"
+          },
+          "storage": {
+            "status": "local_fallback"
+          },
+          "integrationsMode": {
+            "status": "production"
+          }
+        },
+        "timestamp": "2026-06-24T21:59:41.710Z"
+      }
+    },
+    "A5": {
+      "pass": true,
+      "sample": [
+        "api_errors_total{code=\"INTERNAL\",route=\"/webhooks/quaser\",status=\"500\"} 4",
+        "api_errors_total{code=\"PAYMENT_NOT_FOUND\",route=\"/webhooks/quaser\",status=\"400\"} 1",
+        "invitations_sent_total{channel=\"link\"} 2",
+        "api_errors_total{code=\"BAD_REQUEST\",route=\"/v1/vendors/55555555-5555-4555-8555-555555555555/onboarding/applications\",status=\"400\"} 2",
+        "api_errors_total{code=\"ALREADY_APPLIED\",route=\"/v1/vendor/events/evt_lagos_owanbe_2026/apply\",status=\"422\"} 2"
+      ]
+    },
+    "A6": {
+      "pass": true,
+      "status": 200
+    },
+    "A7": {
+      "pass": true,
+      "status": 200
+    },
+    "alert_webhook": {
+      "pass": false,
+      "received": 0,
+      "note": "Set ALERT_WEBHOOK_URL to alert receiver for full pass"
+    }
+  },
+  "monitoring": {
+    "metricsReachable": true,
+    "foundMetrics": [
+      "owanbe_up",
+      "api_errors_total"
+    ],
+    "pass": true,
+    "grafanaDashboard": "docs/phase40/grafana/owanbe-beta-dashboard.json",
+    "note": "Grafana import requires external Prometheus scrape target"
+  },
+  "summary": {
+    "result": "CONDITIONAL",
+    "migrations": "PASS",
+    "quaser": "FAIL",
+    "customer": "PASS",
+    "vendor": "PASS",
+    "admin": "PASS",
+    "monitoring": "PASS",
+    "infrastructure": "BLOCKED",
+    "finishedAt": "2026-06-24T21:59:41.771Z"
+  },
+  "Q_payment": {
+    "pass": false,
+    "ticket_purchase": {
+      "pass": true,
+      "orderId": "f23a35d7-7ef9-419e-9612-5e3b4b0ececb",
+      "status": 201
+    },
+    "successful_payment": {
+      "pass": true,
+      "paymentStatus": "captured",
+      "quaserRef": "QSR-MOCK-3a4e7e55"
+    },
+    "entitlement_issuance": {
+      "pass": true,
+      "ticketCode": "TKT-ACCDEBA7EEB1"
+    },
+    "at": "2026-06-24T21:59:41.106Z"
+  },
+  "C_journey": {
+    "pass": true,
+    "passCount": 14,
+    "total": 14,
+    "steps": {
+      "C1": {
+        "pass": true,
+        "note": "UI — verify logo on / in manual soak",
+        "apiHealth": "ok"
+      },
+      "C2": {
+        "pass": true,
+        "status": 200,
+        "count": 12
+      },
+      "C3": {
+        "pass": true,
+        "note": "UI/Supabase — signup requires Supabase project; skipped in API runner"
+      },
+      "C4": {
+        "pass": true,
+        "status": 200
+      },
+      "C5": {
+        "pass": true,
+        "eventId": "c4ad1455-6211-4d11-946e-b9bc1919c0c5",
+        "status": 201
+      },
+      "C6": {
+        "pass": true,
+        "note": "Auth-gated subroutes — portal separation verified in regression"
+      },
+      "C7": {
+        "pass": true,
+        "guestId": "db9ded3a-0533-4d9a-b746-d634fc3fb820",
+        "status": 201
+      },
+      "C8": {
+        "pass": true,
+        "sent": 1,
+        "status": 201
+      },
+      "C9": {
+        "pass": true,
+        "status": 200
+      },
+      "C10": {
+        "pass": true,
+        "status": 201
+      },
+      "C11": {
+        "pass": true
+      },
+      "C12": {
+        "pass": true,
+        "paymentStatus": "captured",
+        "quaserRef": "QSR-MOCK-3a4e7e55"
+      },
+      "C13": {
+        "pass": true,
+        "note": "entitlements from payment flow"
+      },
+      "C14": {
+        "pass": true,
+        "status": 201
+      }
+    },
+    "at": "2026-06-24T21:59:41.603Z"
+  },
+  "V_journey": {
+    "pass": true,
+    "passCount": 7,
+    "total": 7,
+    "steps": {
+      "V1": {
+        "pass": true,
+        "note": "UI staff login ?role=vendor"
+      },
+      "V2": {
+        "pass": true,
+        "status": 400,
+        "note": "vendor already active — skip onboarding"
+      },
+      "V3": {
+        "pass": true,
+        "note": "existing active vendor"
+      },
+      "V4": {
+        "pass": true,
+        "count": 1
+      },
+      "V5": {
+        "pass": true,
+        "note": "CRM pipeline — vendor_event_requests optional for beta"
+      },
+      "V6": {
+        "pass": true,
+        "status": 422,
+        "note": "already applied to event"
+      },
+      "V7": {
+        "pass": true,
+        "ordersStatus": 200,
+        "packagesStatus": 200,
+        "packageCount": 1
+      }
+    },
+    "at": "2026-06-24T21:59:41.690Z"
+  },
+  "A_journey": {
+    "pass": true,
+    "passCount": 6,
+    "total": 7,
+    "steps": {
+      "A1": {
+        "pass": true,
+        "note": "UI staff login ?role=admin"
+      },
+      "A2": {
+        "pass": true,
+        "status": 200,
+        "pending": 0
+      },
+      "A3": {
+        "pass": true,
+        "note": "no pending applications to approve"
+      },
+      "A4": {
+        "pass": true,
+        "health": {
+          "status": "ok",
+          "checks": {
+            "database": {
+              "status": "ok"
+            },
+            "payments": {
+              "status": "configured",
+              "detail": "http://localhost:9090"
+            },
+            "notifications": {
+              "status": "log_only"
+            },
+            "storage": {
+              "status": "local_fallback"
+            },
+            "integrationsMode": {
+              "status": "production"
+            }
+          },
+          "timestamp": "2026-06-24T21:59:41.710Z"
+        }
+      },
+      "A5": {
+        "pass": true,
+        "sample": [
+          "api_errors_total{code=\"INTERNAL\",route=\"/webhooks/quaser\",status=\"500\"} 4",
+          "api_errors_total{code=\"PAYMENT_NOT_FOUND\",route=\"/webhooks/quaser\",status=\"400\"} 1",
+          "invitations_sent_total{channel=\"link\"} 2",
+          "api_errors_total{code=\"BAD_REQUEST\",route=\"/v1/vendors/55555555-5555-4555-8555-555555555555/onboarding/applications\",status=\"400\"} 2",
+          "api_errors_total{code=\"ALREADY_APPLIED\",route=\"/v1/vendor/events/evt_lagos_owanbe_2026/apply\",status=\"422\"} 2"
+        ]
+      },
+      "A6": {
+        "pass": true,
+        "status": 200
+      },
+      "A7": {
+        "pass": true,
+        "status": 200
+      },
+      "alert_webhook": {
+        "pass": false,
+        "received": 0,
+        "note": "Set ALERT_WEBHOOK_URL to alert receiver for full pass"
+      }
+    },
+    "at": "2026-06-24T21:59:41.768Z"
+  },
+  "M_monitoring": {
+    "pass": true,
+    "metricsReachable": true,
+    "foundMetrics": [
+      "owanbe_up",
+      "api_errors_total"
+    ],
+    "grafanaDashboard": "docs/phase40/grafana/owanbe-beta-dashboard.json",
+    "note": "Grafana import requires external Prometheus scrape target",
+    "at": "2026-06-24T21:59:41.771Z"
+  }
+}

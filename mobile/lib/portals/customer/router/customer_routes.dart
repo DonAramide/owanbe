@@ -32,6 +32,10 @@ abstract final class CustomerRoutes {
 
   static String eventSeating(String eventId) => '/events/$eventId/seating';
 
+  static String eventProgram(String eventId) => '/events/$eventId/program';
+
+  static String eventVendorPipeline(String eventId) => '/events/$eventId/vendor-pipeline';
+
   static String rentalsMarketplace({String? eventId}) =>
       eventId != null ? '/vendors/rentals?eventId=$eventId' : '/vendors/rentals';
 

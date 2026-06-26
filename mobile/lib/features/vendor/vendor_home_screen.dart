@@ -8,6 +8,7 @@ import 'providers/vendor_providers.dart';
 import 'screens/event_participation_screen.dart';
 import 'screens/orders_bookings_screen.dart';
 import 'screens/service_catalog_screen.dart';
+import 'screens/vendor_onboarding_screen.dart';
 import 'screens/vendor_analytics_screen.dart';
 import 'screens/vendor_dashboard_screen.dart';
 import 'screens/vendor_payouts_screen.dart';

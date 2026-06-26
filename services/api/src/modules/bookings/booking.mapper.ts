@@ -1,6 +1,11 @@
 import type { BookingRow } from '../../ownership/booking-access.service';
 
-export function mapBookingToApi(r: BookingRow) {
+export function mapBookingToApi(r: BookingRow & {
+  package_name?: string;
+  client_name?: string;
+  event_id?: string;
+  event_title?: string;
+}) {
   return {
     id: r.id,
     tenantId: r.tenant_id,
@@ -19,5 +24,9 @@ export function mapBookingToApi(r: BookingRow) {
     totalMinor: Number(r.total_minor),
     version: r.version,
     createdAt: r.created_at.toISOString(),
+    packageName: r.package_name ?? null,
+    clientName: r.client_name ?? null,
+    eventId: r.event_id ?? null,
+    eventTitle: r.event_title ?? null,
   };
 }

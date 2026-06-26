@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { ThrottlerException } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
+import type { MetricsService } from '../../integrations/observability/metrics.service';
 
 function requestIdFrom(host: ArgumentsHost): string {
   const req = host.switchToHttp().getRequest<Request>();
@@ -25,12 +26,25 @@ function normalizeMessage(value: unknown, fallback: string): string {
 export class OwanbeExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(OwanbeExceptionFilter.name);
 
+  constructor(private readonly metrics?: MetricsService) {}
+
+  private recordHttpError(status: number, code: string, route: string): void {
+    this.metrics?.inc('api_errors_total', {
+      status: String(status),
+      code,
+      route: route.split('?')[0] ?? 'unknown',
+    });
+  }
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
     const requestId = requestIdFrom(host);
+    const route = request.path ?? 'unknown';
 
     if (exception instanceof ThrottlerException) {
+      this.recordHttpError(HttpStatus.TOO_MANY_REQUESTS, 'THROTTLED', route);
       response.status(HttpStatus.TOO_MANY_REQUESTS).json({
         code: 'THROTTLED',
         message: exception.message || 'Too many requests',
@@ -48,6 +62,7 @@ export class OwanbeExceptionFilter implements ExceptionFilter {
           : (res as Record<string, unknown>);
       const code = (body.code as string) ?? HttpStatus[status] ?? 'HTTP_ERROR';
       const message = normalizeMessage(body.message, exception.message);
+      this.recordHttpError(status, code, route);
       response.status(status).json({
         code,
         message,
@@ -57,6 +72,7 @@ export class OwanbeExceptionFilter implements ExceptionFilter {
     }
 
     this.logger.error({ requestId, err: exception });
+    this.recordHttpError(HttpStatus.INTERNAL_SERVER_ERROR, 'INTERNAL', route);
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       code: 'INTERNAL',
       message: 'Internal server error',

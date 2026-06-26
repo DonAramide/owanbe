@@ -25,6 +25,9 @@ import { EventWebsiteService } from './event-website.service';
 import { CelebrationWallService } from './celebration-wall.service';
 import { AsoEbiService } from './aso-ebi.service';
 import { SeatingService } from './seating.service';
+import { ProgramService } from './program.service';
+import { EventGuestsService } from './event-guests.service';
+import { EventInvitationsService } from './event-invitations.service';
 
 @Controller()
 export class EventsController {
@@ -38,6 +41,9 @@ export class EventsController {
     private readonly wall: CelebrationWallService,
     private readonly asoEbi: AsoEbiService,
     private readonly seating: SeatingService,
+    private readonly program: ProgramService,
+    private readonly eventGuests: EventGuestsService,
+    private readonly invitations: EventInvitationsService,
   ) {}
 
   @Public()
@@ -455,14 +461,15 @@ export class EventsController {
   }
 
   @Public()
+  @UseGuards(CommerceAuthGuard)
   @Throttle({ public: { limit: 60, ttl: 60_000 } })
   @Post('events/:eventId/aso-ebi/reservations/:reservationId/pay')
   async payAsoEbiReservation(
-    @TenantId() tenantId: string,
     @Param('eventId') eventId: string,
     @Param('reservationId') reservationId: string,
+    @CommerceActorParam() actor: CommerceActor,
   ) {
-    return this.asoEbi.markPaid(tenantId, eventId, reservationId);
+    return this.asoEbi.markPaid(actor!, eventId, reservationId);
   }
 
   @Public()
@@ -477,14 +484,14 @@ export class EventsController {
   }
 
   @Public()
+  @UseGuards(CommerceAuthGuard)
   @Post('events/:eventId/aso-ebi/reservations/:reservationId/cancel')
   async cancelAsoEbiReservation(
-    @TenantId() tenantId: string,
     @Param('eventId') eventId: string,
     @Param('reservationId') reservationId: string,
-    @CommerceActorParam() actor: CommerceActor | null,
+    @CommerceActorParam() actor: CommerceActor,
   ) {
-    return this.asoEbi.cancelReservation(tenantId, eventId, reservationId, actor ?? undefined);
+    return this.asoEbi.cancelReservation(actor!, eventId, reservationId);
   }
 
   @Public()
@@ -619,5 +626,197 @@ export class EventsController {
   @Get('events/:eventId/seating/export')
   async exportSeating(@Param('eventId') eventId: string, @CommerceActorParam() actor: CommerceActor) {
     return this.seating.exportLayout(actor!, eventId);
+  }
+
+  @Public()
+  @Throttle({ public: { limit: 300, ttl: 60_000 } })
+  @Get('events/:eventId/program')
+  async getProgram(@TenantId() tenantId: string, @Param('eventId') eventId: string) {
+    return this.program.getProgram(tenantId, eventId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('events/:eventId/program/items')
+  async createProgramItem(
+    @Param('eventId') eventId: string,
+    @Body() body: Record<string, unknown>,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.program.createItem(actor!, eventId, body);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Patch('events/:eventId/program/items/:itemId')
+  async patchProgramItem(
+    @Param('eventId') eventId: string,
+    @Param('itemId') itemId: string,
+    @Body() body: Record<string, unknown>,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.program.patchItem(actor!, eventId, itemId, body);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Delete('events/:eventId/program/items/:itemId')
+  async deleteProgramItem(
+    @Param('eventId') eventId: string,
+    @Param('itemId') itemId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.program.deleteItem(actor!, eventId, itemId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('events/:eventId/program/items/:itemId/status')
+  async setProgramItemStatus(
+    @Param('eventId') eventId: string,
+    @Param('itemId') itemId: string,
+    @Body() body: Record<string, unknown>,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.program.setItemStatus(
+      actor!,
+      eventId,
+      itemId,
+      String(body.status ?? ''),
+      body.delayMinutes != null ? Number(body.delayMinutes) : undefined,
+    );
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('events/:eventId/program/reorder')
+  async reorderProgram(
+    @Param('eventId') eventId: string,
+    @Body() body: Record<string, unknown>,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    const itemIds = (body.itemIds as string[]) ?? [];
+    return this.program.reorder(actor!, eventId, itemIds);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('events/:eventId/program/auto-shift')
+  async autoShiftProgram(
+    @Param('eventId') eventId: string,
+    @Body() body: Record<string, unknown>,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.program.autoShift(
+      actor!,
+      eventId,
+      String(body.fromItemId ?? ''),
+      Number(body.delayMinutes ?? 0),
+    );
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('events/:eventId/program/apply-template')
+  async applyProgramTemplate(
+    @Param('eventId') eventId: string,
+    @Body() body: Record<string, unknown>,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.program.applyTemplate(actor!, eventId, String(body.template ?? ''));
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Get('events/:eventId/guests')
+  async listEventGuests(
+    @Param('eventId') eventId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.eventGuests.list(actor!, eventId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('events/:eventId/guests')
+  async createEventGuest(
+    @Param('eventId') eventId: string,
+    @Body() body: Record<string, unknown>,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.eventGuests.create(actor!, eventId, {
+      name: body.name as string | undefined,
+      email: body.email as string | undefined,
+      phoneE164: body.phoneE164 as string | undefined,
+      groupLabel: body.groupLabel as string | undefined,
+      notes: body.notes as string | undefined,
+    });
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('events/:eventId/guests/bulk')
+  async bulkCreateEventGuests(
+    @Param('eventId') eventId: string,
+    @Body() body: Record<string, unknown>,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    const guests = (body.guests as Array<Record<string, unknown>>) ?? [];
+    return this.eventGuests.bulkCreate(
+      actor!,
+      eventId,
+      guests.map((g) => ({
+        name: String(g.name ?? ''),
+        email: g.email as string | undefined,
+        phoneE164: g.phoneE164 as string | undefined,
+        groupLabel: g.groupLabel as string | undefined,
+      })),
+    );
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Get('events/:eventId/invitations')
+  async listEventInvitations(
+    @Param('eventId') eventId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.invitations.listHub(actor!, eventId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('events/:eventId/invitations/send')
+  async sendEventInvitations(
+    @Param('eventId') eventId: string,
+    @Body() body: Record<string, unknown>,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.invitations.sendBatch(actor!, eventId, {
+      guestIds: body.guestIds as string[] | undefined,
+      channel: body.channel as string | undefined,
+      templateId: body.templateId as string | undefined,
+    });
+  }
+
+  @Public()
+  @Throttle({ public: { limit: 120, ttl: 60_000 } })
+  @Get('invitations/validate')
+  async validateInvitation(
+    @TenantId() tenantId: string,
+    @Query('token') token: string,
+  ) {
+    return this.invitations.validateToken(tenantId, token ?? '');
+  }
+
+  @Public()
+  @Throttle({ public: { limit: 60, ttl: 60_000 } })
+  @Post('invitations/rsvp')
+  async rsvpInvitation(
+    @TenantId() tenantId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    const status = String(body.status ?? '') === 'declined' ? 'declined' : 'confirmed';
+    return this.invitations.rsvpByToken(tenantId, String(body.token ?? ''), status);
   }
 }

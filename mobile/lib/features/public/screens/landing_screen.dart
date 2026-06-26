@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../eos/eos.dart';
+import '../../../eos/widgets/owanbe_logo.dart';
 import '../providers/public_providers.dart';
 import '../widgets/public_event_grid.dart';
 import '../widgets/public_shell_mixin.dart';
@@ -79,6 +80,11 @@ class _HeroBanner extends StatelessWidget {
     return Column(
       crossAxisAlignment: center ? CrossAxisAlignment.center : CrossAxisAlignment.start,
       children: [
+        if (center)
+          const OwanbeLogo(size: 72)
+        else
+          const OwanbeLogo(size: 56),
+        SizedBox(height: context.eos.spacing.md),
         Text(
           'Discover events.\nBook with confidence.',
           textAlign: center ? TextAlign.center : TextAlign.start,

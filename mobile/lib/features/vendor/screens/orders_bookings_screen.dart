@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/api/persistence_providers.dart';
+import '../../../core/api/vendor_bookings_api.dart';
 import '../../../eos/eos.dart';
 import '../data/vendor_store.dart';
 import '../models/vendor_models.dart';
@@ -143,9 +145,17 @@ class _OrdersTable extends StatelessWidget {
   }
 }
 
-void _update(WidgetRef ref, String id, VendorOrderStatus status) {
-  VendorStore.instance.updateOrderStatus(id, status);
-  bumpVendorRevision(ref);
+void _update(WidgetRef ref, String id, VendorOrderStatus status) async {
+  final action = actionForStatus(status);
+  if (action == null) return;
+  try {
+    await ref.read(vendorBookingsApiProvider).updateStatus(id, action);
+    bumpVendorRevision(ref);
+  } catch (e) {
+    if (!allowMockPersistenceFallback()) rethrow;
+    VendorStore.instance.updateOrderStatus(id, status);
+    bumpVendorRevision(ref);
+  }
 }
 
 Map<VendorOrderStatus, List<VendorOrder>> _groupByStatus(List<VendorOrder> orders) {

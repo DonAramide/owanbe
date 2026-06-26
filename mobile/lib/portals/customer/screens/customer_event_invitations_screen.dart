@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/api/persistence_providers.dart';
 import '../../../core/utils/money.dart';
 import '../../../eos/eos.dart';
 import '../models/invitation_template_models.dart';
@@ -35,21 +36,46 @@ class _CustomerEventInvitationsScreenState extends ConsumerState<CustomerEventIn
       kInvitationTemplates.firstWhere((t) => t.id == _selectedTemplateId);
 
   Future<void> _sendInvitations(BuildContext context, int guestCount) async {
+    if (guestCount == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add guests before sending invitations.')),
+      );
+      return;
+    }
     setState(() => _sending = true);
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-    if (!mounted) return;
-    setState(() => _sending = false);
-    final template = _selectedTemplate;
-    final costNote = template.priceMinor > 0 ? ' (${formatRevenue(template.priceMinor)} template fee)' : '';
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Sending "${template.name}" invitations to $guestCount guest${guestCount == 1 ? '' : 's'}$costNote',
-        ),
-      ),
-    );
-    refreshInvitationHub(ref);
+    try {
+      final template = _selectedTemplate;
+      if (allowMockPersistenceFallback()) {
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+        if (!mounted) return;
+        final costNote =
+            template.priceMinor > 0 ? ' (${formatRevenue(template.priceMinor)} template fee)' : '';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Sending "${template.name}" invitations to $guestCount guest${guestCount == 1 ? '' : 's'}$costNote',
+            ),
+          ),
+        );
+      } else {
+        final sent = await ref.read(eventGuestsApiProvider).sendInvitations(
+              widget.eventId,
+              channel: 'link',
+              templateId: template.id,
+            );
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sent $sent invitation${sent == 1 ? '' : 's'} via API.')),
+        );
+      }
+      refreshInvitationHub(ref);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   Future<void> _importContacts(BuildContext context) async {
@@ -88,11 +114,12 @@ class _CustomerEventInvitationsScreenState extends ConsumerState<CustomerEventIn
         ),
         title: const Text('Invitation hub'),
         actions: [
-          IconButton(
-            tooltip: 'Import phone contacts',
-            onPressed: () => _importContacts(context),
-            icon: const Icon(Icons.contacts_outlined),
-          ),
+          if (allowMockPersistenceFallback())
+            IconButton(
+              tooltip: 'Import phone contacts',
+              onPressed: () => _importContacts(context),
+              icon: const Icon(Icons.contacts_outlined),
+            ),
           IconButton(
             tooltip: 'Manage guests',
             onPressed: () => context.push(CustomerRoutes.eventGuests(widget.eventId)),
@@ -157,11 +184,12 @@ class _CustomerEventInvitationsScreenState extends ConsumerState<CustomerEventIn
                 ),
               ),
               SizedBox(height: context.eos.spacing.sm),
-              OutlinedButton.icon(
-                onPressed: () => _importContacts(context),
-                icon: const Icon(Icons.contact_phone_outlined),
-                label: const Text('Import from phone contacts'),
-              ),
+              if (allowMockPersistenceFallback())
+                OutlinedButton.icon(
+                  onPressed: () => _importContacts(context),
+                  icon: const Icon(Icons.contact_phone_outlined),
+                  label: const Text('Import from phone contacts'),
+                ),
               SizedBox(height: context.eos.spacing.lg),
               const SectionHeader(
                 title: 'Statistics',

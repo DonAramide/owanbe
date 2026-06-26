@@ -8,6 +8,22 @@ import '../../../features/organizer/providers/organizer_providers.dart';
 import '../providers/customer_guest_providers.dart';
 import '../services/contact_import_service.dart';
 
+OpsGuest _guestFromRecord(
+  dynamic record, {
+  String tierName = 'General Admission',
+  GuestTier tier = GuestTier.general,
+}) {
+  return OpsGuest(
+    id: record.id as String,
+    name: record.name as String,
+    email: (record.email as String?) ?? '',
+    ticketId: (record.guestRef as String?) ?? '',
+    tierName: tierName,
+    tier: tier,
+    checkedIn: false,
+  );
+}
+
 Future<OpsGuest> addCustomerGuest(
   WidgetRef ref,
   String eventId, {
@@ -16,8 +32,17 @@ Future<OpsGuest> addCustomerGuest(
   String tierName = 'General Admission',
   GuestTier tier = GuestTier.general,
 }) async {
-  if (!allowMockPersistenceFallback()) {
-    throw StateError('Add guest is available in development mode. Connect ticket entitlements via checkout.');
+  try {
+    final record = await ref.read(eventGuestsApiProvider).addGuest(
+          eventId,
+          name: name,
+          email: email.isNotEmpty ? email : null,
+        );
+    final guest = _guestFromRecord(record, tierName: tierName, tier: tier);
+    refreshCustomerGuests(ref);
+    return guest;
+  } catch (_) {
+    if (!allowMockPersistenceFallback()) rethrow;
   }
   OperationsStore.instance.ensureLive(eventId);
   final guest = OperationsStore.instance.addGuest(
@@ -39,7 +64,7 @@ Future<List<OpsGuest>> importCustomerContacts(
   List<DeviceContact> contacts,
 ) async {
   if (!allowMockPersistenceFallback()) {
-    throw StateError('Import contacts is available in development mode.');
+    throw StateError('Contact import is disabled for production launch.');
   }
   OperationsStore.instance.ensureLive(eventId);
   final normalized = contacts

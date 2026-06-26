@@ -4,6 +4,7 @@ import '../extensions/eos_context.dart';
 import '../layout/eos_responsive.dart';
 import '../tokens/eos_colors.dart';
 import '../tokens/eos_spacing.dart';
+import '../widgets/owanbe_logo.dart';
 
 /// Marketing / marketplace shell — distinct from operational [EosAppShell].
 class EosPublicShell extends StatelessWidget {
@@ -89,7 +90,7 @@ class _PublicHeader extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(Icons.celebration, color: context.eosColors.primary, size: 28),
+              const OwanbeLogo(size: 28),
               SizedBox(width: context.eos.spacing.xs),
               Text('Owanbe', style: context.eosText.titleLarge?.copyWith(color: EosColors.plum)),
               if (!isMobile) ...[

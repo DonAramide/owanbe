@@ -120,6 +120,34 @@ class CustomerEventCommandCenterScreen extends ConsumerWidget {
                 ),
                 SizedBox(height: context.eos.spacing.lg),
                 const SectionHeader(
+                  title: 'Vendor pipeline',
+                  subtitle: 'Requests, negotiations, and day-of arrivals.',
+                ),
+                EosSurfaceCard(
+                  onTap: () => context.push(CustomerRoutes.eventVendorPipeline(eventId)),
+                  child: ListTile(
+                    leading: const Icon(Icons.handshake_outlined, color: EosColors.plum),
+                    title: const Text('Vendor CRM'),
+                    subtitle: const Text('Track new → negotiating → accepted → scheduled → arrived → completed'),
+                    trailing: const Icon(Icons.chevron_right),
+                  ),
+                ),
+                SizedBox(height: context.eos.spacing.lg),
+                const SectionHeader(
+                  title: 'Program & run sheet',
+                  subtitle: 'Timeline, owners, and day-of operations.',
+                ),
+                EosSurfaceCard(
+                  onTap: () => context.push(CustomerRoutes.eventProgram(eventId)),
+                  child: ListTile(
+                    leading: const Icon(Icons.schedule_outlined, color: EosColors.plum),
+                    title: const Text('Program planner'),
+                    subtitle: const Text('Build your run sheet and track activity status'),
+                    trailing: const Icon(Icons.chevron_right),
+                  ),
+                ),
+                SizedBox(height: context.eos.spacing.lg),
+                const SectionHeader(
                   title: 'Seating',
                   subtitle: 'Tables, guest assignment, and VIP seating.',
                 ),

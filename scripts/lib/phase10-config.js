@@ -128,6 +128,15 @@ async function ensureMockQuaser() {
   });
 }
 
+/** Reset dev event tier capacity so Quaser purchase tests do not 422 on sold-out inventory. */
+async function resetTierInventory(pg, eventRef = EVENT_REF) {
+  await pg.query(
+    `UPDATE ticket_tiers SET capacity = GREATEST(capacity, 500), sold_count = LEAST(sold_count, capacity - 50)
+     WHERE event_id IN (SELECT id FROM events WHERE external_ref = $1)`,
+    [eventRef],
+  );
+}
+
 /** Poll ticket_payments until Quaser webhook capture completes. */
 async function waitForPaymentCaptured(pg, orderId, timeoutMs = 5000) {
   const deadline = Date.now() + timeoutMs;
@@ -157,5 +166,6 @@ module.exports = {
   percentile,
   ensureDevRoles,
   ensureMockQuaser,
+  resetTierInventory,
   waitForPaymentCaptured,
 };

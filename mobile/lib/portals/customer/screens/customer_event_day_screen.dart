@@ -4,9 +4,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../../eos/eos.dart';
 import '../providers/customer_event_command_providers.dart';
+import '../providers/program_providers.dart';
 import '../router/customer_routes.dart';
 import '../widgets/celebration_hero.dart';
 import '../widgets/empty_state_card.dart';
+import '../widgets/program/program_day_widget.dart';
 import '../widgets/section_header.dart';
 import '../models/home_hub_models.dart';
 
@@ -19,6 +21,7 @@ class CustomerEventDayScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final snapshot = ref.watch(customerEventCommandProvider(eventId));
+    final program = ref.watch(eventProgramProvider(eventId));
 
     return Scaffold(
       appBar: AppBar(
@@ -52,6 +55,15 @@ class CustomerEventDayScreen extends ConsumerWidget {
                 title: event.title,
                 subtitle: 'Live now · ${formatEventDate(event.startsAt)}',
                 countdownLabel: formatCountdown(event.startsAt, DateTime.now()),
+              ),
+              SizedBox(height: context.eos.spacing.lg),
+              program.when(
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const SizedBox.shrink(),
+                data: (p) => ProgramDayWidget(
+                  day: p.day,
+                  onOpenProgram: () => context.push(CustomerRoutes.eventProgram(eventId)),
+                ),
               ),
               SizedBox(height: context.eos.spacing.lg),
               const SectionHeader(title: 'Guest check-ins', subtitle: 'Who has arrived'),

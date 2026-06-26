@@ -1,4 +1,11 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  Inject,
+  Logger,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import type { Pool } from 'pg';
@@ -51,21 +58,14 @@ export class StorageService {
 
     let uploadUrl: string;
     let publicUrl: string;
-    let headers: Record<string, string> | undefined;
+
+    const base = this.config.get('PUBLIC_API_BASE_URL', { infer: true }).trim() || 'http://localhost:8080';
+    uploadUrl = `${base.replace(/\/$/, '')}/v1/media/upload/${encodeURIComponent(objectKey)}`;
 
     if (this.isSupabaseConfigured()) {
       const supabaseUrl = this.config.get('SUPABASE_URL', { infer: true }).replace(/\/$/, '');
-      const serviceKey = this.config.get('SUPABASE_SERVICE_ROLE_KEY', { infer: true });
-      uploadUrl = `${supabaseUrl}/storage/v1/object/${bucket}/${objectKey}`;
       publicUrl = `${supabaseUrl}/storage/v1/object/public/${bucket}/${objectKey}`;
-      headers = {
-        Authorization: `Bearer ${serviceKey}`,
-        'Content-Type': input.contentType,
-        'x-upsert': 'false',
-      };
     } else {
-      const base = this.config.get('PUBLIC_API_BASE_URL', { infer: true }).trim() || 'http://localhost:8080';
-      uploadUrl = `${base.replace(/\/$/, '')}/v1/media/upload/${encodeURIComponent(objectKey)}`;
       publicUrl = uploadUrl;
       this.logger.warn('Supabase storage not configured — using API upload proxy URL');
     }
@@ -78,7 +78,58 @@ export class StorageService {
     );
 
     this.metrics.inc('storage_presign_total');
-    return { objectId: rows[0]!.id, bucket, objectKey, uploadUrl, publicUrl, headers };
+    return { objectId: rows[0]!.id, bucket, objectKey, uploadUrl, publicUrl };
+  }
+
+  /** Server-side upload proxy — service role key never leaves the API. */
+  async proxyUpload(params: {
+    tenantId: string;
+    userId: string;
+    encodedKey: string;
+    contentType: string;
+    body: Buffer;
+  }): Promise<{ ok: true; publicUrl: string }> {
+    const objectKey = decodeURIComponent(params.encodedKey);
+    const { rows } = await this.pool.query<{ id: string; uploaded_by: string; public_url: string; bucket: string }>(
+      `SELECT id, uploaded_by::text, public_url, bucket
+       FROM media_objects
+       WHERE tenant_id = $1 AND object_key = $2`,
+      [params.tenantId, objectKey],
+    );
+    const row = rows[0];
+    if (!row) {
+      throw new NotFoundException({ code: 'OBJECT_NOT_FOUND', message: 'Upload target not found' });
+    }
+    if (row.uploaded_by !== params.userId) {
+      throw new ForbiddenException({ code: 'UPLOAD_FORBIDDEN', message: 'Not allowed to upload to this object' });
+    }
+
+    if (!this.isSupabaseConfigured()) {
+      this.metrics.inc('storage_proxy_upload_total');
+      return { ok: true, publicUrl: row.public_url };
+    }
+
+    const supabaseUrl = this.config.get('SUPABASE_URL', { infer: true }).replace(/\/$/, '');
+    const serviceKey = this.config.get('SUPABASE_SERVICE_ROLE_KEY', { infer: true });
+    const res = await fetch(`${supabaseUrl}/storage/v1/object/${row.bucket}/${objectKey}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${serviceKey}`,
+        'Content-Type': params.contentType || 'application/octet-stream',
+        'x-upsert': 'false',
+      },
+      body: new Uint8Array(params.body),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      throw new UnprocessableEntityException({
+        code: 'STORAGE_UPLOAD_FAILED',
+        message: detail || 'Storage upload failed',
+      });
+    }
+
+    this.metrics.inc('storage_proxy_upload_total');
+    return { ok: true, publicUrl: row.public_url };
   }
 
   async resolvePublicUrl(tenantId: string, objectId: string): Promise<string | null> {

@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/api/event_guests_api.dart';
 import '../../../core/api/persistence_providers.dart';
 import '../../../features/operations/data/operations_store.dart';
 import '../../../features/operations/models/operations_models.dart';
 import '../../../features/operations/providers/operations_providers.dart';
 import '../../../features/organizer/providers/organizer_providers.dart';
+import '../data/customer_guest_persistence.dart';
 import '../models/customer_guest_models.dart';
 
 final customerGuestRefreshProvider = StateProvider<int>((ref) => 0);
@@ -20,6 +22,25 @@ final customerGuestFilterProvider =
 
 final customerSelectedGuestProvider = StateProvider.autoDispose<CustomerGuestView?>((ref) => null);
 
+GuestRsvpStatus _rsvpFromApi(String raw) => switch (raw) {
+      'confirmed' => GuestRsvpStatus.confirmed,
+      'declined' => GuestRsvpStatus.declined,
+      _ => GuestRsvpStatus.pending,
+    };
+
+CustomerGuestView _guestViewFromApi(dynamic record) {
+  return CustomerGuestView(
+    id: record.id as String,
+    name: record.name as String,
+    email: (record.email as String?) ?? '',
+    ticketId: (record.guestRef as String?) ?? '',
+    tierName: 'General Admission',
+    tier: GuestTier.general,
+    checkedIn: false,
+    rsvpStatus: _rsvpFromApi(record.rsvpStatus as String),
+  );
+}
+
 final customerEventGuestsProvider =
     FutureProvider.autoDispose.family<List<CustomerGuestView>, String>((ref, eventId) async {
   ref.watch(customerGuestRefreshProvider);
@@ -27,8 +48,17 @@ final customerEventGuestsProvider =
   ref.watch(organizerRevisionProvider);
 
   final event = await ref.watch(organizerEventProvider(eventId).future);
-  var opsGuests = <OpsGuest>[];
 
+  try {
+    final apiGuests = await ref.read(eventGuestsApiProvider).listGuests(eventId);
+    if (apiGuests.isNotEmpty) {
+      return apiGuests.map(_guestViewFromApi).toList();
+    }
+  } catch (_) {
+    if (!allowMockPersistenceFallback()) rethrow;
+  }
+
+  var opsGuests = <OpsGuest>[];
   try {
     opsGuests = await ref.read(operationsApiProvider).listGuests(eventId);
   } catch (_) {

@@ -43,15 +43,6 @@ class VendorContactBar extends StatelessWidget {
             ),
             SizedBox(width: context.eos.spacing.sm),
             IconButton.filledTonal(
-              tooltip: 'Chat',
-              onPressed: () => _copy(
-                context,
-                'Hi $vendorName, I found you on Owanbe and would love to discuss my celebration.',
-                'Chat message',
-              ),
-              icon: const Icon(Icons.chat_bubble_outline),
-            ),
-            IconButton.filledTonal(
               tooltip: 'Call',
               onPressed: () => _copy(context, phone, 'Phone number'),
               icon: const Icon(Icons.phone_outlined),

@@ -189,7 +189,6 @@ class _VendorDetailCard extends StatelessWidget {
             runSpacing: context.eos.spacing.xs,
             children: [
               OutlinedButton.icon(onPressed: () => _toast(context, 'Portfolio'), icon: const Icon(Icons.photo_library_outlined, size: 16), label: const Text('Portfolio')),
-              OutlinedButton.icon(onPressed: () => _toast(context, 'Chat'), icon: const Icon(Icons.chat_bubble_outline, size: 16), label: const Text('Chat')),
               OutlinedButton.icon(onPressed: () => _toast(context, 'Call'), icon: const Icon(Icons.call_outlined, size: 16), label: const Text('Call')),
               OutlinedButton.icon(onPressed: () => _toast(context, 'Video'), icon: const Icon(Icons.videocam_outlined, size: 16), label: const Text('Video')),
               if (slot.status == VendorSlotStatus.pending) ...[

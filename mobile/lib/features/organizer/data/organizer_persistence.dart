@@ -1,9 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/persistence_providers.dart';
+import '../../../core/api/vendors_api.dart';
+import '../../../portals/customer/providers/vendor_crm_providers.dart';
 import '../../../shared/models/event_access_mode.dart';
 import '../models/organizer_models.dart';
-import '../../../core/api/vendors_api.dart';
 import '../providers/organizer_providers.dart';
 import '../data/organizer_event_store.dart';
 
@@ -219,9 +220,23 @@ Future<void> updateVendorSlot(
 Future<void> inviteVendor(
   WidgetRef ref,
   String eventId,
-  MarketplaceVendor vendor,
-) async {
-  if (!allowMockPersistenceFallback()) return;
+  MarketplaceVendor vendor, {
+  String? message,
+  String? serviceLabel,
+}) async {
+  try {
+    await ref.read(vendorCrmApiProvider).createRequest(eventId, {
+      'vendorId': vendor.id,
+      'message': message ?? '',
+      if (serviceLabel != null) 'serviceLabel': serviceLabel,
+      'source': 'marketplace',
+    });
+    bumpOrganizerRevision(ref);
+    refreshVendorCrm(ref);
+    return;
+  } catch (e) {
+    if (!allowMockPersistenceFallback()) rethrow;
+  }
   OrganizerEventStore.instance.inviteVendor(eventId, vendor: vendor);
   bumpOrganizerRevision(ref);
 }

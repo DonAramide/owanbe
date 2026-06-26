@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/api/persistence_providers.dart';
 import '../../../eos/eos.dart';
 import '../data/vendor_store.dart';
 import '../models/vendor_models.dart';
@@ -20,13 +21,6 @@ class _ServiceCatalogScreenState extends ConsumerState<ServiceCatalogScreen> {
   final _price = TextEditingController();
   VendorCatalogType _category = VendorCatalogType.catering;
   VendorCatalogType? _filter;
-
-  @override
-  void initState() {
-    super.initState();
-    final profile = VendorStore.instance.profile;
-    _category = profile.vendorType;
-  }
 
   @override
   void dispose() {
@@ -109,10 +103,7 @@ class _ServiceCatalogScreenState extends ConsumerState<ServiceCatalogScreen> {
                     width: 320,
                     child: VendorCatalogCard(
                       item: item,
-                      onToggle: () {
-                        VendorStore.instance.toggleCatalogStatus(item.id);
-                        bumpVendorRevision(ref);
-                      },
+                      onToggle: () => _toggleActive(item),
                     ),
                   ),
                 )
@@ -123,6 +114,18 @@ class _ServiceCatalogScreenState extends ConsumerState<ServiceCatalogScreen> {
         error: (e, _) => Text('$e'),
       ),
     );
+  }
+
+  Future<void> _toggleActive(VendorCatalogItem item) async {
+    final next = item.status != VendorCatalogStatus.active;
+    try {
+      await ref.read(vendorCatalogApiProvider).setActive(item.id, next);
+      bumpVendorRevision(ref);
+    } catch (e) {
+      if (!allowMockPersistenceFallback()) rethrow;
+      VendorStore.instance.toggleCatalogStatus(item.id);
+      bumpVendorRevision(ref);
+    }
   }
 
   void _showAddSheet(BuildContext context) {
@@ -163,20 +166,36 @@ class _ServiceCatalogScreenState extends ConsumerState<ServiceCatalogScreen> {
             ),
             SizedBox(height: context.eos.spacing.lg),
             FilledButton(
-              onPressed: () {
+              onPressed: () async {
                 final price = int.tryParse(_price.text.trim()) ?? 0;
                 if (_name.text.trim().isEmpty || price <= 0) return;
-                VendorStore.instance.addCatalogItem(
-                  name: _name.text.trim(),
-                  description: _description.text.trim(),
-                  category: _category.label,
-                  priceMinor: price,
-                );
-                bumpVendorRevision(ref);
+                try {
+                  await ref.read(vendorCatalogApiProvider).createPackage(
+                        name: _name.text.trim(),
+                        description: _description.text.trim(),
+                        category: _category.label,
+                        priceMinor: price,
+                      );
+                  bumpVendorRevision(ref);
+                } catch (e) {
+                  if (!allowMockPersistenceFallback()) {
+                    if (ctx.mounted) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('$e')));
+                    }
+                    return;
+                  }
+                  VendorStore.instance.addCatalogItem(
+                    name: _name.text.trim(),
+                    description: _description.text.trim(),
+                    category: _category.label,
+                    priceMinor: price,
+                  );
+                  bumpVendorRevision(ref);
+                }
                 _name.clear();
                 _description.clear();
                 _price.clear();
-                Navigator.pop(ctx);
+                if (ctx.mounted) Navigator.pop(ctx);
               },
               child: const Text('Save item'),
             ),

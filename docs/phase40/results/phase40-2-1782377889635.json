@@ -1,0 +1,68 @@
+{
+  "phase": "40.2",
+  "startedAt": "2026-06-25T08:57:37.981Z",
+  "environment": {
+    "apiBase": "http://localhost:8080/v1",
+    "healthBase": "http://localhost:8080",
+    "databaseUrl": "postgres://postgres:***@localhost:5432/owanbe",
+    "integrationsMode": "unknown"
+  },
+  "infrastructure": {
+    "tls": {
+      "pass": false,
+      "note": "fetch failed",
+      "url": "https://api.staging.owanbe.com"
+    },
+    "cors": {
+      "pass": false,
+      "note": "fetch failed"
+    },
+    "domains": {
+      "pass": false,
+      "api": "https://api.staging.owanbe.com",
+      "app": "https://app.staging.owanbe.com",
+      "note": "provision api.staging.owanbe.com + app.staging.owanbe.com"
+    },
+    "flutterWeb": {
+      "pass": false,
+      "note": "Run: cd mobile && cp assets/env/supabase.env.staging.example assets/env/supabase.env && flutter build web"
+    }
+  },
+  "migrations": {
+    "raw": "AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1134:18)\n    at afterConnectMultiple (node:net:1715:7) {\n  code: 'ECONNREFUSED',\n  [errors]: [\n    Error: connect ECONNREFUSED ::1:5432\n        at createConnectionError (node:net:1678:14)\n        at afterConnectMultiple (node:net:1708:16) {\n      errno: -4078,\n      code: 'ECONNREFUSED',\n      syscall: 'connect',\n      address: '::1',\n      port: 5432\n    },\n    Error: connect ECONNREFUSED 127.0.0.1:5432\n        at createConnectionError (node:net:1678:14)\n        at afterConnectMultiple (node:net:1708:16) {\n      errno: -4078,\n      code: 'ECONNREFUSED',\n      syscall: 'connect',\n      address: '127.0.0.1',\n      port: 5432\n    }\n  ]\n}",
+    "code": 1
+  },
+  "quaser": null,
+  "customer": null,
+  "vendor": null,
+  "admin": null,
+  "monitoring": null,
+  "summary": {
+    "result": "FAIL",
+    "reason": "API unreachable at http://localhost:8080",
+    "infrastructure": "BLOCKED"
+  },
+  "I_infra": {
+    "pass": false,
+    "tls": {
+      "pass": false,
+      "note": "fetch failed",
+      "url": "https://api.staging.owanbe.com"
+    },
+    "cors": {
+      "pass": false,
+      "note": "fetch failed"
+    },
+    "domains": {
+      "pass": false,
+      "api": "https://api.staging.owanbe.com",
+      "app": "https://app.staging.owanbe.com",
+      "note": "provision api.staging.owanbe.com + app.staging.owanbe.com"
+    },
+    "flutterWeb": {
+      "pass": false,
+      "note": "Run: cd mobile && cp assets/env/supabase.env.staging.example assets/env/supabase.env && flutter build web"
+    },
+    "at": "2026-06-25T08:58:09.635Z"
+  }
+}

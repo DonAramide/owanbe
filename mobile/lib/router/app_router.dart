@@ -24,9 +24,13 @@ import '../portals/customer/screens/customer_event_wall_display_screen.dart';
 import '../portals/customer/screens/customer_event_attire_screen.dart';
 import '../portals/customer/screens/customer_event_rentals_screen.dart';
 import '../portals/customer/screens/customer_event_seating_screen.dart';
+import '../portals/customer/screens/customer_event_program_screen.dart';
+import '../portals/customer/screens/customer_event_vendor_pipeline_screen.dart';
 import '../portals/customer/screens/marketplace_rentals_screen.dart';
 import '../portals/customer/screens/customer_event_aso_ebi_screen.dart';
 import '../features/vendor/screens/vendor_fashion_attire_screen.dart';
+import '../features/vendor/screens/vendor_crm_screen.dart';
+import '../features/vendor/screens/vendor_onboarding_screen.dart';
 import '../features/vendor/screens/vendor_rentals_screen.dart';
 import '../features/public/screens/landing_screen.dart';
 import '../features/public/screens/payment_success_screen.dart';
@@ -48,6 +52,18 @@ String _homePath(UserRole role) => switch (role) {
       UserRole.superAdmin => '/super-admin',
     };
 
+bool _isPublicEventPath(String loc) {
+  final match = RegExp(r'^/events/([^/]+)(?:/(.*))?$').firstMatch(loc);
+  if (match == null) return false;
+  final segment = match.group(1)!;
+  if (segment == 'mine' || segment == 'create') return false;
+  final sub = match.group(2);
+  if (sub == null || sub.isEmpty) return true;
+  if (sub == 'wall/display' || sub.startsWith('wall/display')) return true;
+  final first = sub.split('/').first;
+  return first == 'tickets' || first == 'aso-ebi' || first == 'attire';
+}
+
 bool _isPublicPath(String loc) {
   if (loc == '/') return true;
   if (loc == '/events') return true;
@@ -58,10 +74,8 @@ bool _isPublicPath(String loc) {
 
   if (CustomerRoutes.isShellPath(loc)) return false;
 
-  final match = RegExp(r'^/events/([^/]+)').firstMatch(loc);
-  if (match != null) {
-    final segment = match.group(1)!;
-    if (segment != 'mine' && segment != 'create') return true;
+  if (loc.startsWith('/events/')) {
+    return _isPublicEventPath(loc);
   }
   return false;
 }
@@ -89,6 +103,16 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       final loc = state.matchedLocation;
 
       if (CustomerRoutes.isShellPath(loc)) {
+        if (session == null) {
+          return '/auth?return=${Uri.encodeComponent(loc)}';
+        }
+        if (session.role != UserRole.client) {
+          return _homePath(session.role);
+        }
+        return null;
+      }
+
+      if (loc.startsWith('/events/') && !_isPublicEventPath(loc)) {
         if (session == null) {
           return '/auth?return=${Uri.encodeComponent(loc)}';
         }
@@ -265,6 +289,18 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 ),
               ),
               GoRoute(
+                path: 'program',
+                builder: (context, state) => CustomerEventProgramScreen(
+                  eventId: state.pathParameters['id']!,
+                ),
+              ),
+              GoRoute(
+                path: 'vendor-pipeline',
+                builder: (context, state) => CustomerEventVendorPipelineScreen(
+                  eventId: state.pathParameters['id']!,
+                ),
+              ),
+              GoRoute(
                 path: 'aso-ebi',
                 redirect: (context, state) =>
                     '/events/${state.pathParameters['id']}/attire',
@@ -319,6 +355,18 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'rentals',
             builder: (context, state) => const VendorRentalsScreen(),
+          ),
+          GoRoute(
+            path: 'crm',
+            builder: (context, state) => const VendorCrmScreen(),
+          ),
+          GoRoute(
+            path: 'calendar',
+            builder: (context, state) => const VendorCalendarScreen(),
+          ),
+          GoRoute(
+            path: 'onboarding',
+            builder: (context, state) => const VendorOnboardingScreen(),
           ),
         ],
       ),
