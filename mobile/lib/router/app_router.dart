@@ -39,6 +39,8 @@ import '../features/vendor/screens/vendor_onboarding_screen.dart';
 import '../features/vendor/screens/vendor_rentals_screen.dart';
 import '../features/vendor/screens/vendor_calendar_screen.dart';
 import '../features/public/screens/landing_screen.dart';
+import '../features/public/screens/splash_screen.dart';
+import '../features/public/screens/walkthrough_screen.dart';
 import '../features/public/screens/payment_success_screen.dart';
 import '../features/public/screens/public_auth_screen.dart';
 import '../features/public/screens/ticket_select_screen.dart';
@@ -231,7 +233,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       customerShellRoute(),
-      GoRoute(path: '/', builder: (context, state) => const LandingScreen()),
+      GoRoute(path: '/', builder: (context, state) => const SplashScreen()),
+      GoRoute(path: '/home', builder: (context, state) => const LandingScreen()),
+      GoRoute(path: '/walkthrough', builder: (context, state) => const WalkthroughScreen()),
       GoRoute(
         path: '/events',
         builder: (context, state) => const DiscoverScreen(),
