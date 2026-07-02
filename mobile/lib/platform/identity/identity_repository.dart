@@ -37,7 +37,7 @@ class IdentityRepository {
       if (name == 'client') return UserRole.client;
       if (name == 'organizer') return UserRole.organizer;
       if (name == 'vendor') return UserRole.vendor;
-      if (name == 'admin') return UserRole.admin;
+      if (name == 'admin' || name == 'admin_super') return UserRole.admin;
       if (name == 'superadmin' || name == 'super_admin') return UserRole.superAdmin;
       return UserRole.client;
     }).toList();
