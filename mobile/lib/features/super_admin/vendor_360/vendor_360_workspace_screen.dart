@@ -6,6 +6,7 @@ import '../../../eos/layout/workspace/workspace_definition.dart';
 import '../../../eos/layout/workspace/workspace_shell.dart';
 import '../../../eos/layout/workspace/workspace_widgets.dart';
 import '../../vendor/providers/vendor_intelligence_engine.dart';
+import '../../../platform/governance/governance_models.dart';
 
 class Vendor360WorkspaceScreen extends ConsumerStatefulWidget {
   const Vendor360WorkspaceScreen({super.key, required this.vendorId});
@@ -112,6 +113,10 @@ class _Vendor360WorkspaceScreenState extends ConsumerState<Vendor360WorkspaceScr
         WorkspaceTabDefinition(
           label: 'Audit',
           builder: (context, id) => _AuditTab(vendorId: id),
+        ),
+        WorkspaceTabDefinition(
+          label: 'Governance',
+          builder: (context, id) => _GovernanceTab(vendorId: id),
         ),
         WorkspaceTabDefinition(
           label: 'Settings',
@@ -459,6 +464,149 @@ class _SettingsTab extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _GovernanceTab extends ConsumerStatefulWidget {
+  const _GovernanceTab({required this.vendorId});
+  final String vendorId;
+
+  @override
+  ConsumerState<_GovernanceTab> createState() => _GovernanceTabState();
+}
+
+class _GovernanceTabState extends ConsumerState<_GovernanceTab> {
+  bool _walletFrozen = false;
+  bool _commsDisabled = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        // Governance Overview
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricTile('Trust Score', '94%', Icons.verified_user, Colors.greenAccent),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildMetricTile('Risk Level', 'LOW', Icons.gshield, Colors.blueAccent),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildMetricTile('Compliance Rate', '91%', Icons.assignment_turned_in, Colors.greenAccent),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+
+        // Status Card
+        EosSurfaceCard(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('GOVERNANCE POLICIES & ENFORCEMENT', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 12),
+                ListTile(
+                  leading: const Icon(Icons.mail, color: EosColors.champagne),
+                  title: const Text('Effective Messaging Policy'),
+                  subtitle: const Text('Status: ENABLED (Inherited from Catering Group)'),
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(color: Colors.green.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
+                    child: const Text('Inherited', style: TextStyle(color: Colors.greenAccent, fontSize: 10)),
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.phone, color: Colors.redAccent),
+                  title: const Text('Effective VoIP / Voice Calling Policy'),
+                  subtitle: const Text('Status: DISABLED (Overridden by Individual Settings)'),
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(color: Colors.amber.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
+                    child: const Text('Override', style: TextStyle(color: Colors.amberAccent, fontSize: 10)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Action controls
+        const Text('ADMINISTRATOR FORCE POLICY OVERRIDES', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold, fontSize: 12)),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _walletFrozen = !_walletFrozen;
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(_walletFrozen ? 'Vendor Wallet Frozen successfully.' : 'Vendor Wallet Unfrozen successfully.'),
+                      backgroundColor: _walletFrozen ? Colors.redAccent : Colors.green,
+                    ),
+                  );
+                },
+                icon: Icon(_walletFrozen ? Icons.lock_open : Icons.lock, color: Colors.white),
+                label: Text(_walletFrozen ? 'Unfreeze Wallet' : 'Freeze Wallet', style: const TextStyle(color: Colors.white)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _walletFrozen ? Colors.green : Colors.redAccent,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _commsDisabled = !_commsDisabled;
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(_commsDisabled ? 'Communication channels restricted.' : 'Communication channels active.'),
+                      backgroundColor: Colors.amber,
+                    ),
+                  );
+                },
+                icon: Icon(_commsDisabled ? Icons.chat : Icons.chat_bubble_outline),
+                label: Text(_commsDisabled ? 'Enable Comms' : 'Disable Comms'),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: _commsDisabled ? Colors.green : Colors.amber),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetricTile(String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.02),
+        border: Border.all(color: Colors.white10),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 16),
+          const SizedBox(height: 4),
+          Text(title, style: const TextStyle(color: Colors.white60, fontSize: 10)),
+          Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+        ],
+      ),
     );
   }
 }

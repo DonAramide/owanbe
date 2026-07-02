@@ -8,6 +8,7 @@ import '../platform/identity/identity_platform.dart';
 import '../core/config/enterprise_brand_config.dart';
 import '../features/auth/enterprise_auth_shell.dart';
 import '../features/super_admin/screens/platform_configuration_screen.dart';
+import '../features/super_admin/screens/vendor_governance_screen.dart';
 import '../features/super_admin/super_admin_home_screen.dart';
 import '../features/admin/admin_home_screen.dart';
 import '../features/auth/login_screen.dart';
@@ -421,6 +422,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/super-admin/platform-config',
         builder: (context, state) => const PlatformConfigurationScreen(),
+      ),
+      GoRoute(
+        path: '/super-admin/vendor-governance',
+        builder: (context, state) => const VendorGovernanceScreen(),
       ),
       GoRoute(
         path: '/organizer',
