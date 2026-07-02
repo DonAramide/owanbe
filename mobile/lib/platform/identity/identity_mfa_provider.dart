@@ -102,8 +102,17 @@ class IdentityMfaNotifier extends StateNotifier<IdentityMfaState> {
   }
 
   void enrollMfa(String userId, String factor) {
-    final cfg = state.configs[userId];
-    if (cfg == null) return;
+    final cfg = state.configs[userId] ?? UserMfaConfig(
+      userId: userId,
+      email: userId.contains('@') ? userId : '$userId@owanbe.dev',
+      isMfaEnabled: false,
+      mfaFactor: 'none',
+      recoveryCodes: const [],
+      trustedDevicesCount: 0,
+      activeSessionsCount: 1,
+      failedLoginAttempts: 0,
+      isLocked: false,
+    );
     
     final newCfg = cfg.copyWith(
       isMfaEnabled: true,
