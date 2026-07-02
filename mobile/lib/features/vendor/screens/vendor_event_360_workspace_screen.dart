@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../eos/eos.dart';
 import '../models/vendor_models.dart';
 import '../providers/vendor_providers.dart';
+import '../../../platform/governance/governance_enforcement_engine.dart';
 
 class VendorEvent360WorkspaceScreen extends ConsumerStatefulWidget {
   const VendorEvent360WorkspaceScreen({
@@ -381,6 +382,13 @@ class _VendorEvent360WorkspaceScreenState extends ConsumerState<VendorEvent360Wo
               IconButton(
                 icon: const Icon(Icons.phone_in_talk, color: Colors.greenAccent),
                 onPressed: () {
+                  final canMsg = GovernanceEnforcementEngine.canMessage(widget.eventId);
+                  if (!canMsg) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Compliance Restriction: VoIP calling disabled by platform policy.')),
+                    );
+                    return;
+                  }
                   // Simulate VoIP Call
                   showDialog<void>(
                     context: context,
@@ -414,8 +422,11 @@ class _VendorEvent360WorkspaceScreenState extends ConsumerState<VendorEvent360Wo
               Expanded(
                 child: TextField(
                   controller: _messageController,
+                  enabled: GovernanceEnforcementEngine.canMessage(widget.eventId),
                   decoration: InputDecoration(
-                    hintText: 'Type operational message...',
+                    hintText: GovernanceEnforcementEngine.canMessage(widget.eventId)
+                        ? 'Type operational message...'
+                        : 'Chat disabled by platform policy overrides',
                     fillColor: Colors.white10,
                     filled: true,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
@@ -425,6 +436,13 @@ class _VendorEvent360WorkspaceScreenState extends ConsumerState<VendorEvent360Wo
               IconButton(
                 icon: const Icon(Icons.mic, color: EosColors.champagne),
                 onPressed: () {
+                  final canMsg = GovernanceEnforcementEngine.canMessage(widget.eventId);
+                  if (!canMsg) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Compliance Restriction: Voice notes disabled by platform policy.')),
+                    );
+                    return;
+                  }
                   setState(() {
                     _messages.add({'sender': 'Vendor', 'text': 'Voice Note (0:14) 🎙️'});
                   });
@@ -436,6 +454,8 @@ class _VendorEvent360WorkspaceScreenState extends ConsumerState<VendorEvent360Wo
               IconButton(
                 icon: const Icon(Icons.send, color: EosColors.champagne),
                 onPressed: () {
+                  final canMsg = GovernanceEnforcementEngine.canMessage(widget.eventId);
+                  if (!canMsg) return;
                   final text = _messageController.text.trim();
                   if (text.isEmpty) return;
                   setState(() {

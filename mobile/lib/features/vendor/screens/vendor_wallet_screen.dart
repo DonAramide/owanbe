@@ -6,6 +6,7 @@ import '../../../eos/eos.dart';
 import '../providers/vendor_providers.dart';
 import '../providers/vendor_intelligence_engine.dart';
 import '../widgets/vendor_shared.dart';
+import '../../../platform/governance/governance_enforcement_engine.dart';
 
 class VendorWalletScreen extends ConsumerStatefulWidget {
   const VendorWalletScreen({super.key});
@@ -184,6 +185,49 @@ class _VendorWalletScreenState extends ConsumerState<VendorWalletScreen> {
                   ],
                 ),
               ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (!GovernanceEnforcementEngine.canWithdraw('vend_1', walletFrozen: true)) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.15),
+              border: Border.all(color: Colors.redAccent.withOpacity(0.5)),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.warning_amber, color: Colors.redAccent),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Wallet frozen by platform administrators. Withdrawals and payout requests are restricted.',
+                    style: TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton.icon(
+            onPressed: GovernanceEnforcementEngine.canWithdraw('vend_1', walletFrozen: true)
+                ? () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Payout request of ₦850,000.00 queued successfully!'), backgroundColor: Colors.green),
+                    );
+                  }
+                : null,
+            icon: const Icon(Icons.account_balance_wallet, color: Colors.white),
+            label: const Text('Request Payout to Bank Account', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: EosColors.champagne,
+              disabledBackgroundColor: Colors.white10,
             ),
           ),
         ),

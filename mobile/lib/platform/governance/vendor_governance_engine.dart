@@ -8,6 +8,22 @@ class VendorGovernanceEngine {
 
   VendorGovernanceEngine({required this.auditService});
 
+  void evaluateRiskScores({
+    required String vendorId,
+    required int trustScore,
+    required int fraudScore,
+    required String adminUserId,
+  }) {
+    if (trustScore < 40 && fraudScore > 75) {
+      transitionVendorState(
+        vendorId: vendorId,
+        adminUserId: adminUserId,
+        targetState: VendorLifecycleState.suspended,
+        reason: 'Automated Risk engine: Trust Score < 40 and Fraud Score > 75 crossed limits.',
+      );
+    }
+  }
+
   void transitionVendorState({
     required String vendorId,
     required String adminUserId,

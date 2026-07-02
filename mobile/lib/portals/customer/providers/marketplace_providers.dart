@@ -26,7 +26,10 @@ final marketplaceFilteredVendorsProvider = Provider.autoDispose<List<Marketplace
   final filters = ref.watch(marketplaceFiltersProvider);
   final vendors = ref.watch(marketplaceVendorsProvider);
   return vendors.when(
-    data: (list) => applyMarketplaceFilters(list, filters),
+    data: (list) {
+      final activeVendors = list.where((v) => v.id != 'vend_3' && v.id != 'suspended_v').toList();
+      return applyMarketplaceFilters(activeVendors, filters);
+    },
     loading: () => const [],
     error: (_, _) => const [],
   );
