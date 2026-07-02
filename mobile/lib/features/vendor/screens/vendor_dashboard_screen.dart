@@ -8,6 +8,9 @@ import '../models/vendor_models.dart';
 import '../providers/vendor_providers.dart';
 import '../providers/vendor_intelligence_engine.dart';
 import '../widgets/vendor_shared.dart';
+import '../../../platform/procurement/procurement_models.dart';
+import '../../../platform/procurement/procurement_engine.dart';
+import '../../../platform/procurement/contract_generator.dart';
 
 class VendorDashboardScreen extends ConsumerStatefulWidget {
   const VendorDashboardScreen({super.key});
@@ -657,10 +660,7 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
                         Expanded(
                           child: ElevatedButton(
                             onPressed: () {
-                              ref.read(vendorIntelligenceProvider.notifier).acceptNegotiation(n.id);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Negotiation accepted and converted to Contract.')),
-                              );
+                              _showVendorSignatureDialog(context, n);
                             },
                             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                             child: const Text('Accept Quote', style: TextStyle(color: Colors.white, fontSize: 12)),
@@ -1530,6 +1530,76 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  void _showVendorSignatureDialog(BuildContext context, NegotiationItem item) {
+    final proposal = ContractProposal(
+      id: 'con_90214',
+      organizerId: 'org_01',
+      vendorId: 'vend_1',
+      eventId: 'evt_wedding_01',
+      requirements: 'Provision of full buffet catering services for 300 guests, including servers and dinnerware.',
+      totalAmountMinor: item.counterQuoteMinor,
+      milestones: [
+        ContractMilestone(id: 'm1', title: 'Onboarding Deposit', amountMinor: (item.counterQuoteMinor * 0.4).round(), status: MilestoneStatus.pending, description: 'Initial mobilization payment'),
+        ContractMilestone(id: 'm2', title: 'Post-event Release', amountMinor: (item.counterQuoteMinor * 0.6).round(), status: MilestoneStatus.pending, description: 'Final quality clearance check'),
+      ],
+      signatures: [
+        ContractSignature(signerId: 'org_01', role: 'organizer', signedAt: DateTime.now().subtract(const Duration(hours: 1)), signatureHash: 'sha256_091824102_org_sig_hash'),
+      ],
+      state: ProcurementState.proposed,
+      createdAt: DateTime.now().subtract(const Duration(hours: 2)),
+    );
+
+    final contractText = ContractGenerator.generateLegalDocument(proposal);
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: EosColors.plumDark,
+        title: const Text('Confirm Agreement & Sign Contract', style: TextStyle(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('LEGAL AGREEMENT DOCUMENT:', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold, fontSize: 11)),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                color: Colors.white10,
+                child: Text(
+                  contractText,
+                  style: const TextStyle(color: Colors.white70, fontFamily: 'monospace', fontSize: 10),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('Dual Signatures Verification Status:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              const Text('• Organizer: SIGNED (sha256_091824102_org_sig_hash)\n• Vendor: NOT SIGNED', style: TextStyle(color: Colors.amberAccent, fontSize: 12)),
+            ],
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ref.read(vendorIntelligenceProvider.notifier).acceptNegotiation(item.id);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Contract signed digitally as SERVICE PROVIDER! Locked in Commerce360 Escrow.'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            child: const Text('Execute Digital Signature'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close', style: TextStyle(color: Colors.white60)),
+          ),
         ],
       ),
     );

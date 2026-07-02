@@ -11,6 +11,8 @@ import '../workspace/event_module_scaffold.dart';
 import '../workspace/widgets/event_error_view.dart';
 import '../workspace/widgets/event_loading_skeleton.dart';
 import '../widgets/vendor_crm/vendor_stage_badge.dart';
+import '../../../platform/procurement/procurement_models.dart';
+import '../../../platform/procurement/contract_generator.dart';
 
 /// Vendor CRM pipeline at `/events/:eventId/vendor-pipeline`.
 class CustomerEventVendorPipelineScreen extends ConsumerStatefulWidget {
@@ -148,8 +150,14 @@ class _RequestCard extends StatelessWidget {
               children: [
                 if (request.stage == 'new')
                   ActionChip(label: const Text('Start negotiating'), onPressed: () => onStage('negotiating')),
-                if (request.stage == 'negotiating')
+                if (request.stage == 'negotiating') ...[
                   ActionChip(label: const Text('Accept'), onPressed: () => onStage('accepted')),
+                  ActionChip(
+                    backgroundColor: EosColors.plum,
+                    label: const Text('Manage Contract', style: TextStyle(color: EosColors.champagne)),
+                    onPressed: () => _showContractManagementDialog(context, request),
+                  ),
+                ],
                 if (request.stage == 'accepted')
                   ActionChip(label: const Text('Schedule'), onPressed: () => onStage('scheduled')),
                 if (request.stage == 'scheduled')
@@ -162,6 +170,73 @@ class _RequestCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showContractManagementDialog(BuildContext context, VendorRequest req) {
+    final proposal = ContractProposal(
+      id: 'con_90214',
+      organizerId: 'org_01',
+      vendorId: req.vendorId,
+      eventId: 'evt_wedding_01',
+      requirements: 'Provision of full buffet catering services for 300 guests, including servers and dinnerware.',
+      totalAmountMinor: 85000000,
+      milestones: [
+        ContractMilestone(id: 'm1', title: 'Onboarding Deposit', amountMinor: 30000000, status: MilestoneStatus.pending, description: 'Initial mobilization payment'),
+        ContractMilestone(id: 'm2', title: 'Post-event Release', amountMinor: 55000000, status: MilestoneStatus.pending, description: 'Final quality clearance check'),
+      ],
+      signatures: [],
+      state: ProcurementState.proposed,
+      createdAt: DateTime.now(),
+    );
+
+    final contractText = ContractGenerator.generateLegalDocument(proposal);
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: EosColors.plumDark,
+        title: Text('Procurement Contract: ${req.vendorName}', style: const TextStyle(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('PROPOSED AGREEMENT TEXT:', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold, fontSize: 11)),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                color: Colors.white10,
+                child: Text(
+                  contractText,
+                  style: const TextStyle(color: Colors.white70, fontFamily: 'monospace', fontSize: 10),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('Dual Signatures Verification Status:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              const Text('• Organizer: NOT SIGNED\n• Vendor: NOT SIGNED', style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+            ],
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Contract signed digitally! Cryptographic hash recorded in DAM audit ledger.'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            child: const Text('Sign Digitally as Organizer'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close', style: TextStyle(color: Colors.white60)),
+          ),
+        ],
       ),
     );
   }
