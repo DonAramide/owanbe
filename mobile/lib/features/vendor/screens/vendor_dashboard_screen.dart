@@ -347,12 +347,8 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [EosColors.plumDark, EosColors.plum],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(color: EosColors.champagne.withOpacity(0.3)),
+        color: Colors.white.withOpacity(0.02),
+        border: Border.all(color: Colors.white10),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -542,6 +538,22 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
                           content: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=500&auto=format&fit=crop',
+                                  height: 120,
+                                  width: 200,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) => Container(
+                                    height: 120,
+                                    width: 200,
+                                    color: Colors.white10,
+                                    child: const Icon(Icons.image, color: Colors.white30, size: 40),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
                               const Text('Connecting to Contabo storage bucket...', style: TextStyle(color: Colors.white70)),
                               const SizedBox(height: 16),
                               LinearProgressIndicator(value: progress, color: const Color(0xFFF59E0B)),
@@ -670,12 +682,48 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
                           icon: const Icon(Icons.chat_outlined, color: EosColors.champagne),
                           tooltip: 'Chat with Client',
                         ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          onPressed: () => _triggerVoipCall(context, n.clientName),
+                          icon: const Icon(Icons.phone_in_talk, color: Colors.greenAccent),
+                          tooltip: 'VoIP Call with Client',
+                        ),
                       ],
                     ),
                   ],
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  void _triggerVoipCall(BuildContext context, String clientName) {
+    showDialog<void>(
+      context: context,
+      builder: (callCtx) => AlertDialog(
+        backgroundColor: EosColors.plumDark,
+        title: Row(
+          children: [
+            const Icon(Icons.contact_phone, color: EosColors.champagne),
+            const SizedBox(width: 8),
+            Text('VoIP Call to $clientName', style: const TextStyle(color: Colors.white, fontSize: 16)),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Connecting secure VoIP Call to client...', style: TextStyle(color: Colors.white70)),
+            SizedBox(height: 12),
+            CircularProgressIndicator(color: EosColors.champagne),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(callCtx),
+            child: const Text('Hang Up', style: TextStyle(color: Colors.redAccent)),
+          ),
         ],
       ),
     );
