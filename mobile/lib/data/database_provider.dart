@@ -1,7 +1,7 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../api/owanbe_rest_outbox_transport.dart';
+import '../api/owambe_rest_outbox_transport.dart';
 import '../api/outbox_sync_contract.dart';
 import 'app_database.dart';
 import 'sync_engine.dart';
@@ -19,9 +19,9 @@ final outboxTransportProvider = Provider<OutboxTransport?>((ref) {
   if (raw == null || raw.isEmpty) return null;
 
   final base = raw.endsWith('/') ? raw.substring(0, raw.length - 1) : raw;
-  return OwanbeRestOutboxTransport(
+  return OwambeRestOutboxTransport(
     baseUrl: base,
-    resolveAuth: () => defaultResolveOwanbeApiAuthFromSupabase(
+    resolveAuth: () => defaultResolveOwambeApiAuthFromSupabase(
       tenantIdFromEnv: dotenv.env['OWANBE_TENANT_ID'],
     ),
   );

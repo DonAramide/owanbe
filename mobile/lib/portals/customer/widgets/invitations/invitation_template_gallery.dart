@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/utils/money.dart';
 import '../../../../eos/eos.dart';
-import '../../../../features/organizer/models/organizer_models.dart';
+import '../../models/customer_event_models.dart';
 import '../../models/invitation_template_models.dart';
 import '../../models/home_hub_models.dart';
 import 'invitation_card_renderer.dart';
@@ -15,7 +15,7 @@ class InvitationTemplateGallery extends StatelessWidget {
     required this.onSelected,
   });
 
-  final OrganizerEvent event;
+  final CustomerEvent event;
   final String selectedId;
   final ValueChanged<InvitationTemplate> onSelected;
 
@@ -69,7 +69,7 @@ class InvitationTemplatePreview extends StatelessWidget {
     required this.template,
   });
 
-  final OrganizerEvent event;
+  final CustomerEvent event;
   final InvitationTemplate template;
 
   @override
@@ -128,7 +128,7 @@ class _TemplateThumb extends StatelessWidget {
   });
 
   final InvitationTemplate template;
-  final OrganizerEvent event;
+  final CustomerEvent event;
   final bool selected;
   final VoidCallback onTap;
 

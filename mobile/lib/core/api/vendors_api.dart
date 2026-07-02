@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-import 'owanbe_api_auth.dart';
+import 'owambe_api_auth.dart';
 
 class VendorsApiException implements Exception {
   VendorsApiException({required this.code, required this.message});
@@ -10,7 +10,12 @@ class VendorsApiException implements Exception {
   final String message;
 
   @override
-  String toString() => 'VendorsApiException($code): $message';
+  String toString() {
+    if (code.toUpperCase() == 'INTERNAL' || message.toLowerCase().contains('internal server error')) {
+      return 'Internal Server Error';
+    }
+    return message;
+  }
 }
 
 class MarketplaceVendor {
@@ -162,8 +167,8 @@ class VendorsApi {
 
   static const devTenantId = '11111111-1111-4111-8111-111111111111';
 
-  String get _base => OwanbeApiAuth.resolveApiBase();
-  String get _tenantId => OwanbeApiAuth.resolveTenantId(devTenantId);
+  String get _base => OwambeApiAuth.resolveApiBase();
+  String get _tenantId => OwambeApiAuth.resolveTenantId(devTenantId);
 
   Uri _u(String path, [Map<String, String>? query]) {
     final p = path.startsWith('/') ? path.substring(1) : path;
@@ -189,7 +194,7 @@ class VendorsApi {
         if (query != null && query.isNotEmpty) 'q': query,
         if (city != null && city.isNotEmpty) 'city': city,
       }),
-      headers: OwanbeApiAuth.publicHeaders(tenantId: _tenantId),
+      headers: OwambeApiAuth.publicHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     final body = jsonDecode(res.body) as Map<String, dynamic>;

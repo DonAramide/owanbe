@@ -23,7 +23,7 @@ const rentalEquipmentCategories = <String, String>{
   'event-equipment': 'Event Equipment',
 };
 
-const rentalCategorySlugs = rentalEquipmentCategories.keys.toList();
+final rentalCategorySlugs = rentalEquipmentCategories.keys.toList();
 
 String rentalCategoryLabel(String slug) => rentalEquipmentCategories[slug] ?? slug;
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../eos/eos.dart';
+import '../../../../eos/eos.dart';
 import '../../models/ai_planner_models.dart';
 
 class PlannerRentalRecommendations extends StatelessWidget {

@@ -5,7 +5,7 @@ import '../layout/eos_responsive.dart';
 import '../navigation/eos_nav_destination.dart';
 import '../tokens/eos_colors.dart';
 import '../tokens/eos_spacing.dart';
-import '../widgets/owanbe_logo.dart';
+import '../widgets/owambe_logo.dart';
 
 /// Role-aware app shell — rail on desktop/tablet, bottom bar on mobile.
 class EosAppShell extends StatelessWidget {
@@ -16,7 +16,7 @@ class EosAppShell extends StatelessWidget {
     required this.onSelected,
     required this.body,
     required this.topBar,
-    this.brandLabel = 'Owanbe',
+    this.brandLabel = 'Owambe',
     this.brandSubtitle,
   });
 
@@ -107,7 +107,7 @@ class _RailShell extends StatelessWidget {
                   )
                 : const Padding(
                     padding: EdgeInsets.only(top: EosSpacing.md),
-                    child: OwanbeLogo(size: 28),
+                    child: OwambeLogo(size: 28),
                   ),
             destinations: [
               for (final d in destinations)

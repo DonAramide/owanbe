@@ -1,5 +1,5 @@
-name: owanbe
-description: Owanbe — single Flutter app (client, vendor, admin) with role-based routing.
+name: owambe
+description: Owambe — single Flutter app (client, vendor, admin) with role-based routing.
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -72,8 +72,11 @@ flutter:
 
   assets:
     - assets/env/supabase.env
-    - assets/branding/owanbe_logo.png
-    - assets/branding/owanbe_logo.png
+    - assets/branding/owambe_logo.png
+    - assets/branding/owambe_splash.jpg
+    - assets/branding/walkthrough1.jpg
+    - assets/branding/walkthrough2.jpg
+    - assets/branding/walkthrough3.jpg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

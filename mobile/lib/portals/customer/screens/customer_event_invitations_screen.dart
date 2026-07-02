@@ -7,8 +7,11 @@ import '../../../core/utils/money.dart';
 import '../../../eos/eos.dart';
 import '../models/invitation_template_models.dart';
 import '../providers/customer_invitation_providers.dart';
-import '../router/customer_routes.dart';
-import '../widgets/empty_state_card.dart';
+import '../navigation/event_navigator.dart';
+import '../workspace/event_module_scaffold.dart';
+import '../workspace/widgets/event_error_view.dart';
+import '../workspace/widgets/event_loading_skeleton.dart';
+import '../workspace/widgets/event_module_busy_indicator.dart';
 import '../widgets/guests/import_contacts_sheet.dart';
 import '../widgets/invitations/invitation_preview_card.dart';
 import '../widgets/invitations/invitation_qr_card.dart';
@@ -71,7 +74,9 @@ class _CustomerEventInvitationsScreenState extends ConsumerState<CustomerEventIn
       refreshInvitationHub(ref);
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not send invitations. Please try again.')),
+        );
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -99,60 +104,50 @@ class _CustomerEventInvitationsScreenState extends ConsumerState<CustomerEventIn
   Widget build(BuildContext context) {
     final hub = ref.watch(customerEventInvitationProvider(widget.eventId));
 
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go(CustomerRoutes.eventDetail(widget.eventId));
-            }
-          },
-        ),
-        title: const Text('Invitation hub'),
-        actions: [
-          if (allowMockPersistenceFallback())
-            IconButton(
-              tooltip: 'Import phone contacts',
-              onPressed: () => _importContacts(context),
-              icon: const Icon(Icons.contacts_outlined),
-            ),
+    return EventModuleScaffold(
+      eventId: widget.eventId,
+      title: 'Invitation hub',
+      subtitle: 'Templates, send, and share',
+      actions: [
+        if (allowMockPersistenceFallback())
           IconButton(
-            tooltip: 'Manage guests',
-            onPressed: () => context.push(CustomerRoutes.eventGuests(widget.eventId)),
-            icon: const Icon(Icons.groups_outlined),
+            tooltip: 'Import phone contacts',
+            onPressed: () => _importContacts(context),
+            icon: const Icon(Icons.contacts_outlined),
           ),
-        ],
-      ),
+        IconButton(
+          tooltip: 'Manage guests',
+          onPressed: () => context.eventNav.openGuests(widget.eventId),
+          icon: const Icon(Icons.groups_outlined),
+        ),
+      ],
       body: hub.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => ListView(
-          padding: EdgeInsets.all(context.eos.spacing.lg),
+        loading: () => const EventLoadingSkeleton(),
+        error: (_, _) => ListView(
+          padding: EosSpacing.pagePadding,
           children: [
-            EmptyStateCard(
-              title: 'Could not load invitations',
-              message: error.toString(),
-              actionLabel: 'Back to event',
-              onAction: () => context.go(CustomerRoutes.eventDetail(widget.eventId)),
+            EventErrorView.module(
+              moduleLabel: 'invitations',
+              onRetry: () {
+                refreshInvitationHub(ref);
+                ref.invalidate(customerEventInvitationProvider(widget.eventId));
+              },
+              onBackToOverview: () => context.eventNav.backToOverview(widget.eventId),
             ),
           ],
         ),
-        data: (data) => RefreshIndicator(
+        data: (data) => EventModuleScrollBody(
           onRefresh: () async {
             refreshInvitationHub(ref);
             await ref.read(customerEventInvitationProvider(widget.eventId).future);
           },
-          child: ListView(
-            padding: EdgeInsets.all(context.eos.spacing.lg),
+          hero: SectionHeader(
+            title: data.event.title,
+            subtitle: 'Invitation dashboard · ${data.guestCount} guests on your list',
+          ),
+          content: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SectionHeader(
-                title: data.event.title,
-                subtitle: 'Invitation dashboard · ${data.guestCount} guests on your list',
-              ),
-              SizedBox(height: context.eos.spacing.md),
               const SectionHeader(
                 title: 'Invitation templates',
                 subtitle: '30 photo-ready designs — classic included, plus premium 3D & 4D add-ons.',
@@ -169,11 +164,7 @@ class _CustomerEventInvitationsScreenState extends ConsumerState<CustomerEventIn
                     ? null
                     : () => _sendInvitations(context, data.guestCount),
                 icon: _sending
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
+                    ? const EventModuleBusyIndicator.onButton()
                     : const Icon(Icons.send_outlined),
                 label: Text(
                   data.guestCount == 0
@@ -243,7 +234,6 @@ class _CustomerEventInvitationsScreenState extends ConsumerState<CustomerEventIn
                   );
                 },
               ),
-              SizedBox(height: context.eos.spacing.xl),
             ],
           ),
         ),

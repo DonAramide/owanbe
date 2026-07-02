@@ -1,6 +1,6 @@
-import '../../../features/organizer/finance/organizer_finance_api.dart';
-import '../../../features/organizer/models/organizer_models.dart';
-import '../models/command_center_models.dart';
+import 'command_center_models.dart';
+import 'customer_event_models.dart';
+import 'customer_finance_models.dart';
 
 enum BudgetHealth { healthy, warning, overBudget }
 
@@ -83,7 +83,7 @@ class VendorBudgetAllocation {
   final String vendorId;
   final String businessName;
   final BudgetCategory category;
-  final VendorSlotStatus status;
+  final CustomerVendorSlotStatus status;
   final int allocatedMinor;
   final int committedMinor;
 }
@@ -113,7 +113,7 @@ class BudgetDashboardSnapshot {
     this.finance,
   });
 
-  final OrganizerEvent event;
+  final CustomerEvent event;
   final BudgetHealth health;
   final int budgetMinor;
   final int committedMinor;
@@ -121,7 +121,7 @@ class BudgetDashboardSnapshot {
   final List<CategoryAllocation> categories;
   final List<VendorBudgetAllocation> vendors;
   final List<BudgetPieSlice> pieSlices;
-  final OrganizerEventFinanceSummary? finance;
+  final CustomerEventFinanceSummary? finance;
 }
 
 const _pieColors = <int>[
@@ -133,9 +133,9 @@ const _pieColors = <int>[
 ];
 
 BudgetDashboardSnapshot buildBudgetDashboardSnapshot({
-  required OrganizerEvent event,
-  OrganizerEventFinanceSummary? finance,
-  List<OrganizerFinanceTransaction> transactions = const [],
+  required CustomerEvent event,
+  CustomerEventFinanceSummary? finance,
+  List<CustomerFinanceTransaction> transactions = const [],
 }) {
   final budgetBase = budgetStats(event, finance);
   final budgetMinor = budgetBase.budgetMinor;
@@ -190,7 +190,7 @@ BudgetDashboardSnapshot buildBudgetDashboardSnapshot({
         vendorId: 'venue',
         businessName: event.venue,
         category: BudgetCategory.hall,
-        status: VendorSlotStatus.approved,
+        status: CustomerVendorSlotStatus.approved,
         allocatedMinor: (budgetMinor * 0.35).round(),
         committedMinor: categoryCommitted[BudgetCategory.hall] ?? 0,
       ),

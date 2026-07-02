@@ -7,5 +7,5 @@ import 'supabase/bootstrap.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await bootstrapSupabase();
-  runApp(const ProviderScope(child: OwanbeApp()));
+  runApp(const ProviderScope(child: OwambeApp()));
 }

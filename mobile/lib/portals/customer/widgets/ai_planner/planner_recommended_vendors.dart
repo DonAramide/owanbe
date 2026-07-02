@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/utils/money.dart';
 import '../../../../eos/eos.dart';
 import '../../models/ai_planner_models.dart';
-import '../../router/customer_routes.dart';
+import '../../navigation/event_navigator.dart';
 
 class PlannerRecommendedVendors extends StatelessWidget {
   const PlannerRecommendedVendors({
@@ -32,7 +32,7 @@ class PlannerRecommendedVendors extends StatelessWidget {
             padding: EdgeInsets.only(bottom: context.eos.spacing.sm),
             child: EosSurfaceCard(
               elevated: true,
-              onTap: () => context.push(CustomerRoutes.vendorDetail(item.vendor.id)),
+              onTap: () => context.eventNav.openVendorDetail(item.vendor.id),
               child: Row(
                 children: [
                   Container(

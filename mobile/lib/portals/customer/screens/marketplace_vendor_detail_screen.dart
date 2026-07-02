@@ -6,7 +6,9 @@ import '../../../eos/eos.dart';
 import '../models/marketplace_filters.dart';
 import '../models/marketplace_models.dart';
 import '../providers/marketplace_providers.dart';
-import '../router/customer_routes.dart';
+import '../navigation/event_navigator.dart';
+import '../workspace/widgets/event_friendly_errors.dart';
+import '../workspace/widgets/event_loading_skeleton.dart';
 import '../widgets/empty_state_card.dart';
 import '../widgets/marketplace/request_vendor_sheet.dart';
 import '../widgets/marketplace/vendor_contact_bar.dart';
@@ -49,7 +51,7 @@ class MarketplaceVendorDetailScreen extends ConsumerWidget {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go(CustomerRoutes.vendors);
+              context.eventNav.openMarketplace();
             }
           },
         ),
@@ -64,15 +66,15 @@ class MarketplaceVendorDetailScreen extends ConsumerWidget {
         orElse: () => null,
       ),
       body: profile.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => ListView(
+        loading: () => const EventLoadingSkeleton(),
+        error: (_, _) => ListView(
           padding: EdgeInsets.all(context.eos.spacing.lg),
           children: [
             EmptyStateCard(
-              title: 'Vendor not found',
-              message: error.toString(),
+              title: EventFriendlyErrors.headlineFor('this vendor'),
+              message: EventFriendlyErrors.genericMessage,
               actionLabel: 'Browse vendors',
-              onAction: () => context.go(CustomerRoutes.vendors),
+              onAction: () => context.eventNav.openMarketplace(),
             ),
           ],
         ),
@@ -185,7 +187,7 @@ class MarketplaceVendorDetailScreen extends ConsumerWidget {
               ),
               EosSurfaceCard(
                 child: Text(
-                  vendor.description ?? 'Premium celebration partner on Owanbe.',
+                  vendor.description ?? 'Premium celebration partner on Owambe.',
                   style: context.eosText.bodyMedium,
                 ),
               ),

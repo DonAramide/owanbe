@@ -3,20 +3,20 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
-import '../../../core/api/owanbe_api_auth.dart';
+import '../../../core/api/owambe_api_auth.dart';
 import '../models/celebration_wall_models.dart';
 
 class CelebrationWallApi {
   CelebrationWallApi({http.Client? client}) : _http = client ?? http.Client();
   final http.Client _http;
 
-  String get _base => OwanbeApiAuth.resolveApiBase();
-  String get _tenantId => OwanbeApiAuth.resolveTenantId();
+  String get _base => OwambeApiAuth.resolveApiBase();
+  String get _tenantId => OwambeApiAuth.resolveTenantId();
 
   Future<WallSnapshot> fetchPublic(String eventId) async {
     final res = await _http.get(
       Uri.parse('$_base/events/$eventId/wall'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     return WallSnapshot.publicFromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -25,7 +25,7 @@ class CelebrationWallApi {
   Future<WallSnapshot> fetchManage(String eventId) async {
     final res = await _http.get(
       Uri.parse('$_base/events/$eventId/wall/manage'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     return WallSnapshot.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -39,7 +39,7 @@ class CelebrationWallApi {
   }) async {
     final res = await _http.post(
       Uri.parse('$_base/events/$eventId/wall/posts'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({
         'guestName': guestName,
         'message': message,
@@ -57,7 +57,7 @@ class CelebrationWallApi {
   }) async {
     final res = await _http.post(
       Uri.parse('$_base/events/$eventId/wall/posts/$postId/reactions'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({'reaction': reaction}),
     );
     if (res.statusCode >= 400) _throw(res);
@@ -71,7 +71,7 @@ class CelebrationWallApi {
   }) async {
     final res = await _http.post(
       Uri.parse('$_base/events/$eventId/wall/posts/$postId/moderate'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({'action': action}),
     );
     if (res.statusCode >= 400) _throw(res);
@@ -84,7 +84,7 @@ class CelebrationWallApi {
   }) async {
     final res = await _http.patch(
       Uri.parse('$_base/events/$eventId/wall/settings'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({'liveMode': liveMode}),
     );
     if (res.statusCode >= 400) _throw(res);

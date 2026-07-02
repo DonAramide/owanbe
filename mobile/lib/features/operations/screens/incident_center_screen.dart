@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/api/persistence_providers.dart';
 import '../../../eos/eos.dart';
 import '../models/operations_models.dart';
 import '../providers/operations_providers.dart';
-import '../../../core/api/persistence_providers.dart';
-import '../data/operations_store.dart';
 import '../widgets/operations_shared.dart';
 
 class IncidentCenterScreen extends ConsumerStatefulWidget {
@@ -75,9 +74,13 @@ class _IncidentCenterScreenState extends ConsumerState<IncidentCenterScreen> {
     );
   }
 
-  void _update(String id, IncidentStatus status) {
-    if (allowMockPersistenceFallback()) {
-      OperationsStore.instance.updateIncidentStatus(widget.eventId, id, status);
+  Future<void> _update(String id, IncidentStatus status) async {
+    // Delegates status update through the provider layer — no store access in UI.
+    try {
+      await ref.read(operationsApiProvider).updateIncidentStatus(widget.eventId, id, status);
+      bumpOperationsRevision(ref);
+    } catch (_) {
+      // Error is surfaced by the incidents provider on next rebuild.
       bumpOperationsRevision(ref);
     }
   }

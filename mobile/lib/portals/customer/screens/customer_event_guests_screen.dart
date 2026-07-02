@@ -5,8 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../../eos/eos.dart';
 import '../models/customer_guest_models.dart';
 import '../providers/customer_guest_providers.dart';
-import '../router/customer_routes.dart';
-import '../widgets/empty_state_card.dart';
+import '../navigation/event_navigator.dart';
+import '../workspace/event_empty_states.dart';
+import '../workspace/event_module_scaffold.dart';
+import '../workspace/widgets/event_error_view.dart';
+import '../workspace/widgets/event_loading_skeleton.dart';
 import '../widgets/guests/add_guest_sheet.dart';
 import '../widgets/guests/guest_detail_drawer.dart';
 import '../widgets/guests/guest_filter_bar.dart';
@@ -72,8 +75,11 @@ class _CustomerEventGuestsScreenState extends ConsumerState<CustomerEventGuestsS
     final filtered = ref.watch(customerFilteredGuestsProvider(widget.eventId));
     final selectedGuest = ref.watch(customerSelectedGuestProvider);
 
-    return Scaffold(
-      key: _scaffoldKey,
+    return EventModuleScaffold(
+      scaffoldKey: _scaffoldKey,
+      eventId: widget.eventId,
+      title: 'Guests',
+      subtitle: 'Invitations, RSVPs, and check-in',
       endDrawer: selectedGuest == null
           ? null
           : GuestDetailDrawer(
@@ -84,23 +90,10 @@ class _CustomerEventGuestsScreenState extends ConsumerState<CustomerEventGuestsS
                 _scaffoldKey.currentState?.closeEndDrawer();
               },
             ),
-      appBar: AppBar(
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go(CustomerRoutes.eventDetail(widget.eventId));
-            }
-          },
-        ),
-        title: const Text('Guests'),
-        actions: [
+      actions: [
           IconButton(
             tooltip: 'Invitation hub',
-            onPressed: () => context.push(CustomerRoutes.eventInvitations(widget.eventId)),
+            onPressed: () => context.eventNav.openInvitations(widget.eventId),
             icon: const Icon(Icons.mail_outline),
           ),
           IconButton(
@@ -114,36 +107,27 @@ class _CustomerEventGuestsScreenState extends ConsumerState<CustomerEventGuestsS
             icon: const Icon(Icons.person_add_outlined),
           ),
         ],
-      ),
       body: guestsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => ListView(
-          padding: EdgeInsets.all(context.eos.spacing.lg),
+        loading: () => const EventLoadingSkeleton(),
+        error: (_, _) => ListView(
+          padding: EosSpacing.pagePadding,
           children: [
-            EmptyStateCard(
-              title: 'Could not load guests',
-              message: error.toString(),
-              actionLabel: 'Back to event',
-              onAction: () => context.go(CustomerRoutes.eventDetail(widget.eventId)),
+            EventErrorView.module(
+              moduleLabel: 'guests',
+              onRetry: () => refreshCustomerGuests(ref),
+              onBackToOverview: () => context.eventNav.backToOverview(widget.eventId),
             ),
           ],
         ),
         data: (allGuests) {
           final summary = summarizeGuests(allGuests);
 
-          return RefreshIndicator(
+          return EventModuleScrollBody(
             onRefresh: () async {
               refreshCustomerGuests(ref);
               await ref.read(customerEventGuestsProvider(widget.eventId).future);
             },
-            child: ListView(
-              padding: EdgeInsets.all(context.eos.spacing.lg),
-              children: [
-                const SectionHeader(
-                  title: 'Guest list',
-                  subtitle: 'Invitations, RSVPs, and check-in at a glance.',
-                ),
-                LayoutBuilder(
+            primaryKpi: LayoutBuilder(
                   builder: (context, constraints) {
                     final wide = constraints.maxWidth >= 720;
                     final cardWidth = wide
@@ -184,7 +168,9 @@ class _CustomerEventGuestsScreenState extends ConsumerState<CustomerEventGuestsS
                     );
                   },
                 ),
-                SizedBox(height: context.eos.spacing.lg),
+            content: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                 TextField(
                   controller: _searchController,
                   decoration: const InputDecoration(
@@ -217,33 +203,33 @@ class _CustomerEventGuestsScreenState extends ConsumerState<CustomerEventGuestsS
                 ),
                 SizedBox(height: context.eos.spacing.lg),
                 filtered.when(
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (e, _) => Text('$e'),
+                  loading: () => const EventLoadingSkeleton(variant: EventLoadingVariant.list),
+                  error: (_, _) => EventErrorView.module(
+                    moduleLabel: 'guest list',
+                    onRetry: () => ref.invalidate(customerFilteredGuestsProvider(widget.eventId)),
+                    onBackToOverview: () => context.eventNav.backToOverview(widget.eventId),
+                  ),
                   data: (guests) {
                     if (guests.isEmpty) {
-                      return EmptyStateCard(
-                        title: 'No guests match',
-                        message: 'Try a different search or filter, or add guests to your celebration.',
-                        actionLabel: 'Add guest',
-                        onAction: _showAddGuest,
-                        icon: Icons.groups_outlined,
-                      );
+                      return EventEmptyStates.guestsFiltered(onAdd: _showAddGuest);
                     }
-                    return Column(
-                      children: [
-                        for (final guest in guests)
-                          Padding(
-                            padding: EdgeInsets.only(bottom: context.eos.spacing.sm),
-                            child: GuestListTile(
-                              guest: guest,
-                              onTap: () => _openGuestDetail(guest),
-                            ),
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: guests.length,
+                      itemBuilder: (context, index) {
+                        final guest = guests[index];
+                        return Padding(
+                          padding: EdgeInsets.only(bottom: context.eos.spacing.sm),
+                          child: GuestListTile(
+                            guest: guest,
+                            onTap: () => _openGuestDetail(guest),
                           ),
-                      ],
+                        );
+                      },
                     );
                   },
                 ),
-                SizedBox(height: context.eos.spacing.xl),
               ],
             ),
           );

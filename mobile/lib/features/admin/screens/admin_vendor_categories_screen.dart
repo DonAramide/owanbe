@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
 
 import '../../../core/api/event_config_api.dart';
-import '../../../core/api/persistence_providers.dart';
+import '../../../core/api/owambe_http_client.dart';
 import '../../../eos/eos.dart';
 import '../widgets/admin_page_layout.dart';
 
+// Provider lives here (admin-only, not shared) — uses production HTTP client.
 final adminVendorCategoriesProvider = FutureProvider.autoDispose<List<VendorCategoryConfig>>((ref) async {
   try {
-    final api = EventConfigApi(http.Client());
+    final api = EventConfigApi(createOwambeHttpClient());
     return await api.listVendorCategories();
   } catch (_) {
-    if (!allowMockPersistenceFallback()) rethrow;
+    // Return static fallback when API is unreachable — no mock store dependency.
     return VendorCategoryConfig.fallbackDefaults;
   }
 });

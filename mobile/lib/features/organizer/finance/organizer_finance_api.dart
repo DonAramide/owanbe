@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-import '../../../core/api/owanbe_api_auth.dart';
+import '../../../core/api/owambe_api_auth.dart';
 import '../../../auth/auth_session.dart';
 
 class OrganizerFinanceApiException implements Exception {
@@ -114,12 +114,12 @@ class OrganizerFinanceApi {
   static const devTenantId = '11111111-1111-4111-8111-111111111111';
   static const devOrganizerUserId = '22222222-2222-4222-8222-222222222222';
 
-  String get _base => OwanbeApiAuth.resolveApiBase();
+  String get _base => OwambeApiAuth.resolveApiBase();
 
-  String get _tenantId => OwanbeApiAuth.resolveTenantId(devTenantId);
+  String get _tenantId => OwambeApiAuth.resolveTenantId(devTenantId);
 
   Future<Map<String, String>> _headers([AuthSession? session]) =>
-      OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId);
+      OwambeApiAuth.authorizedHeaders(tenantId: _tenantId);
 
   Uri _u(String path) {
     final p = path.startsWith('/') ? path.substring(1) : path;

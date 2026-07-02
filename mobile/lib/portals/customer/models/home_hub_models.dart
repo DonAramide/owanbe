@@ -1,5 +1,6 @@
-import '../../../features/organizer/models/organizer_models.dart';
 import '../../../core/api/vendors_api.dart';
+import 'customer_event_models.dart';
+export 'customer_event_models.dart';
 
 /// Aggregated snapshot for CUS-020 Home Hub.
 class CustomerHomeSnapshot {
@@ -14,50 +15,6 @@ class CustomerHomeSnapshot {
   final CustomerEventSummary? nearestEvent;
   final List<CustomerInvitationCard> invitations;
   final List<MarketplaceVendor> vendors;
-}
-
-class CustomerEventSummary {
-  const CustomerEventSummary({
-    required this.id,
-    required this.title,
-    required this.startsAt,
-    required this.city,
-    required this.venue,
-    required this.status,
-    required this.guestCount,
-    required this.progress,
-    required this.coverGradientStart,
-    required this.coverGradientEnd,
-    required this.isLive,
-  });
-
-  final String id;
-  final String title;
-  final DateTime startsAt;
-  final String city;
-  final String venue;
-  final OrganizerEventStatus status;
-  final int guestCount;
-  final double progress;
-  final int coverGradientStart;
-  final int coverGradientEnd;
-  final bool isLive;
-
-  factory CustomerEventSummary.fromOrganizerEvent(OrganizerEvent event) {
-    return CustomerEventSummary(
-      id: event.id,
-      title: event.title,
-      startsAt: event.startsAt,
-      city: event.city,
-      venue: event.venue,
-      status: event.status,
-      guestCount: event.attendees.length,
-      progress: computePlanningProgress(event),
-      coverGradientStart: event.coverGradientStart,
-      coverGradientEnd: event.coverGradientEnd,
-      isLive: event.status == OrganizerEventStatus.live,
-    );
-  }
 }
 
 class CustomerInvitationCard {
@@ -81,22 +38,6 @@ class CustomerInvitationCard {
 }
 
 enum CustomerInvitationKind { ticket, rsvp }
-
-/// Planning completion estimate (0–1) from event setup signals.
-double computePlanningProgress(OrganizerEvent event) {
-  var score = 0.0;
-  if (event.title.trim().isNotEmpty) score += 0.12;
-  if (event.description.trim().isNotEmpty) score += 0.08;
-  if (event.attendees.isNotEmpty) score += 0.22;
-  if (event.vendors.isNotEmpty) score += 0.18;
-  if (event.ticketTiers.isNotEmpty) score += 0.15;
-  if (event.status == OrganizerEventStatus.published ||
-      event.status == OrganizerEventStatus.live ||
-      event.status == OrganizerEventStatus.completed) {
-    score += 0.25;
-  }
-  return score.clamp(0.0, 1.0);
-}
 
 String homeGreeting(DateTime now) {
   final hour = now.hour;

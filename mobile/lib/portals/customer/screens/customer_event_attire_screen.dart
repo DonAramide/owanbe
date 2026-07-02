@@ -10,8 +10,13 @@ import '../providers/aso_ebi_providers.dart';
 import '../providers/customer_event_command_providers.dart';
 import '../providers/event_attire_providers.dart';
 import '../providers/marketplace_providers.dart';
-import '../router/customer_routes.dart';
-import '../widgets/empty_state_card.dart';
+import '../navigation/event_navigator.dart';
+import '../workspace/event_module_scaffold.dart';
+import '../workspace/event_empty_states.dart';
+import '../workspace/widgets/event_error_view.dart';
+import '../workspace/widgets/event_friendly_errors.dart';
+import '../workspace/widgets/event_loading_skeleton.dart';
+import '../workspace/widgets/event_empty_state.dart';
 import '../widgets/section_header.dart';
 
 /// Attire Management — Fashion & Attire vertical at `/events/:eventId/attire`.
@@ -43,7 +48,9 @@ class _CustomerEventAttireScreenState extends ConsumerState<CustomerEventAttireS
       refreshAsoEbi(ref);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(EventFriendlyErrors.actionFailedMessage)),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -58,11 +65,24 @@ class _CustomerEventAttireScreenState extends ConsumerState<CustomerEventAttireS
     if (isOwner) {
       final data = ref.watch(asoEbiManageProvider(widget.eventId));
       _tabs ??= TabController(length: 4, vsync: this);
-      return _buildScaffold(
-        isOwner: true,
+      return EventModuleScaffold(
+        eventId: widget.eventId,
+        title: isOwner ? 'Attire management' : 'Event attire',
+        subtitle: 'Fashion & attire packages',
+        busy: _busy,
+        appBarBottom: TabBar(
+          controller: _tabs,
+          isScrollable: true,
+          tabs: const [
+            Tab(icon: Icon(Icons.storefront_outlined), text: 'Vendors'),
+            Tab(icon: Icon(Icons.checkroom_outlined), text: 'Packages'),
+            Tab(icon: Icon(Icons.inventory_2_outlined), text: 'Orders'),
+            Tab(icon: Icon(Icons.dashboard_outlined), text: 'Dashboard'),
+          ],
+        ),
         body: data.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => _errorBody(e.toString()),
+          loading: () => const EventLoadingSkeleton(),
+          error: (_, _) => _errorBody(),
           data: (snap) => TabBarView(
             controller: _tabs,
             children: [
@@ -73,25 +93,18 @@ class _CustomerEventAttireScreenState extends ConsumerState<CustomerEventAttireS
             ],
           ),
         ),
-        bottom: TabBar(
-          controller: _tabs,
-          isScrollable: true,
-          tabs: const [
-            Tab(icon: Icon(Icons.storefront_outlined), text: 'Vendors'),
-            Tab(icon: Icon(Icons.checkroom_outlined), text: 'Packages'),
-            Tab(icon: Icon(Icons.inventory_2_outlined), text: 'Orders'),
-            Tab(icon: Icon(Icons.dashboard_outlined), text: 'Dashboard'),
-          ],
-        ),
       );
     }
 
     final data = ref.watch(asoEbiPublicProvider(widget.eventId));
-    return _buildScaffold(
-      isOwner: false,
+    return EventModuleScaffold(
+      eventId: widget.eventId,
+      title: 'Event attire',
+      subtitle: 'Reserve your celebration outfit',
+      busy: _busy,
       body: data.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => _errorBody(e.toString()),
+        loading: () => const EventLoadingSkeleton(),
+        error: (_, _) => _errorBody(),
         data: (snap) => _GuestAttireFlow(
           eventId: widget.eventId,
           fabrics: snap.fabrics,
@@ -101,45 +114,20 @@ class _CustomerEventAttireScreenState extends ConsumerState<CustomerEventAttireS
     );
   }
 
-  Widget _errorBody(String message) {
+  Widget _errorBody() {
     return ListView(
-      padding: EdgeInsets.all(context.eos.spacing.lg),
+      padding: EosSpacing.pagePadding,
       children: [
-        EmptyStateCard(
-          title: 'Could not load attire',
-          message: message,
-          actionLabel: 'Back to event',
-          onAction: () => context.go(CustomerRoutes.eventDetail(widget.eventId)),
+        EventErrorView.module(
+          moduleLabel: 'attire',
+          onRetry: () {
+            refreshAsoEbi(ref);
+            ref.invalidate(asoEbiManageProvider(widget.eventId));
+            ref.invalidate(asoEbiPublicProvider(widget.eventId));
+          },
+          onBackToOverview: () => context.eventNav.backToOverview(widget.eventId),
         ),
       ],
-    );
-  }
-
-  Widget _buildScaffold({required bool isOwner, required Widget body, PreferredSizeWidget? bottom}) {
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go(CustomerRoutes.eventDetail(widget.eventId));
-            }
-          },
-        ),
-        title: Text(isOwner ? 'Attire management' : 'Event attire'),
-        actions: [
-          if (_busy)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-            ),
-        ],
-        bottom: bottom,
-      ),
-      body: body,
     );
   }
 }
@@ -232,10 +220,16 @@ class _VendorsTabState extends ConsumerState<_VendorsTab> {
     final categories = [fashionAttireVertical, ...fashionAttireSubcategories];
 
     return vendorsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => ListView(
-        padding: EdgeInsets.all(context.eos.spacing.lg),
-        children: [EmptyStateCard(title: 'Could not load vendors', message: '$e')],
+      loading: () => const EventLoadingSkeleton(),
+      error: (_, _) => ListView(
+        padding: EosSpacing.pagePadding,
+        children: [
+          EventErrorView.module(
+            moduleLabel: 'vendors',
+            onRetry: () => ref.invalidate(marketplaceVendorsProvider),
+            onBackToOverview: () => context.eventNav.backToOverview(widget.eventId),
+          ),
+        ],
       ),
       data: (vendors) {
         final fashionVendors = vendors.where((v) => v.isFashionAttireVendor).toList();
@@ -285,18 +279,14 @@ class _VendorsTabState extends ConsumerState<_VendorsTab> {
             ),
             SizedBox(height: context.eos.spacing.md),
             OutlinedButton.icon(
-              onPressed: () => context.push(
-                '${CustomerRoutes.vendors}?category=${Uri.encodeComponent(_subcategory)}',
-              ),
+              onPressed: () => context.eventNav.openMarketplaceCategory(_subcategory),
               icon: const Icon(Icons.open_in_new),
               label: const Text('Open marketplace'),
             ),
             SizedBox(height: context.eos.spacing.lg),
             if (filtered.isEmpty)
-              const EmptyStateCard(
-                title: 'No fashion vendors yet',
-                message: 'Invite tailors and fabric vendors from the marketplace, or add vendors with fashion-related slugs.',
-                icon: Icons.storefront_outlined,
+              EventEmptyStates.attireVendors(
+                onBrowse: () => context.eventNav.openMarketplaceCategory(_subcategory),
               )
             else
               ...filtered.map(
@@ -330,7 +320,7 @@ class _VendorsTabState extends ConsumerState<_VendorsTab> {
                                 SnackBar(content: Text('Sample request sent to ${v.businessName}')),
                               );
                             }
-                            context.push(CustomerRoutes.vendorDetail(v.id));
+                            context.eventNav.openVendorDetail(v.id);
                           }
                         },
                         itemBuilder: (_) => const [
@@ -368,11 +358,7 @@ class _PackagesTab extends StatelessWidget {
         ),
         SizedBox(height: context.eos.spacing.lg),
         if (fabrics.isEmpty)
-          const EmptyStateCard(
-            title: 'No packages yet',
-            message: 'Publish attire packages for guests after selecting a Fashion & Attire vendor.',
-            icon: Icons.checkroom_outlined,
-          )
+          EventEmptyStates.attirePackages(onAdd: () => _showAddFabric(context))
         else
           ...fabrics.map((f) => _OrganizerFabricCard(eventId: eventId, fabric: f, onRefresh: onRefresh)),
       ],
@@ -414,7 +400,9 @@ class _PackagesTab extends StatelessWidget {
       onRefresh();
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(EventFriendlyErrors.actionFailedMessage)),
+        );
       }
     }
   }
@@ -485,7 +473,9 @@ class _OrganizerFabricCardState extends ConsumerState<_OrganizerFabricCard> {
       widget.onRefresh();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(EventFriendlyErrors.actionFailedMessage)),
+        );
       }
     }
   }
@@ -558,7 +548,9 @@ class _OrganizerFabricCardState extends ConsumerState<_OrganizerFabricCard> {
       widget.onRefresh();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(EventFriendlyErrors.actionFailedMessage)),
+        );
       }
     }
   }
@@ -649,11 +641,7 @@ class _OrdersTab extends StatelessWidget {
       padding: EdgeInsets.all(context.eos.spacing.lg),
       children: [
         if (active.isEmpty)
-          const EmptyStateCard(
-            title: 'No orders yet',
-            message: 'Guest attire reservations and payments will appear here.',
-            icon: Icons.inventory_2_outlined,
-          )
+          EventEmptyStates.attireOrders()
         else
           ...active.map(
             (r) => Padding(
@@ -773,10 +761,10 @@ class _GuestAttireFlowState extends ConsumerState<_GuestAttireFlow> {
     if (widget.fabrics.isEmpty) {
       return ListView(
         padding: EdgeInsets.all(context.eos.spacing.lg),
-        children: const [
-          EmptyStateCard(
+        children: [
+          const EventEmptyState(
             title: 'Attire not published yet',
-            message: 'The organizer has not published event attire packages yet.',
+            description: 'The organizer has not published event attire packages yet.',
             icon: Icons.checkroom_outlined,
           ),
         ],

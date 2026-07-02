@@ -3,20 +3,21 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
-import '../../../core/api/owanbe_api_auth.dart';
+import '../../../core/api/owambe_api_auth.dart';
+import '../../../core/api/persistence_providers.dart';
 import '../models/vendor_crm_models.dart';
 
 class VendorCrmApi {
   VendorCrmApi({http.Client? client}) : _http = client ?? http.Client();
   final http.Client _http;
 
-  String get _base => OwanbeApiAuth.resolveApiBase();
-  String get _tenantId => OwanbeApiAuth.resolveTenantId();
+  String get _base => OwambeApiAuth.resolveApiBase();
+  String get _tenantId => OwambeApiAuth.resolveTenantId();
 
   Future<VendorCrmSnapshot> listForEvent(String eventId) async {
     final res = await _http.get(
       Uri.parse('$_base/events/$eventId/vendor-requests'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     return VendorCrmSnapshot.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -25,7 +26,7 @@ class VendorCrmApi {
   Future<VendorCrmSnapshot> createRequest(String eventId, Map<String, dynamic> body) async {
     final res = await _http.post(
       Uri.parse('$_base/events/$eventId/vendor-requests'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode(body),
     );
     if (res.statusCode >= 400) _throw(res);
@@ -35,7 +36,7 @@ class VendorCrmApi {
   Future<VendorCrmSnapshot> transitionStage(String requestId, String stage, {String? note}) async {
     final res = await _http.post(
       Uri.parse('$_base/vendor-requests/$requestId/stage'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({'stage': stage, if (note != null) 'note': note}),
     );
     if (res.statusCode >= 400) _throw(res);
@@ -45,7 +46,7 @@ class VendorCrmApi {
   Future<VendorCrmSnapshot> listForVendor(String vendorId) async {
     final res = await _http.get(
       Uri.parse('$_base/vendors/$vendorId/requests'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     return VendorCrmSnapshot.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -56,7 +57,7 @@ class VendorCrmApi {
       Uri.parse(
         '$_base/vendors/$vendorId/calendar?from=${Uri.encodeComponent(from.toUtc().toIso8601String())}&to=${Uri.encodeComponent(to.toUtc().toIso8601String())}',
       ),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     return VendorCalendarSnapshot.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -65,7 +66,7 @@ class VendorCrmApi {
   Future<VendorCalendarSnapshot> patchVacation(String vendorId, {required bool vacationMode, String? vacationUntil}) async {
     final res = await _http.patch(
       Uri.parse('$_base/vendors/$vendorId/calendar/settings'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({
         'vacationMode': vacationMode,
         if (vacationUntil != null) 'vacationUntil': vacationUntil,
@@ -78,7 +79,7 @@ class VendorCrmApi {
   Future<void> addBlackout(String vendorId, DateTime startsAt, DateTime endsAt, String reason) async {
     final res = await _http.post(
       Uri.parse('$_base/vendors/$vendorId/calendar/blocks'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({
         'kind': 'blackout',
         'startsAt': startsAt.toUtc().toIso8601String(),
@@ -104,12 +105,28 @@ void refreshVendorCrm(WidgetRef ref) {
 
 final eventVendorCrmProvider = FutureProvider.autoDispose.family<VendorCrmSnapshot, String>((ref, eventId) async {
   ref.watch(vendorCrmRefreshProvider);
-  return ref.read(vendorCrmApiProvider).listForEvent(eventId);
+  try {
+    return await ref.read(vendorCrmApiProvider).listForEvent(eventId);
+  } catch (e) {
+    if (!allowMockPersistenceFallback()) rethrow;
+    return const VendorCrmSnapshot(
+      items: [],
+      stats: VendorPipelineStats(),
+    );
+  }
 });
 
 final vendorInboxProvider = FutureProvider.autoDispose.family<VendorCrmSnapshot, String>((ref, vendorId) async {
   ref.watch(vendorCrmRefreshProvider);
-  return ref.read(vendorCrmApiProvider).listForVendor(vendorId);
+  try {
+    return await ref.read(vendorCrmApiProvider).listForVendor(vendorId);
+  } catch (e) {
+    if (!allowMockPersistenceFallback()) rethrow;
+    return const VendorCrmSnapshot(
+      items: [],
+      stats: VendorPipelineStats(),
+    );
+  }
 });
 
 final vendorCalendarProvider = FutureProvider.autoDispose.family<VendorCalendarSnapshot, String>((ref, vendorId) async {
@@ -117,5 +134,30 @@ final vendorCalendarProvider = FutureProvider.autoDispose.family<VendorCalendarS
   final now = DateTime.now();
   final from = now.subtract(const Duration(days: 7));
   final to = now.add(const Duration(days: 60));
-  return ref.read(vendorCrmApiProvider).fetchCalendar(vendorId, from, to);
+  try {
+    return await ref.read(vendorCrmApiProvider).fetchCalendar(vendorId, from, to);
+  } catch (e) {
+    if (!allowMockPersistenceFallback()) rethrow;
+    return VendorCalendarSnapshot(
+      vacationMode: false,
+      blocks: [
+        VendorCalendarBlock(
+          id: 'mock_block_1',
+          kind: 'busy',
+          startsAt: now.add(const Duration(days: 2)),
+          endsAt: now.add(const Duration(days: 2, hours: 4)),
+          reason: 'Busy with Jollof Catering Event',
+          allDay: false,
+        ),
+        VendorCalendarBlock(
+          id: 'mock_block_2',
+          kind: 'busy',
+          startsAt: now.add(const Duration(days: 5)),
+          endsAt: now.add(const Duration(days: 6)),
+          reason: 'Weekend Rest',
+          allDay: true,
+        ),
+      ],
+    );
+  }
 });

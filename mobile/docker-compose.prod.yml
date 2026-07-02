@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  owanbe-mobile-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - NODE_ENV=production
+      - OWANBE_API_BASE=https://api.owanbe.dev
+      - SUPABASE_URL=https://auth.owanbe.dev
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

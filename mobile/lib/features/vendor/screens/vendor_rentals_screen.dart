@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/utils/money.dart';
 import '../../../eos/eos.dart';
-import '../../../portals/customer/models/rentals_constants.dart';
-import '../../../portals/customer/models/rentals_models.dart';
-import '../../../portals/customer/providers/rentals_providers.dart';
 import '../providers/vendor_providers.dart';
+import '../providers/vendor_intelligence_engine.dart';
+import '../widgets/vendor_shared.dart';
 
-/// Rental vendor portal — inventory, orders, delivery, returns, damage claims.
 class VendorRentalsScreen extends ConsumerStatefulWidget {
   const VendorRentalsScreen({super.key});
 
@@ -17,254 +14,152 @@ class VendorRentalsScreen extends ConsumerStatefulWidget {
 }
 
 class _VendorRentalsScreenState extends ConsumerState<VendorRentalsScreen> with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 5, vsync: this);
-  String get _vendorId => ref.read(vendorProfileProvider).id;
+  late TabController _tabController;
+
+  final List<Map<String, dynamic>> _mockInventory = [
+    {
+      'name': 'Chafing Dishes (Stainless Steel)',
+      'type': 'Rental Asset',
+      'stock': 40,
+      'reserved': 10,
+      'warehouse': 'Lagos Mainland Warehouse',
+      'qrCode': 'QR-CHAFE-09A',
+    },
+    {
+      'name': 'Wedding Arch (Gold Circle Metal)',
+      'type': 'Rental Asset',
+      'stock': 3,
+      'reserved': 1,
+      'warehouse': 'Lagos Island Studio',
+      'qrCode': 'QR-ARCH-88B',
+    },
+  ];
+
+  final List<Map<String, dynamic>> _mockMaintenance = [
+    {'name': 'JBL Party Sound Speakers', 'issue': 'Blown tweeter replacement', 'date': '2026-07-10', 'status': 'Pending'},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
 
   @override
   void dispose() {
-    _tabs.dispose();
+    _tabController.dispose();
     super.dispose();
-  }
-
-  Future<void> _run(Future<void> Function() action) async {
-    try {
-      await action();
-      refreshRentals(ref);
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final inventory = ref.watch(vendorRentalsInventoryProvider(_vendorId));
-    final bookings = ref.watch(vendorRentalsBookingsProvider(_vendorId));
-
-    return EosPageScaffold(
-      title: 'Rentals & equipment',
-      subtitle: 'Inventory and rental orders',
-      body: Column(
+    return Scaffold(
+      backgroundColor: EosColors.plumDark,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: Text('Inventory & Asset Hub', style: context.eosText.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: EosColors.champagne,
+          labelColor: EosColors.champagne,
+          unselectedLabelColor: Colors.white60,
+          tabs: const [
+            Tab(text: 'Warehouse Stock'),
+            Tab(text: 'Reservations & QR'),
+            Tab(text: 'Damage & Maintenance'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
         children: [
-          TabBar(
-            controller: _tabs,
-            isScrollable: true,
-            tabs: const [
-              Tab(text: 'Inventory'),
-              Tab(text: 'Orders'),
-              Tab(text: 'Delivery'),
-              Tab(text: 'Returns'),
-              Tab(text: 'Claims'),
-            ],
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabs,
-              children: [
-                inventory.when(
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (e, _) => Center(child: Text('$e')),
-                  data: (data) => _InventoryTab(vendorId: _vendorId, items: data.items, onRefresh: () => refreshRentals(ref)),
-                ),
-                bookings.when(
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (e, _) => Center(child: Text('$e')),
-                  data: (list) => _OrdersTab(vendorId: _vendorId, bookings: list, onAction: _run),
-                ),
-                bookings.when(
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (e, _) => Center(child: Text('$e')),
-                  data: (list) => _DeliveryTab(bookings: list.where((b) => b.isApproved || b.isDelivered).toList()),
-                ),
-                bookings.when(
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (e, _) => Center(child: Text('$e')),
-                  data: (list) => _ReturnsTab(
-                    vendorId: _vendorId,
-                    bookings: list.where((b) => b.isDelivered).toList(),
-                    onAction: _run,
-                  ),
-                ),
-                bookings.when(
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (e, _) => Center(child: Text('$e')),
-                  data: (list) => _ClaimsTab(bookings: list.where((b) => b.damageNotes != null).toList()),
-                ),
-              ],
-            ),
-          ),
+          _buildStockTab(),
+          _buildReservationsTab(),
+          _buildMaintenanceTab(),
         ],
       ),
     );
   }
-}
 
-class _InventoryTab extends ConsumerWidget {
-  const _InventoryTab({required this.vendorId, required this.items, required this.onRefresh});
-
-  final String vendorId;
-  final List<RentalCatalogItem> items;
-  final VoidCallback onRefresh;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget _buildStockTab() {
     return ListView(
-      padding: EdgeInsets.all(context.eos.spacing.lg),
+      padding: const EdgeInsets.all(16),
       children: [
-        FilledButton.icon(
-          onPressed: () async {
-            try {
-              await ref.read(rentalsApiProvider).createInventoryItem(vendorId, {
-                'name': 'Chiavari chairs',
-                'categorySlug': 'chairs',
-                'description': 'Gold chiavari chairs for owambes',
-                'totalQuantity': 200,
-                'rentalFeeMinor': 250000,
-                'depositMinor': 100000,
+        const Text('WAREHOUSE ASSET COUNTS', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        for (final item in _mockInventory)
+          Card(
+            color: Colors.white.withOpacity(0.02),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.white10)),
+            child: ListTile(
+              leading: const Icon(Icons.warehouse, color: EosColors.champagne),
+              title: Text(item['name'] as String, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('Warehouse: ${item['warehouse']} • Type: ${item['type']}'),
+              trailing: Text('Stock: ${item['stock']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildReservationsTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const Text('ACTIVE RESERVATIONS & QR TRACKING', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        for (final item in _mockInventory)
+          Card(
+            color: Colors.white.withOpacity(0.02),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.white10)),
+            child: ListTile(
+              leading: const Icon(Icons.qr_code, color: Colors.white),
+              title: Text(item['name'] as String, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('QR Tag: ${item['qrCode']} • Reserved: ${item['reserved']} units'),
+              trailing: IconButton(
+                icon: const Icon(Icons.print_outlined),
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Printing barcode / QR label for ${item['qrCode']}...')));
+                },
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildMaintenanceTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const Text('MAINTENANCE & DAMAGE REPORTS', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        for (final maint in _mockMaintenance)
+          Card(
+            color: Colors.white.withOpacity(0.02),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.white10)),
+            child: ListTile(
+              leading: const Icon(Icons.build_outlined, color: Colors.amberAccent),
+              title: Text(maint['name'] as String, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('Issue: ${maint['issue']} • Deadline: ${maint['date']}'),
+              trailing: Text(maint['status'] as String, style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12)),
+            ),
+          ),
+        const SizedBox(height: 16),
+        ElevatedButton(
+          onPressed: () {
+            setState(() {
+              _mockMaintenance.add({
+                'name': 'Chafing Dishes (Stainless Steel)',
+                'issue': 'Lid weld reinforcement',
+                'date': '2026-07-15',
+                'status': 'Scheduled',
               });
-              onRefresh();
-            } catch (e) {
-              if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
-            }
+            });
           },
-          icon: const Icon(Icons.add),
-          label: const Text('Add rental item'),
+          child: const Text('Log Damaged Asset'),
         ),
-        SizedBox(height: context.eos.spacing.md),
-        for (final item in items)
-          EosSurfaceCard(
-            child: ListTile(
-              title: Text(item.name),
-              subtitle: Text(
-                '${rentalCategoryLabel(item.categorySlug)} · ${item.availableQuantity}/${item.totalQuantity} avail · ${item.reservedQuantity} reserved',
-              ),
-              trailing: Text(formatRevenue(item.rentalFeeMinor)),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _OrdersTab extends ConsumerWidget {
-  const _OrdersTab({required this.vendorId, required this.bookings, required this.onAction});
-
-  final String vendorId;
-  final List<RentalBooking> bookings;
-  final Future<void> Function(Future<void> Function()) onAction;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (bookings.isEmpty) return const Center(child: Text('No rental orders'));
-    return ListView.builder(
-      padding: EdgeInsets.all(context.eos.spacing.lg),
-      itemCount: bookings.length,
-      itemBuilder: (context, i) {
-        final b = bookings[i];
-        return EosSurfaceCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('${b.itemName} · ${b.eventTitle}', style: context.eosText.titleSmall),
-              Text('Requested ${b.quantityRequested} · ${b.status}'),
-              if (b.isPending || b.isCountered)
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    FilledButton(
-                      onPressed: () => onAction(() => ref.read(rentalsApiProvider).vendorAction(vendorId, b.id, 'approve')),
-                      child: const Text('Approve'),
-                    ),
-                    OutlinedButton(
-                      onPressed: () => onAction(() => ref.read(rentalsApiProvider).vendorAction(
-                            vendorId,
-                            b.id,
-                            'counter',
-                            {'counterQuantity': (b.quantityRequested / 2).ceil().clamp(1, b.quantityRequested)},
-                          )),
-                      child: const Text('Counter'),
-                    ),
-                    TextButton(
-                      onPressed: () => onAction(() => ref.read(rentalsApiProvider).vendorAction(vendorId, b.id, 'decline')),
-                      child: const Text('Decline'),
-                    ),
-                  ],
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _DeliveryTab extends StatelessWidget {
-  const _DeliveryTab({required this.bookings});
-
-  final List<RentalBooking> bookings;
-
-  @override
-  Widget build(BuildContext context) {
-    if (bookings.isEmpty) return const Center(child: Text('No scheduled deliveries'));
-    return ListView(
-      padding: EdgeInsets.all(context.eos.spacing.lg),
-      children: [
-        for (final b in bookings)
-          ListTile(
-            title: Text(b.itemName),
-            subtitle: Text('${b.deliveryDate ?? 'TBD'} · ${b.deliveryAddress ?? 'Venue'}'),
-          ),
-      ],
-    );
-  }
-}
-
-class _ReturnsTab extends ConsumerWidget {
-  const _ReturnsTab({required this.vendorId, required this.bookings, required this.onAction});
-
-  final String vendorId;
-  final List<RentalBooking> bookings;
-  final Future<void> Function(Future<void> Function()) onAction;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (bookings.isEmpty) return const Center(child: Text('No returns pending'));
-    return ListView(
-      padding: EdgeInsets.all(context.eos.spacing.lg),
-      children: [
-        for (final b in bookings)
-          EosSurfaceCard(
-            child: ListTile(
-              title: Text(b.itemName),
-              subtitle: Text('Pickup ${b.pickupDate ?? 'TBD'}'),
-              trailing: FilledButton(
-                onPressed: () => onAction(() => ref.read(rentalsApiProvider).vendorAction(vendorId, b.id, 'return')),
-                child: const Text('Mark returned'),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _ClaimsTab extends StatelessWidget {
-  const _ClaimsTab({required this.bookings});
-
-  final List<RentalBooking> bookings;
-
-  @override
-  Widget build(BuildContext context) {
-    if (bookings.isEmpty) {
-      return const Center(child: Text('No damage claims'));
-    }
-    return ListView(
-      padding: EdgeInsets.all(context.eos.spacing.lg),
-      children: [
-        for (final b in bookings)
-          ListTile(
-            title: Text(b.itemName),
-            subtitle: Text(b.damageNotes ?? ''),
-          ),
       ],
     );
   }

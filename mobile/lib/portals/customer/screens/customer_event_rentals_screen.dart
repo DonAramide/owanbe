@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/money.dart';
 import '../../../eos/eos.dart';
 import '../models/rentals_constants.dart';
 import '../models/rentals_models.dart';
+import '../navigation/event_navigator.dart';
 import '../providers/rentals_providers.dart';
-import '../router/customer_routes.dart';
-import '../widgets/empty_state_card.dart';
-import '../widgets/section_header.dart';
+import '../workspace/event_empty_states.dart';
+import '../workspace/event_module_scaffold.dart';
+import '../workspace/widgets/event_error_view.dart';
+import '../workspace/widgets/event_loading_skeleton.dart';
 
 /// Equipment & Rentals at `/events/:eventId/rentals`.
 class CustomerEventRentalsScreen extends ConsumerWidget {
@@ -21,49 +22,48 @@ class CustomerEventRentalsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final bookings = ref.watch(eventRentalsProvider(eventId));
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+    return EventModuleScaffold(
+      eventId: eventId,
+      title: 'Rentals',
+      subtitle: 'Equipment and event hire',
+      actions: [
+        TextButton(
+          onPressed: () => context.eventNav.openRentalsMarketplace(eventId: eventId),
+          child: const Text('Browse rentals'),
         ),
-        title: const Text('Equipment & rentals'),
-        actions: [
-          TextButton(
-            onPressed: () => context.push(CustomerRoutes.rentalsMarketplace(eventId: eventId)),
-            child: const Text('Browse rentals'),
-          ),
-        ],
-      ),
+      ],
       body: bookings.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => ListView(
-          padding: EdgeInsets.all(context.eos.spacing.lg),
-          children: [EmptyStateCard(title: 'Could not load rentals', message: '$e')],
+        loading: () => const EventLoadingSkeleton(),
+        error: (_, _) => ListView(
+          padding: EosSpacing.pagePadding,
+          children: [
+            EventErrorView.module(
+              moduleLabel: 'rentals',
+              onRetry: () {
+                refreshRentals(ref);
+                ref.invalidate(eventRentalsProvider(eventId));
+              },
+              onBackToOverview: () => context.eventNav.backToOverview(eventId),
+            ),
+          ],
         ),
-        data: (list) => RefreshIndicator(
+        data: (list) => EventModuleScrollBody(
           onRefresh: () async {
             refreshRentals(ref);
             await ref.read(eventRentalsProvider(eventId).future);
           },
-          child: ListView(
-            padding: EdgeInsets.all(context.eos.spacing.lg),
+          content: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SectionHeader(
-                title: 'Event equipment',
-                subtitle: 'Rental bookings, delivery schedule, and returns.',
-              ),
               FilledButton.icon(
-                onPressed: () => context.push(CustomerRoutes.rentalsMarketplace(eventId: eventId)),
+                onPressed: () => context.eventNav.openRentalsMarketplace(eventId: eventId),
                 icon: const Icon(Icons.add),
                 label: const Text('Request equipment'),
               ),
               SizedBox(height: context.eos.spacing.lg),
               if (list.isEmpty)
-                const EmptyStateCard(
-                  title: 'No rental bookings',
-                  message: 'Browse the rentals marketplace to request chairs, tents, sound, and more.',
-                  icon: Icons.inventory_2_outlined,
+                EventEmptyStates.rentals(
+                  onBrowse: () => context.eventNav.openRentalsMarketplace(eventId: eventId),
                 )
               else
                 ...list.map((b) => _BookingCard(booking: b)),
@@ -103,7 +103,9 @@ class _BookingCard extends StatelessWidget {
             Text('Qty ${booking.quantityApproved ?? booking.quantityRequested} · $statusLabel'),
             Text('Rental ${formatRevenue(booking.rentalFeeMinor)} · Deposit ${formatRevenue(booking.depositMinor)}'),
             if (booking.deliveryDate != null)
-              Text('Delivery ${booking.deliveryDate}${booking.deliveryAddress != null ? ' · ${booking.deliveryAddress}' : ''}'),
+              Text(
+                'Delivery ${booking.deliveryDate}${booking.deliveryAddress != null ? ' · ${booking.deliveryAddress}' : ''}',
+              ),
             if (booking.pickupDate != null) Text('Pickup ${booking.pickupDate}'),
             if (booking.damageNotes != null && booking.damageNotes!.isNotEmpty)
               Text('Damage claim: ${booking.damageNotes}', style: const TextStyle(color: EosColors.critical)),

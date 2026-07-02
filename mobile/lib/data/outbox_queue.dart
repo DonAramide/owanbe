@@ -4,7 +4,7 @@ import 'package:drift/drift.dart';
 
 import 'app_database.dart';
 
-export '../api/outbox_sync_contract.dart' show OwanbeOutboxActionKinds;
+export '../api/outbox_sync_contract.dart' show OwambeOutboxActionKinds;
 
 String _defaultClientMutationId() =>
     '${DateTime.now().toUtc().microsecondsSinceEpoch}-${Random().nextInt(1 << 30)}';

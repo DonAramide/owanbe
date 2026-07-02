@@ -4,14 +4,14 @@ import 'package:http/http.dart' as http;
 
 import '../../features/vendor/models/vendor_models.dart';
 import 'events_api.dart';
-import 'owanbe_api_auth.dart';
+import 'owambe_api_auth.dart';
 
 class VendorCatalogApi {
   VendorCatalogApi({http.Client? client}) : _http = client ?? http.Client();
   final http.Client _http;
 
-  String get _base => OwanbeApiAuth.resolveApiBase();
-  String get _tenantId => OwanbeApiAuth.resolveTenantId(EventsApi.devTenantId);
+  String get _base => OwambeApiAuth.resolveApiBase();
+  String get _tenantId => OwambeApiAuth.resolveTenantId(EventsApi.devTenantId);
 
   Uri _u(String path) {
     final p = path.startsWith('/') ? path.substring(1) : path;
@@ -34,7 +34,7 @@ class VendorCatalogApi {
   Future<List<VendorCatalogItem>> listPackages() async {
     final res = await _http.get(
       _u('vendor/packages'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     final body = jsonDecode(res.body) as Map<String, dynamic>;
@@ -52,7 +52,7 @@ class VendorCatalogApi {
   }) async {
     final res = await _http.post(
       _u('vendor/packages'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({
         'name': name,
         'description': description,
@@ -68,7 +68,7 @@ class VendorCatalogApi {
   Future<VendorCatalogItem> setActive(String packageId, bool isActive) async {
     final res = await _http.patch(
       _u('vendor/packages/$packageId'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({'isActive': isActive}),
     );
     if (res.statusCode >= 400) _throw(res);

@@ -153,7 +153,7 @@ class _EventCreateWizardScreenState extends ConsumerState<EventCreateWizardScree
       children: [
         Text('Event basics', style: context.eosText.headlineSmall),
         SizedBox(height: context.eos.spacing.md),
-        EosTextField(controller: _title, label: 'Event title', hint: 'Lagos Sunset Owanbe'),
+        EosTextField(controller: _title, label: 'Event title', hint: 'Lagos Sunset Owambe'),
         SizedBox(height: context.eos.spacing.md),
         EosTextField(controller: _tagline, label: 'Tagline', hint: 'Short hook for discovery'),
         SizedBox(height: context.eos.spacing.md),

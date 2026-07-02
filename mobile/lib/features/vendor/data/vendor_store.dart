@@ -252,7 +252,7 @@ class VendorStore {
       VendorEventParticipation(
         id: 'part_lagos',
         eventId: 'evt_lagos_owanbe_2026',
-        eventTitle: 'Lagos Sunset Owanbe',
+        eventTitle: 'Lagos Sunset Owambe',
         city: 'Lagos',
         venue: 'Eko Atlantic Waterfront',
         startsAt: DateTime(2026, 8, 15, 18, 0),
@@ -330,7 +330,7 @@ class VendorStore {
         VendorOrder(
           id: 'ord_1',
           eventId: 'evt_lagos_owanbe_2026',
-          eventTitle: 'Lagos Sunset Owanbe',
+          eventTitle: 'Lagos Sunset Owambe',
           customerName: 'Amaka O.',
           itemName: 'Party Jollof Package',
           amountMinor: 45000000,
@@ -341,7 +341,7 @@ class VendorStore {
         VendorOrder(
           id: 'ord_2',
           eventId: 'evt_lagos_owanbe_2026',
-          eventTitle: 'Lagos Sunset Owanbe',
+          eventTitle: 'Lagos Sunset Owambe',
           customerName: 'Tunde K.',
           itemName: 'VIP Canapé Flight',
           amountMinor: 18000000,
@@ -351,7 +351,7 @@ class VendorStore {
         VendorOrder(
           id: 'ord_3',
           eventId: 'evt_lagos_owanbe_2026',
-          eventTitle: 'Lagos Sunset Owanbe',
+          eventTitle: 'Lagos Sunset Owambe',
           customerName: 'Organizer pre-order',
           itemName: 'Zobo & Chapman Station',
           amountMinor: 12000000,
@@ -361,7 +361,7 @@ class VendorStore {
         VendorOrder(
           id: 'ord_4',
           eventId: 'evt_lagos_owanbe_2026',
-          eventTitle: 'Lagos Sunset Owanbe',
+          eventTitle: 'Lagos Sunset Owambe',
           customerName: 'Chioma E.',
           itemName: 'Party Jollof Package',
           amountMinor: 45000000,

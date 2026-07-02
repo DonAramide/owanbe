@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../../auth/auth_notifier.dart';
 import '../../../eos/eos.dart';
 import '../providers/customer_home_providers.dart';
-import '../router/customer_routes.dart';
+import '../navigation/event_navigator.dart';
+import '../workspace/widgets/event_friendly_errors.dart';
+import '../workspace/widgets/event_loading_skeleton.dart';
 import '../widgets/empty_state_card.dart';
 import '../widgets/section_header.dart';
 import '../widgets/home/home_active_event_card.dart';
@@ -47,13 +49,13 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
     return ColoredBox(
       color: context.eosCanvas,
       child: homeAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => ListView(
-          padding: EdgeInsets.all(horizontalPad),
+        loading: () => const EventLoadingSkeleton(variant: EventLoadingVariant.workspace),
+        error: (_, _) => ListView(
+          padding: EosSpacing.pagePadding,
           children: [
             EmptyStateCard(
-              title: 'Could not load your home',
-              message: '$error',
+              title: EventFriendlyErrors.genericHeadline,
+              message: EventFriendlyErrors.genericMessage,
               icon: Icons.cloud_off_outlined,
               actionLabel: 'Try again',
               onAction: _onRefresh,
@@ -81,7 +83,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
                 if (snapshot.nearestEvent != null) ...[
                   HomeUpcomingEventBanner(
                     event: snapshot.nearestEvent!,
-                    onTap: () => context.push(CustomerRoutes.eventDetail(snapshot.nearestEvent!.id)),
+                    onTap: () => context.eventNav.openOverview(snapshot.nearestEvent!.id),
                   ),
                   SizedBox(height: sectionGap),
                 ],
@@ -89,14 +91,14 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
                   title: 'My active events',
                   subtitle: 'Celebrations you are planning right now.',
                   trailingLabel: 'See all',
-                  onTrailingTap: () => context.go(CustomerRoutes.myEvents),
+                  onTrailingTap: () => context.eventNav.goMyEvents(),
                 ),
                 if (snapshot.activeEvents.isEmpty)
                   EmptyStateCard(
                     title: 'Start your first celebration',
                     message: 'Weddings, birthdays, naming ceremonies — your event command center begins here.',
                     actionLabel: 'Create event',
-                    onAction: () => context.go(CustomerRoutes.createEvent),
+                    onAction: () => context.eventNav.goCreateEvent(),
                   )
                 else
                   SizedBox(
@@ -109,7 +111,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
                         final event = snapshot.activeEvents[index];
                         return HomeActiveEventCard(
                           event: event,
-                          onTap: () => context.push(CustomerRoutes.eventDetail(event.id)),
+                          onTap: () => context.eventNav.openOverview(event.id),
                         );
                       },
                     ),
@@ -120,17 +122,17 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
                   subtitle: 'Jump straight into planning.',
                 ),
                 HomeQuickActionsRow(
-                  onCreateEvent: () => context.go(CustomerRoutes.createEvent),
-                  onFindVendors: () => context.push(CustomerRoutes.vendors),
-                  onInviteGuests: () => context.go(CustomerRoutes.guests),
+                  onCreateEvent: () => context.eventNav.goCreateEvent(),
+                  onFindVendors: () => context.eventNav.openMarketplace(),
+                  onInviteGuests: () => context.eventNav.goGuestsHub(),
                   onAiPlanner: () {
                     final nearest = snapshot.nearestEvent;
                     if (nearest != null) {
-                      context.push(CustomerRoutes.eventAiPlanner(nearest.id));
+                      context.eventNav.openAiPlanner(nearest.id);
                       return;
                     }
                     if (snapshot.activeEvents.isNotEmpty) {
-                      context.push(CustomerRoutes.eventAiPlanner(snapshot.activeEvents.first.id));
+                      context.eventNav.openAiPlanner(snapshot.activeEvents.first.id);
                       return;
                     }
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -143,7 +145,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
                   title: 'Upcoming invitations',
                   subtitle: 'Events you are attending or invited to.',
                   trailingLabel: 'My tickets',
-                  onTrailingTap: () => context.push('/attendee'),
+                  onTrailingTap: () => context.eventNav.openAttendeeDashboard(),
                 ),
                 if (snapshot.invitations.isEmpty)
                   EmptyStateCard(
@@ -151,7 +153,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
                     message: 'When you receive tickets or RSVPs, they will show up here.',
                     icon: Icons.mail_outline,
                     actionLabel: 'Discover events',
-                    onAction: () => context.push('/events'),
+                    onAction: () => context.eventNav.openDiscover(),
                   )
                 else
                   SizedBox(
@@ -164,7 +166,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
                         final invite = snapshot.invitations[index];
                         return HomeInvitationCard(
                           invitation: invite,
-                          onTap: () => context.push('/events/${invite.eventId}'),
+                          onTap: () => context.eventNav.openPublicEvent(invite.eventId),
                         );
                       },
                     ),
@@ -174,11 +176,11 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
                   title: 'Discover vendors',
                   subtitle: 'Caterers, DJs, photographers, and more.',
                   trailingLabel: 'Browse',
-                  onTrailingTap: () => context.push(CustomerRoutes.vendors),
+                  onTrailingTap: () => context.eventNav.openMarketplace(),
                 ),
                 HomeVendorCarousel(
                   vendors: snapshot.vendors,
-                  onVendorTap: (vendor) => context.push(CustomerRoutes.vendorDetail(vendor.id)),
+                  onVendorTap: (vendor) => context.eventNav.openVendorDetail(vendor.id),
                 ),
                 SizedBox(height: sectionGap),
               ],

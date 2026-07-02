@@ -25,7 +25,7 @@ class PlatformDashboardScreen extends ConsumerWidget {
 
     return AdminPageLayout(
       title: 'Platform dashboard',
-      subtitle: 'Executive operational KPIs across Owanbe',
+      subtitle: 'Executive operational KPIs across Owambe',
       body: AdminAsyncBody(
         value: dash,
         onRetry: () => ref.invalidate(platformDashboardProvider),

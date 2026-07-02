@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/persistence_providers.dart';
-import '../../../features/organizer/providers/organizer_providers.dart';
 import '../models/invitation_hub_models.dart';
+import '../providers/customer_event_providers.dart';
 import 'customer_guest_providers.dart';
 
 final customerInvitationRefreshProvider = StateProvider<int>((ref) => 0);
@@ -32,7 +32,7 @@ final customerEventInvitationProvider =
   ref.watch(customerInvitationRefreshProvider);
   ref.watch(customerGuestRefreshProvider);
 
-  final event = await ref.watch(organizerEventProvider(eventId).future);
+  final event = await ref.watch(customerEventProvider(eventId).future);
   if (event == null) {
     throw StateError('Event not found');
   }

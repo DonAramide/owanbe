@@ -4,14 +4,14 @@ import 'package:http/http.dart' as http;
 
 import '../../features/vendor/models/vendor_models.dart';
 import 'events_api.dart';
-import 'owanbe_api_auth.dart';
+import 'owambe_api_auth.dart';
 
 class VendorBookingsApi {
   VendorBookingsApi({http.Client? client}) : _http = client ?? http.Client();
   final http.Client _http;
 
-  String get _base => OwanbeApiAuth.resolveApiBase();
-  String get _tenantId => OwanbeApiAuth.resolveTenantId(EventsApi.devTenantId);
+  String get _base => OwambeApiAuth.resolveApiBase();
+  String get _tenantId => OwambeApiAuth.resolveTenantId(EventsApi.devTenantId);
 
   Uri _u(String path) {
     final p = path.startsWith('/') ? path.substring(1) : path;
@@ -32,7 +32,7 @@ class VendorBookingsApi {
   }
 
   Future<List<VendorOrder>> listOrders() async {
-    final res = await _http.get(_u('bookings'), headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId));
+    final res = await _http.get(_u('bookings'), headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId));
     if (res.statusCode >= 400) _throw(res);
     final body = jsonDecode(res.body) as Map<String, dynamic>;
     return (body['items'] as List<dynamic>? ?? [])
@@ -43,7 +43,7 @@ class VendorBookingsApi {
   Future<VendorOrder> updateStatus(String bookingId, VendorOrderAction action) async {
     final res = await _http.patch(
       _u('bookings/$bookingId/status'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({'action': action.apiValue}),
     );
     if (res.statusCode >= 400) _throw(res);

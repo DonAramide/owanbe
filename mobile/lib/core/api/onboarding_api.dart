@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
 import 'events_api.dart';
-import 'owanbe_api_auth.dart';
+import 'owambe_api_auth.dart';
 
 class OnboardingApiException implements Exception {
   OnboardingApiException({required this.code, required this.message});
@@ -12,7 +12,12 @@ class OnboardingApiException implements Exception {
   final String message;
 
   @override
-  String toString() => 'OnboardingApiException($code): $message';
+  String toString() {
+    if (code.toUpperCase() == 'INTERNAL' || message.toLowerCase().contains('internal server error')) {
+      return 'Internal Server Error';
+    }
+    return message;
+  }
 }
 
 class VendorApplication {
@@ -32,8 +37,8 @@ class OnboardingApi {
   final http.Client _http;
   static const devVendorId = '55555555-5555-4555-8555-555555555555';
 
-  String get _base => OwanbeApiAuth.resolveApiBase();
-  String get _tenantId => OwanbeApiAuth.resolveTenantId(EventsApi.devTenantId);
+  String get _base => OwambeApiAuth.resolveApiBase();
+  String get _tenantId => OwambeApiAuth.resolveTenantId(EventsApi.devTenantId);
 
   Uri _u(String path) {
     final p = path.startsWith('/') ? path.substring(1) : path;
@@ -55,7 +60,7 @@ class OnboardingApi {
 
   Future<VendorApplication> createApplication(String vendorId) async {
     final key = const Uuid().v4();
-    final headers = await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId);
+    final headers = await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId);
     headers['Idempotency-Key'] = key;
     final res = await _http.post(
       _u('vendors/$vendorId/onboarding/applications'),
@@ -82,7 +87,7 @@ class OnboardingApi {
   }) async {
     final res = await _http.put(
       _u('vendors/$vendorId/onboarding/applications/$applicationId/business'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({
         'legalName': legalName,
         if (tradingName != null) 'tradingName': tradingName,
@@ -100,7 +105,7 @@ class OnboardingApi {
   }) async {
     final res = await _http.post(
       _u('vendors/$vendorId/onboarding/applications/$applicationId/submit'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     final body = jsonDecode(res.body) as Map<String, dynamic>;

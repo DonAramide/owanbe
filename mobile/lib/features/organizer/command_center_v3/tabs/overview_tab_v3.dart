@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/utils/money.dart';
 import '../../../../eos/eos.dart';
-import '../../../../portals/customer/models/command_center_models.dart';
+import '../../../../portals/customer/models/command_center_models.dart' show formatTimeAgo;
 import '../../../../portals/customer/widgets/command_center/planning_progress_ring.dart';
 import '../../data/organizer_persistence.dart';
 import '../../../operations/providers/operations_providers.dart';
@@ -111,7 +111,7 @@ class OverviewTabV3 extends ConsumerWidget {
   }
 
   Widget _planningRing(BuildContext context, EventCommandCenterV3Snapshot snap) {
-    final tasks = buildPlanningTasks(snap.event);
+    final tasks = buildOrganizerPlanningTasks(snap.event);
     final done = tasks.where((t) => t.done).length;
     return PlanningProgressRing(
       progress: snap.planningProgress,

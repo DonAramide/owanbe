@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'eos_design_tokens.dart';
 
 abstract final class EosRadius {
-  static const double xs = 6;
-  static const double sm = 10;
-  static const double md = 14;
-  static const double lg = 20;
-  static const double xl = 28;
-  static const double pill = 999;
+  static const double xs = EosDesignTokens.radiusCompact;
+  static const double sm = EosDesignTokens.radiusCompact;
+  static const double md = EosDesignTokens.radiusMedium;
+  static const double lg = EosDesignTokens.radiusLarge;
+  static const double xl = EosDesignTokens.radiusLarge;
+  static const double pill = 999.0;
 
   static final BorderRadius card = BorderRadius.circular(md);
   static final BorderRadius chip = BorderRadius.circular(pill);

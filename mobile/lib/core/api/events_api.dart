@@ -6,7 +6,8 @@ import '../../auth/auth_session.dart';
 import '../../features/organizer/models/organizer_models.dart';
 import '../../features/public/models/public_models.dart';
 import '../../../shared/models/event_access_mode.dart';
-import 'owanbe_api_auth.dart';
+import 'owambe_api_auth.dart';
+import 'owambe_http_client.dart';
 
 class EventsApiException implements Exception {
   EventsApiException({required this.code, required this.message});
@@ -14,26 +15,31 @@ class EventsApiException implements Exception {
   final String message;
 
   @override
-  String toString() => 'EventsApiException($code): $message';
+  String toString() {
+    if (code.toUpperCase() == 'INTERNAL' || message.toLowerCase().contains('internal server error')) {
+      return 'Internal Server Error';
+    }
+    return message;
+  }
 }
 
 class EventsApi {
-  EventsApi({http.Client? client}) : _http = client ?? http.Client();
+  EventsApi({http.Client? client}) : _http = client ?? createOwambeHttpClient();
   final http.Client _http;
 
   static const devTenantId = '11111111-1111-4111-8111-111111111111';
   static const devOrganizerUserId = '22222222-2222-4222-8222-222222222222';
   static const devVendorUserId = '22222222-2222-4222-8222-222222222222';
 
-  String get _base => OwanbeApiAuth.resolveApiBase();
+  String get _base => OwambeApiAuth.resolveApiBase();
 
-  String get _tenantId => OwanbeApiAuth.resolveTenantId(devTenantId);
+  String get _tenantId => OwambeApiAuth.resolveTenantId(devTenantId);
 
   Future<Map<String, String>> _headers({
     AuthSession? session,
     bool vendor = false,
   }) async {
-    return OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId);
+    return OwambeApiAuth.authorizedHeaders(tenantId: _tenantId);
   }
 
   Uri _u(String path, [Map<String, String>? query]) {
@@ -60,7 +66,7 @@ class EventsApi {
         if (query != null && query.isNotEmpty) 'q': query,
         if (category != null && category.isNotEmpty) 'category': category,
       }),
-      headers: OwanbeApiAuth.publicHeaders(tenantId: _tenantId),
+      headers: OwambeApiAuth.publicHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     final body = jsonDecode(res.body) as Map<String, dynamic>;
@@ -72,7 +78,7 @@ class EventsApi {
   Future<PublicEvent?> getPublicEvent(String eventId) async {
     final res = await _http.get(
       _u('events/$eventId'),
-      headers: OwanbeApiAuth.publicHeaders(tenantId: _tenantId),
+      headers: OwambeApiAuth.publicHeaders(tenantId: _tenantId),
     );
     if (res.statusCode == 404) return null;
     if (res.statusCode >= 400) _throw(res);

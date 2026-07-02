@@ -194,33 +194,48 @@ class _WizardVenueStepState extends State<WizardVenueStep> {
         ),
         SizedBox(height: context.eos.spacing.lg),
         if (widget.methodIndex == 0) ...[
-          DropdownButtonFormField<String>(
-            value: kNigeriaStates.contains(widget.state) ? widget.state : kNigeriaStates.first,
-            decoration: const InputDecoration(labelText: 'State'),
-            items: [for (final s in kNigeriaStates) DropdownMenuItem(value: s, child: Text(s))],
-            onChanged: (v) {
-              if (v == null) return;
-              widget.onStateChanged(v);
-              final lgas = lgasForState(v);
-              widget.onLgaChanged(lgas.isNotEmpty ? lgas.first : '');
-              widget.onCenterSelected(null);
+          InkWell(
+            onTap: () {
+              showSearchableSelector(
+                context: context,
+                title: 'Select State',
+                options: kNigeriaStates,
+                onSelected: (val) {
+                  widget.onStateChanged(val);
+                  final lgas = lgasForState(val);
+                  widget.onLgaChanged(lgas.isNotEmpty ? lgas.first : '');
+                  widget.onCenterSelected(null);
+                },
+              );
             },
+            child: InputDecorator(
+              decoration: const InputDecoration(
+                labelText: 'State',
+                suffixIcon: Icon(Icons.arrow_drop_down),
+              ),
+              child: Text(widget.state.isEmpty ? 'Select State' : widget.state),
+            ),
           ),
           SizedBox(height: context.eos.spacing.md),
-          DropdownButtonFormField<String>(
-            value: widget.lga.isNotEmpty && lgasForState(widget.state).contains(widget.lga)
-                ? widget.lga
-                : (lgasForState(widget.state).isNotEmpty ? lgasForState(widget.state).first : null),
-            decoration: const InputDecoration(labelText: 'Local government'),
-            items: [
-              for (final l in lgasForState(widget.state))
-                DropdownMenuItem(value: l, child: Text(l)),
-            ],
-            onChanged: (v) {
-              if (v == null) return;
-              widget.onLgaChanged(v);
-              widget.onCenterSelected(null);
+          InkWell(
+            onTap: () {
+              showSearchableSelector(
+                context: context,
+                title: 'Select Local Government',
+                options: lgasForState(widget.state),
+                onSelected: (val) {
+                  widget.onLgaChanged(val);
+                  widget.onCenterSelected(null);
+                },
+              );
             },
+            child: InputDecorator(
+              decoration: const InputDecoration(
+                labelText: 'Local government',
+                suffixIcon: Icon(Icons.arrow_drop_down),
+              ),
+              child: Text(widget.lga.isEmpty ? 'Select LGA' : widget.lga),
+            ),
           ),
           SizedBox(height: context.eos.spacing.md),
           TextField(

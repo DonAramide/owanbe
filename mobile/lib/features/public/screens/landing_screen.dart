@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../eos/eos.dart';
-import '../../../eos/widgets/owanbe_logo.dart';
+import '../../../eos/widgets/owambe_logo.dart';
 import '../providers/public_providers.dart';
 import '../widgets/public_event_grid.dart';
 import '../widgets/public_shell_mixin.dart';
@@ -19,15 +19,16 @@ class LandingScreen extends ConsumerWidget {
       context: context,
       ref: ref,
       activeNav: 'home',
+      showSignIn: false,
       child: SingleChildScrollView(
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: context.eos.spacing.lg),
+          padding: EdgeInsets.symmetric(horizontal: context.eos.spacing.md),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(height: context.eos.spacing.xl),
+              SizedBox(height: context.eos.spacing.xs),
               _HeroBanner(onBrowse: () => context.go('/events')),
-              SizedBox(height: context.eos.spacing.xxl),
+              SizedBox(height: context.eos.spacing.xs),
               EosSection(
                 title: 'Featured events',
                 subtitle: 'Curated experiences across West Africa',
@@ -40,8 +41,7 @@ class LandingScreen extends ConsumerWidget {
                   error: (e, _) => Text('$e'),
                 ),
               ),
-              _ValueProps(),
-              SizedBox(height: context.eos.spacing.xl),
+              SizedBox(height: context.eos.spacing.sm),
             ],
           ),
         ),
@@ -58,7 +58,7 @@ class _HeroBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(context.eos.spacing.xl),
+      padding: EdgeInsets.all(context.eos.spacing.md),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
@@ -81,29 +81,28 @@ class _HeroBanner extends StatelessWidget {
       crossAxisAlignment: center ? CrossAxisAlignment.center : CrossAxisAlignment.start,
       children: [
         if (center)
-          const OwanbeLogo(size: 72)
+          const OwambeLogo(size: 48)
         else
-          const OwanbeLogo(size: 56),
-        SizedBox(height: context.eos.spacing.md),
+          const OwambeLogo(size: 40),
+        SizedBox(height: context.eos.spacing.xs),
         Text(
-          'Discover events.\nBook with confidence.',
+          'Discover events. Book with confidence.',
           textAlign: center ? TextAlign.center : TextAlign.start,
-          style: context.eosText.displaySmall?.copyWith(
+          style: context.eosText.titleMedium?.copyWith(
             color: Colors.white,
             fontWeight: FontWeight.w800,
-            height: 1.15,
           ),
         ),
-        SizedBox(height: context.eos.spacing.md),
+        SizedBox(height: context.eos.spacing.xs),
         Text(
-          'Owanbe connects you to premium celebrations — with secure ticketing and instant digital passes.',
+          'Owambe connects you to premium celebrations with instant digital passes.',
           textAlign: center ? TextAlign.center : TextAlign.start,
-          style: context.eosText.bodyLarge?.copyWith(color: Colors.white.withValues(alpha: 0.88)),
+          style: context.eosText.bodySmall?.copyWith(color: Colors.white.withValues(alpha: 0.88)),
         ),
-        SizedBox(height: context.eos.spacing.lg),
+        SizedBox(height: context.eos.spacing.sm),
         Wrap(
-          spacing: context.eos.spacing.sm,
-          runSpacing: context.eos.spacing.sm,
+          spacing: context.eos.spacing.xs,
+          runSpacing: context.eos.spacing.xs,
           alignment: center ? WrapAlignment.center : WrapAlignment.start,
           children: [
             FilledButton(
@@ -112,12 +111,38 @@ class _HeroBanner extends StatelessWidget {
                 backgroundColor: EosColors.champagne,
                 foregroundColor: EosColors.plumDark,
                 padding: EdgeInsets.symmetric(
-                  horizontal: wide ? 32 : 24,
-                  vertical: context.eos.spacing.md,
+                  horizontal: wide ? 24 : 16,
+                  vertical: context.eos.spacing.sm,
                 ),
               ),
               child: const Text('Browse events'),
             ),
+            OutlinedButton(
+              onPressed: () => context.push('/attending'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: const BorderSide(color: Colors.white54),
+                padding: EdgeInsets.symmetric(
+                  horizontal: wide ? 24 : 16,
+                  vertical: context.eos.spacing.sm,
+                ),
+              ),
+              child: const Text('I\'m attending an event'),
+            ),
+          ],
+        ),
+        SizedBox(height: context.eos.spacing.xs),
+        Row(
+          mainAxisAlignment: center ? MainAxisAlignment.center : MainAxisAlignment.start,
+          children: [
+            TextButton(
+              onPressed: () => context.push('/auth'),
+              child: Text(
+                'Sign in',
+                style: context.eosText.labelSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const Text('|', style: TextStyle(color: Colors.white30)),
             TextButton(
               onPressed: () => context.push('/staff/login'),
               child: Text(
@@ -125,55 +150,9 @@ class _HeroBanner extends StatelessWidget {
                 style: context.eosText.labelSmall?.copyWith(color: Colors.white60),
               ),
             ),
-            TextButton(
-              onPressed: () => context.push('/staff/login?role=organizer'),
-              child: Text(
-                'Organizer portal',
-                style: context.eosText.labelSmall?.copyWith(color: Colors.white60),
-              ),
-            ),
-            TextButton(
-              onPressed: () => context.push('/staff/login?role=vendor'),
-              child: Text(
-                'Vendor portal',
-                style: context.eosText.labelSmall?.copyWith(color: Colors.white60),
-              ),
-            ),
           ],
         ),
       ],
-    );
-  }
-}
-
-class _ValueProps extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final items = [
-      (Icons.confirmation_number_outlined, 'Instant tickets', 'Digital passes delivered immediately after payment'),
-      (Icons.verified_user_outlined, 'Secure checkout', 'Protected payments with clear receipts'),
-      (Icons.qr_code_2, 'Easy entry', 'Show your QR code at the door'),
-    ];
-    return Wrap(
-      spacing: context.eos.spacing.md,
-      runSpacing: context.eos.spacing.md,
-      children: items.map((item) {
-        return SizedBox(
-          width: 280,
-          child: EosSurfaceCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(item.$1, color: context.eosColors.primary, size: 28),
-                SizedBox(height: context.eos.spacing.sm),
-                Text(item.$2, style: context.eosText.titleSmall),
-                SizedBox(height: context.eos.spacing.xxs),
-                Text(item.$3, style: context.eosText.bodySmall),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
     );
   }
 }

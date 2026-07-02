@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../../auth/auth_session.dart';
-import 'owanbe_api_auth.dart';
+import 'owambe_api_auth.dart';
 
 class TicketCommerceApiException implements Exception {
   TicketCommerceApiException({required this.code, required this.message});
@@ -11,7 +11,12 @@ class TicketCommerceApiException implements Exception {
   final String message;
 
   @override
-  String toString() => 'TicketCommerceApiException($code): $message';
+  String toString() {
+    if (code.toUpperCase() == 'INTERNAL' || message.toLowerCase().contains('internal server error')) {
+      return 'Internal Server Error';
+    }
+    return message;
+  }
 }
 
 class TicketOrderResponse {
@@ -100,14 +105,14 @@ class TicketCommerceApi {
 
   static const devTenantId = '11111111-1111-4111-8111-111111111111';
 
-  String get _base => OwanbeApiAuth.resolveApiBase();
+  String get _base => OwambeApiAuth.resolveApiBase();
 
-  String get _tenantId => OwanbeApiAuth.resolveTenantId(devTenantId);
+  String get _tenantId => OwambeApiAuth.resolveTenantId(devTenantId);
 
   bool get isConfigured => _tenantId.isNotEmpty;
 
   Future<Map<String, String>> _headers(AuthSession session) =>
-      OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId);
+      OwambeApiAuth.authorizedHeaders(tenantId: _tenantId);
 
   Uri _u(String path) {
     final p = path.startsWith('/') ? path.substring(1) : path;

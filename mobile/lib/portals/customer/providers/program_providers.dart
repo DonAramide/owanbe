@@ -3,20 +3,20 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
-import '../../../core/api/owanbe_api_auth.dart';
+import '../../../core/api/owambe_api_auth.dart';
 import '../models/program_models.dart';
 
 class ProgramApi {
   ProgramApi({http.Client? client}) : _http = client ?? http.Client();
   final http.Client _http;
 
-  String get _base => OwanbeApiAuth.resolveApiBase();
-  String get _tenantId => OwanbeApiAuth.resolveTenantId();
+  String get _base => OwambeApiAuth.resolveApiBase();
+  String get _tenantId => OwambeApiAuth.resolveTenantId();
 
   Future<ProgramSnapshot> fetch(String eventId) async {
     final res = await _http.get(
       Uri.parse('$_base/events/$eventId/program'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     return ProgramSnapshot.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -25,7 +25,7 @@ class ProgramApi {
   Future<ProgramSnapshot> createItem(String eventId, Map<String, dynamic> body) async {
     final res = await _http.post(
       Uri.parse('$_base/events/$eventId/program/items'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode(body),
     );
     if (res.statusCode >= 400) _throw(res);
@@ -35,7 +35,7 @@ class ProgramApi {
   Future<ProgramSnapshot> patchItem(String eventId, String itemId, Map<String, dynamic> body) async {
     final res = await _http.patch(
       Uri.parse('$_base/events/$eventId/program/items/$itemId'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode(body),
     );
     if (res.statusCode >= 400) _throw(res);
@@ -45,7 +45,7 @@ class ProgramApi {
   Future<ProgramSnapshot> deleteItem(String eventId, String itemId) async {
     final res = await _http.delete(
       Uri.parse('$_base/events/$eventId/program/items/$itemId'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     return ProgramSnapshot.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -59,7 +59,7 @@ class ProgramApi {
   }) async {
     final res = await _http.post(
       Uri.parse('$_base/events/$eventId/program/items/$itemId/status'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({
         'status': status,
         if (delayMinutes != null) 'delayMinutes': delayMinutes,
@@ -72,7 +72,7 @@ class ProgramApi {
   Future<ProgramSnapshot> reorder(String eventId, List<String> itemIds) async {
     final res = await _http.post(
       Uri.parse('$_base/events/$eventId/program/reorder'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({'itemIds': itemIds}),
     );
     if (res.statusCode >= 400) _throw(res);
@@ -82,7 +82,7 @@ class ProgramApi {
   Future<ProgramSnapshot> autoShift(String eventId, String fromItemId, int delayMinutes) async {
     final res = await _http.post(
       Uri.parse('$_base/events/$eventId/program/auto-shift'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({'fromItemId': fromItemId, 'delayMinutes': delayMinutes}),
     );
     if (res.statusCode >= 400) _throw(res);
@@ -92,7 +92,7 @@ class ProgramApi {
   Future<ProgramSnapshot> applyTemplate(String eventId, String template) async {
     final res = await _http.post(
       Uri.parse('$_base/events/$eventId/program/apply-template'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({'template': template}),
     );
     if (res.statusCode >= 400) _throw(res);

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:go_router/go_router.dart';
+
 import '../../../../core/api/vendors_api.dart';
 import '../../../../eos/eos.dart';
-import '../../../../features/organizer/data/organizer_persistence.dart';
+import '../../workspace/widgets/event_friendly_errors.dart';
+import '../../data/customer_event_persistence.dart';
 import '../../providers/customer_home_providers.dart';
 
 class RequestVendorSheet extends ConsumerStatefulWidget {
@@ -33,7 +36,7 @@ class _RequestVendorSheetState extends ConsumerState<RequestVendorSheet> {
     if (_eventId == null) return;
     setState(() => _submitting = true);
     try {
-      await inviteVendor(
+      await inviteVendorToEvent(
         ref,
         _eventId!,
         widget.vendor,
@@ -44,7 +47,9 @@ class _RequestVendorSheetState extends ConsumerState<RequestVendorSheet> {
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(EventFriendlyErrors.actionFailedMessage)),
+      );
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -75,7 +80,21 @@ class _RequestVendorSheetState extends ConsumerState<RequestVendorSheet> {
           events.when(
             data: (owned) {
               if (owned.isEmpty) {
-                return Text('Create an event first to request vendors.', style: context.eosText.bodyMedium);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Create an event first to request vendors.', style: context.eosText.bodyMedium),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        context.push('/events/create');
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('Create an Event'),
+                    ),
+                  ],
+                );
               }
               _eventId ??= owned.first.id;
               return EosSelectField<String>(
@@ -89,7 +108,7 @@ class _RequestVendorSheetState extends ConsumerState<RequestVendorSheet> {
               );
             },
             loading: () => const LinearProgressIndicator(),
-            error: (e, _) => Text('$e'),
+            error: (_, _) => Text(EventFriendlyErrors.genericMessage),
           ),
           SizedBox(height: context.eos.spacing.sm),
           TextField(

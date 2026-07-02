@@ -1,10 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../auth/auth_notifier.dart';
-import '../../../features/organizer/finance/organizer_finance_api.dart';
-import '../../../features/organizer/finance/organizer_finance_providers.dart';
-import '../../../features/organizer/providers/organizer_providers.dart';
 import '../models/budget_dashboard_models.dart';
+import '../models/customer_finance_models.dart';
+import '../providers/customer_event_providers.dart';
+import '../providers/customer_finance_providers.dart';
 
 final customerBudgetRefreshProvider = StateProvider<int>((ref) => 0);
 
@@ -15,20 +15,20 @@ void refreshEventBudget(WidgetRef ref) {
 final customerEventBudgetProvider =
     FutureProvider.autoDispose.family<BudgetDashboardSnapshot, String>((ref, eventId) async {
   ref.watch(customerBudgetRefreshProvider);
-  ref.watch(organizerRevisionProvider);
+  ref.watch(customerEventRevisionProvider);
 
-  final event = await ref.watch(organizerEventProvider(eventId).future);
+  final event = await ref.watch(customerEventProvider(eventId).future);
   if (event == null) {
     throw StateError('Event not found');
   }
 
-  OrganizerEventFinanceSummary? finance;
-  var transactions = <OrganizerFinanceTransaction>[];
+  CustomerEventFinanceSummary? finance;
+  var transactions = <CustomerFinanceTransaction>[];
 
   try {
     final session = ref.read(authSessionProvider);
     finance = await ref
-        .read(organizerFinanceApiProvider)
+        .read(customerFinanceApiProvider)
         .fetchEventSummary(eventId: eventId, session: session);
   } catch (_) {
     finance = null;
@@ -37,7 +37,7 @@ final customerEventBudgetProvider =
   try {
     final session = ref.read(authSessionProvider);
     transactions = await ref
-        .read(organizerFinanceApiProvider)
+        .read(customerFinanceApiProvider)
         .fetchEventTransactions(eventId: eventId, session: session);
   } catch (_) {
     transactions = const [];

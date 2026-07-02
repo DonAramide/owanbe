@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../eos/eos.dart';
-import '../../../../features/organizer/models/organizer_models.dart';
+import '../../models/customer_event_models.dart';
 import '../../models/home_hub_models.dart';
 import '../../models/invitation_template_models.dart';
 import 'invitation_card_renderer.dart';
@@ -13,7 +13,7 @@ class InvitationPreviewCard extends StatelessWidget {
     this.template,
   });
 
-  final OrganizerEvent event;
+  final CustomerEvent event;
   final InvitationTemplate? template;
 
   @override

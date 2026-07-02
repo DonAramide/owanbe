@@ -6,7 +6,7 @@ import '../screens/customer_home_screen.dart';
 import '../screens/customer_my_events_screen.dart';
 import '../screens/customer_profile_screen.dart';
 import '../shell/customer_shell.dart';
-import 'customer_routes.dart';
+import 'event_route_registry.dart';
 
 /// Stateful shell route for the Customer Portal (route persistence per tab).
 StatefulShellRoute customerShellRoute() {
@@ -18,7 +18,7 @@ StatefulShellRoute customerShellRoute() {
       StatefulShellBranch(
         routes: [
           GoRoute(
-            path: CustomerRoutes.home,
+            path: EventRouteRegistry.home,
             builder: (context, state) => const CustomerHomeScreen(),
           ),
         ],
@@ -26,7 +26,7 @@ StatefulShellRoute customerShellRoute() {
       StatefulShellBranch(
         routes: [
           GoRoute(
-            path: CustomerRoutes.myEvents,
+            path: EventRouteRegistry.myEvents,
             builder: (context, state) => const CustomerMyEventsScreen(),
           ),
         ],
@@ -34,7 +34,7 @@ StatefulShellRoute customerShellRoute() {
       StatefulShellBranch(
         routes: [
           GoRoute(
-            path: CustomerRoutes.createEvent,
+            path: EventRouteRegistry.createEvent,
             builder: (context, state) => const CustomerCreateEventScreen(),
           ),
         ],
@@ -42,7 +42,7 @@ StatefulShellRoute customerShellRoute() {
       StatefulShellBranch(
         routes: [
           GoRoute(
-            path: CustomerRoutes.guests,
+            path: EventRouteRegistry.guestsHub,
             builder: (context, state) => const CustomerGuestsScreen(),
           ),
         ],
@@ -50,7 +50,7 @@ StatefulShellRoute customerShellRoute() {
       StatefulShellBranch(
         routes: [
           GoRoute(
-            path: CustomerRoutes.profile,
+            path: EventRouteRegistry.profile,
             builder: (context, state) => const CustomerProfileScreen(),
           ),
         ],

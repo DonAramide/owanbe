@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../../shared/models/event_access_mode.dart';
-import 'owanbe_api_auth.dart';
+import 'owambe_api_auth.dart';
 
 class EventCategoryConfig {
   const EventCategoryConfig({
@@ -191,7 +191,7 @@ class EventConfigApi {
 
   static const devTenantId = '11111111-1111-4111-8111-111111111111';
 
-  String get _base => OwanbeApiAuth.resolveApiBase();
+  String get _base => OwambeApiAuth.resolveApiBase();
 
   Uri _u(String path) {
     final p = path.startsWith('/') ? path.substring(1) : path;
@@ -199,7 +199,7 @@ class EventConfigApi {
   }
 
   Future<Map<String, String>> _headers() async {
-    return OwanbeApiAuth.authorizedHeaders(tenantId: OwanbeApiAuth.resolveTenantId(devTenantId));
+    return OwambeApiAuth.authorizedHeaders(tenantId: OwambeApiAuth.resolveTenantId(devTenantId));
   }
 
   Future<List<EventCategoryConfig>> listCategories() async {
@@ -245,5 +245,14 @@ class EventConfigApiException implements Exception {
   final String body;
 
   @override
-  String toString() => 'EventConfigApiException($statusCode)';
+  String toString() {
+    if (statusCode >= 500) return 'Internal Server Error';
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map && decoded.containsKey('message')) {
+        return decoded['message'].toString();
+      }
+    } catch (_) {}
+    return 'Error ($statusCode)';
+  }
 }

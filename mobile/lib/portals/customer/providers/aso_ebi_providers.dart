@@ -3,20 +3,20 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
-import '../../../core/api/owanbe_api_auth.dart';
+import '../../../core/api/owambe_api_auth.dart';
 import '../models/aso_ebi_models.dart';
 
 class AsoEbiApi {
   AsoEbiApi({http.Client? client}) : _http = client ?? http.Client();
   final http.Client _http;
 
-  String get _base => OwanbeApiAuth.resolveApiBase();
-  String get _tenantId => OwanbeApiAuth.resolveTenantId();
+  String get _base => OwambeApiAuth.resolveApiBase();
+  String get _tenantId => OwambeApiAuth.resolveTenantId();
 
   Future<AsoEbiPublicSnapshot> fetchPublic(String eventId) async {
     final res = await _http.get(
       Uri.parse('$_base/events/$eventId/aso-ebi'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     return AsoEbiPublicSnapshot.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -25,7 +25,7 @@ class AsoEbiApi {
   Future<AsoEbiManageSnapshot> fetchManage(String eventId) async {
     final res = await _http.get(
       Uri.parse('$_base/events/$eventId/aso-ebi/manage'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     return AsoEbiManageSnapshot.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -34,7 +34,7 @@ class AsoEbiApi {
   Future<AsoEbiFabric> createFabric(String eventId, Map<String, dynamic> body) async {
     final res = await _http.post(
       Uri.parse('$_base/events/$eventId/aso-ebi/fabrics'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode(body),
     );
     if (res.statusCode >= 400) _throw(res);
@@ -44,7 +44,7 @@ class AsoEbiApi {
   Future<AsoEbiFabric> patchFabric(String eventId, String fabricId, Map<String, dynamic> body) async {
     final res = await _http.patch(
       Uri.parse('$_base/events/$eventId/aso-ebi/fabrics/$fabricId'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode(body),
     );
     if (res.statusCode >= 400) _throw(res);
@@ -58,7 +58,7 @@ class AsoEbiApi {
   ) async {
     final res = await _http.put(
       Uri.parse('$_base/events/$eventId/aso-ebi/fabrics/$fabricId/packages'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({'packages': packages}),
     );
     if (res.statusCode >= 400) _throw(res);
@@ -72,7 +72,7 @@ class AsoEbiApi {
   ) async {
     final res = await _http.put(
       Uri.parse('$_base/events/$eventId/aso-ebi/fabrics/$fabricId/inventory'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({'items': items}),
     );
     if (res.statusCode >= 400) _throw(res);
@@ -89,7 +89,7 @@ class AsoEbiApi {
   }) async {
     final res = await _http.post(
       Uri.parse('$_base/events/$eventId/aso-ebi/reservations'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({
         'fabricId': fabricId,
         'packageType': packageType,
@@ -105,7 +105,7 @@ class AsoEbiApi {
   Future<AsoEbiReservation> pay(String eventId, String reservationId) async {
     final res = await _http.post(
       Uri.parse('$_base/events/$eventId/aso-ebi/reservations/$reservationId/pay'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     return AsoEbiReservation.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -114,7 +114,7 @@ class AsoEbiApi {
   Future<AsoEbiReservation> collect(String eventId, String reservationId) async {
     final res = await _http.post(
       Uri.parse('$_base/events/$eventId/aso-ebi/reservations/$reservationId/collect'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     return AsoEbiReservation.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -123,7 +123,7 @@ class AsoEbiApi {
   Future<AsoEbiReservation> cancel(String eventId, String reservationId) async {
     final res = await _http.post(
       Uri.parse('$_base/events/$eventId/aso-ebi/reservations/$reservationId/cancel'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     return AsoEbiReservation.fromJson(jsonDecode(res.body) as Map<String, dynamic>);

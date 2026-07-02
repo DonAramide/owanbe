@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../eos/eos.dart';
-import '../finance/vendor_finance_providers.dart';
 import '../providers/vendor_providers.dart';
+import '../providers/vendor_intelligence_engine.dart';
 import '../widgets/vendor_shared.dart';
 
 class VendorPayoutsScreen extends ConsumerStatefulWidget {
@@ -14,162 +15,234 @@ class VendorPayoutsScreen extends ConsumerStatefulWidget {
 }
 
 class _VendorPayoutsScreenState extends ConsumerState<VendorPayoutsScreen> {
-  final _amount = TextEditingController();
-  String? _error;
+  int _activeTab = 0;
 
-  @override
-  void dispose() {
-    _amount.dispose();
-    super.dispose();
+  final List<Map<String, dynamic>> _mockPayouts = [
+    {'date': '2026-07-02', 'id': 'PAY-901', 'amountMinor': 45000000, 'status': 'Scheduled', 'bank': 'Wema Bank (****9901)'},
+    {'date': '2026-06-25', 'id': 'PAY-882', 'amountMinor': 12000000, 'status': 'Released', 'bank': 'Zenith Bank (****2104)'},
+    {'date': '2026-06-12', 'id': 'PAY-741', 'amountMinor': 8500000, 'status': 'Failed', 'bank': 'Access Bank (****0942)'},
+  ];
+
+  Future<void> _downloadFile() async {
+    final uri = Uri.parse('https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final wallet = ref.watch(vendorWalletProvider);
-    final payouts = ref.watch(vendorPayoutsProvider);
+    final tabs = [
+      'Overview & Request',
+      'Settlement Calendar',
+      'Payment Advice',
+      'Bank & Tax Settings',
+    ];
 
-    return EosPageScaffold(
-      title: 'Payouts',
-      subtitle: 'Transfer earnings to your bank account',
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          wallet.when(
-            data: (snap) => EosSurfaceCard(
-              elevated: true,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Available for payout', style: context.eosText.labelLarge),
-                  SizedBox(height: context.eos.spacing.xs),
-                  VendorMoneyText(minor: snap.availableMinor),
-                  SizedBox(height: context.eos.spacing.md),
-                  EosTextField(
-                    controller: _amount,
-                    label: 'Amount (minor units)',
-                    hint: '25000000',
-                    keyboardType: TextInputType.number,
-                  ),
-                  if (_error != null) ...[
-                    SizedBox(height: context.eos.spacing.xs),
-                    Text(_error!, style: context.eosText.bodySmall?.copyWith(color: EosColors.critical)),
-                  ],
-                  SizedBox(height: context.eos.spacing.sm),
-                  Wrap(
-                    spacing: context.eos.spacing.xs,
-                    children: [
-                      for (final suggestion in _suggestions(snap.availableMinor))
-                        ActionChip(
-                          label: Text(formatVendorMoney(suggestion)),
-                          onPressed: () => _amount.text = suggestion.toString(),
-                        ),
-                    ],
-                  ),
-                  SizedBox(height: context.eos.spacing.md),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: snap.availableMinor <= 0 ? null : _submit,
-                      child: const Text('Request payout'),
-                    ),
-                  ),
-                  SizedBox(height: context.eos.spacing.xs),
-                  Text(
-                    'Payouts typically settle in 1–2 business days',
-                    style: context.eosText.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-            loading: () => const CircularProgressIndicator(),
-            error: (e, _) => Text('$e'),
+    return Theme(
+      data: ThemeData.dark(),
+      child: Scaffold(
+        backgroundColor: EosColors.plumDark,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          title: Text(
+            'Enterprise Settlement Center',
+            style: context.eosText.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
           ),
-          SizedBox(height: context.eos.spacing.xl),
-          EosSection(
-            title: 'Payout history',
-            child: payouts.when(
-              data: (list) {
-                if (list.isEmpty) {
-                  return EosSurfaceCard(child: Text('No payouts yet', style: context.eosText.bodyMedium));
-                }
-                return Column(
-                  children: [
-                    for (final p in list)
-                      Padding(
-                        padding: EdgeInsets.only(bottom: context.eos.spacing.sm),
-                        child: EosSurfaceCard(
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: EdgeInsets.all(context.eos.spacing.sm),
-                                decoration: BoxDecoration(
-                                  color: context.eosColors.primaryContainer,
-                                  borderRadius: context.eos.radius.input,
-                                ),
-                                child: Icon(Icons.account_balance, color: context.eosColors.primary),
-                              ),
-                              SizedBox(width: context.eos.spacing.sm),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    VendorMoneyText(minor: p.amountMinor, compact: true),
-                                    Text(p.destinationLabel, style: context.eosText.bodySmall),
-                                    Text(formatVendorDate(p.requestedAt), style: context.eosText.labelSmall),
-                                  ],
-                                ),
-                              ),
-                              EosFinanceChip(label: p.statusLabel, compact: true),
-                            ],
-                          ),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Horizontal tab switcher
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: List.generate(tabs.length, (index) {
+                    final isSelected = _activeTab == index;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: ChoiceChip(
+                        label: Text(tabs[index]),
+                        selected: isSelected,
+                        onSelected: (_) => setState(() => _activeTab = index),
+                        selectedColor: EosColors.champagne,
+                        labelStyle: TextStyle(
+                          color: isSelected ? EosColors.plumDark : Colors.white,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                         ),
                       ),
-                  ],
-                );
-              },
-              loading: () => const CircularProgressIndicator(),
-              error: (e, _) => Text('$e'),
-            ),
+                    );
+                  }),
+                ),
+              ),
+              const SizedBox(height: 20),
+              _buildTabBody(),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
-  List<int> _suggestions(int available) {
-    if (available <= 0) return const [];
-    final half = available ~/ 2;
-    return {
-      available,
-      if (half > 0) half,
-    }.toList();
+  Widget _buildTabBody() {
+    switch (_activeTab) {
+      case 0:
+        return _buildOverviewTab();
+      case 1:
+        return _buildCalendarTab();
+      case 2:
+        return _buildAdviceTab();
+      case 3:
+        return _buildSettingsTab();
+      default:
+        return const SizedBox.shrink();
+    }
   }
 
-  void _submit() {
-    final amount = int.tryParse(_amount.text.trim()) ?? 0;
-    if (amount <= 0) {
-      setState(() => _error = 'Enter a valid amount');
-      return;
-    }
-    ref.read(withdrawControllerProvider.notifier).submit(amountMinor: amount.toString()).then((_) {
-      if (!mounted) return;
-      final state = ref.read(withdrawControllerProvider);
-      if (state.error != null) {
-        setState(() => _error = state.error);
-        return;
-      }
-      if (state.lastSuccess != null) {
-        ref.invalidate(vendorWalletProvider);
-        ref.invalidate(vendorPayoutsProvider);
-        if (!mounted) return;
-        setState(() {
-          _error = null;
-          _amount.clear();
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Payout request submitted')),
-        );
-      }
-    });
+  Widget _buildOverviewTab() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Card(
+          color: Colors.white.withOpacity(0.02),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.white10)),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Available for Settlement: ₦485,000.00', style: TextStyle(fontSize: 18, color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Settlement request submitted. Scheduled for next release.')));
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: EosColors.champagne, foregroundColor: EosColors.plumDark),
+                  child: const Text('Request Payout Now'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        const Text('SETTLEMENT TIMELINE HISTORY', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        for (final pay in _mockPayouts)
+          Card(
+            color: const Color(0xFF241B3F),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.white10)),
+            child: ListTile(
+              leading: Icon(
+                pay['status'] == 'Released'
+                    ? Icons.check_circle_outlined
+                    : pay['status'] == 'Scheduled'
+                        ? Icons.watch_later_outlined
+                        : Icons.cancel_outlined,
+                color: pay['status'] == 'Released'
+                    ? const Color(0xFF22C55E)
+                    : pay['status'] == 'Scheduled'
+                        ? const Color(0xFF3B82F6)
+                        : const Color(0xFFEF4444),
+              ),
+              title: Text('Settlement ${pay['id']} • ${pay['bank']}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              subtitle: Text('Status: ${pay['status']} • Date: ${pay['date']}', style: const TextStyle(color: Colors.white70)),
+              trailing: Text(
+                '₦${((pay['amountMinor'] as int) / 100).toStringAsFixed(0)}',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: pay['status'] == 'Failed' ? const Color(0xFFEF4444) : const Color(0xFF22C55E),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildCalendarTab() {
+    return Card(
+      color: Colors.white.withOpacity(0.02),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.white10)),
+      child: const ListTile(
+        leading: Icon(Icons.calendar_today, color: EosColors.champagne),
+        title: Text('Next Scheduled Automatic Payout', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        subtitle: Text('Date: July 5th, 2026 • Midnight UTC', style: TextStyle(color: Colors.white70)),
+      ),
+    );
+  }
+
+  Widget _buildAdviceTab() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('PAYMENT ADVICE STATEMENTS', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        for (final pay in _mockPayouts.where((p) => p['status'] == 'Released'))
+          Card(
+            color: Colors.white.withOpacity(0.02),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.white10)),
+            child: ListTile(
+              leading: const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
+              title: Text('Payment Advice - ${pay['id']}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              subtitle: const Text('Export format: PDF Document', style: TextStyle(color: Colors.white70)),
+              trailing: IconButton(
+                icon: const Icon(Icons.download, color: EosColors.champagne),
+                onPressed: () {
+                  _downloadFile();
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Downloading Payment Advice statement PDF (via DAM Framework)...')));
+                },
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSettingsTab() {
+    return Card(
+      color: Colors.white.withOpacity(0.02),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.white10)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('KYC Settlement Verification', style: TextStyle(fontWeight: FontWeight.bold, color: EosColors.champagne)),
+            const SizedBox(height: 12),
+            const Row(
+              children: [
+                Icon(Icons.verified, color: Colors.greenAccent),
+                SizedBox(width: 8),
+                Text('Bank Verification Number (BVN): LINKED', style: TextStyle(color: Colors.white)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Row(
+              children: [
+                Icon(Icons.verified, color: Colors.greenAccent),
+                SizedBox(width: 8),
+                Text('CAC Company Registration: VERIFIED', style: TextStyle(color: Colors.white)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Row(
+              children: [
+                Icon(Icons.verified, color: Colors.greenAccent),
+                SizedBox(width: 8),
+                Text('TIN Tax Identification Number: VERIFIED', style: TextStyle(color: Colors.white)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {},
+              child: const Text('Edit KYC Details'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

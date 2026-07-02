@@ -5,12 +5,13 @@ import '../../../core/api/persistence_providers.dart';
 import '../../../features/operations/data/operations_store.dart';
 import '../../../features/operations/models/operations_models.dart';
 import '../../../features/operations/providers/operations_providers.dart';
-import '../../../features/organizer/data/organizer_event_store.dart';
-import '../../../features/organizer/finance/organizer_finance_api.dart';
-import '../../../features/organizer/finance/organizer_finance_providers.dart';
-import '../../../features/organizer/providers/organizer_providers.dart';
+import '../api/customer_events_api.dart';
+import '../data/customer_event_dev_store.dart';
 import '../models/command_center_models.dart';
+import '../models/customer_finance_models.dart';
 import '../models/vendor_crm_models.dart';
+import '../providers/customer_event_providers.dart';
+import '../providers/customer_finance_providers.dart';
 import '../providers/vendor_crm_providers.dart';
 
 final customerEventCommandRefreshProvider = StateProvider<int>((ref) => 0);
@@ -25,28 +26,28 @@ final customerEventOwnershipProvider = FutureProvider.autoDispose.family<bool, S
   if (session == null) return false;
 
   try {
-    final event = await ref.read(eventsApiProvider).getOrganizerEvent(eventId);
+    final event = await ref.read(customerEventsApiProvider).getEvent(eventId, session: session);
     return event != null;
   } catch (_) {
     if (!allowMockPersistenceFallback()) return false;
-    return OrganizerEventStore.instance.byId(eventId) != null;
+    return CustomerEventDevStore.instance.byId(eventId) != null;
   }
 });
 
 final customerEventCommandProvider =
     FutureProvider.autoDispose.family<EventCommandCenterSnapshot, String>((ref, eventId) async {
   ref.watch(customerEventCommandRefreshProvider);
-  ref.watch(organizerRevisionProvider);
+  ref.watch(customerEventRevisionProvider);
   ref.watch(operationsRevisionProvider);
 
-  final event = await ref.watch(organizerEventProvider(eventId).future);
+  final event = await ref.watch(customerEventProvider(eventId).future);
   if (event == null) {
     throw StateError('Event not found');
   }
 
   var opsGuests = <OpsGuest>[];
   var feed = <OpsFeedEvent>[];
-  OrganizerEventFinanceSummary? finance;
+  CustomerEventFinanceSummary? finance;
 
   try {
     opsGuests = await ref.read(operationsApiProvider).listGuests(eventId);
@@ -67,10 +68,7 @@ final customerEventCommandProvider =
   }
 
   try {
-    final session = ref.read(authSessionProvider);
-    finance = await ref
-        .read(organizerFinanceApiProvider)
-        .fetchEventSummary(eventId: eventId, session: session);
+    finance = await ref.read(customerEventFinanceSummaryProvider(eventId).future);
   } catch (_) {
     finance = null;
   }

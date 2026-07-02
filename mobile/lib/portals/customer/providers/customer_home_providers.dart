@@ -3,12 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/auth_notifier.dart';
 import '../../../core/api/persistence_providers.dart';
 import '../../../core/api/vendors_api.dart';
-import '../../../features/organizer/data/organizer_event_store.dart';
-import '../../../features/organizer/models/organizer_models.dart';
-import '../../../features/organizer/providers/organizer_providers.dart';
 import '../../../features/public/providers/public_providers.dart';
 import '../../../features/public/providers/ticket_commerce_providers.dart';
+import '../models/customer_event_models.dart';
 import '../models/home_hub_models.dart';
+import '../providers/customer_event_providers.dart';
 
 final customerHomeRefreshProvider = StateProvider<int>((ref) => 0);
 
@@ -16,15 +15,9 @@ void refreshCustomerHome(WidgetRef ref) {
   ref.read(customerHomeRefreshProvider.notifier).state++;
 }
 
-final customerOwnedEventsProvider = FutureProvider.autoDispose<List<OrganizerEvent>>((ref) async {
+final customerOwnedEventsProvider = FutureProvider.autoDispose<List<CustomerEvent>>((ref) async {
   ref.watch(customerHomeRefreshProvider);
-  ref.watch(organizerRevisionProvider);
-  try {
-    return await ref.read(eventsApiProvider).listOrganizerEvents();
-  } catch (_) {
-    if (!allowMockPersistenceFallback()) rethrow;
-    return OrganizerEventStore.instance.all;
-  }
+  return ref.watch(customerEventsProvider.future);
 });
 
 final customerTicketInvitationsProvider = FutureProvider.autoDispose<List<CustomerInvitationCard>>((ref) async {
@@ -118,10 +111,10 @@ final customerHomeSnapshotProvider = FutureProvider.autoDispose<CustomerHomeSnap
   final active = eventsResult
       .where(
         (e) =>
-            e.status != OrganizerEventStatus.completed &&
-            e.status != OrganizerEventStatus.cancelled,
+            e.status != CustomerEventStatus.completed &&
+            e.status != CustomerEventStatus.cancelled,
       )
-      .map(CustomerEventSummary.fromOrganizerEvent)
+      .map(CustomerEventSummary.fromEvent)
       .toList()
     ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
 

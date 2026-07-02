@@ -6,6 +6,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'auth_session.dart';
 import 'user_role.dart';
+import '../platform/identity/identity_models.dart' as platform;
+import '../platform/identity/identity_platform.dart' as platform;
 
 /// Holds the signed-in user. `null` = logged out.
 class AuthNotifier extends Notifier<AuthSession?> {
@@ -62,39 +64,72 @@ class AuthNotifier extends Notifier<AuthSession?> {
     required String password,
     UserRole? expectedRole,
   }) async {
-    final res = await Supabase.instance.client.auth.signInWithPassword(
-      email: email.trim(),
+    final targetRole = expectedRole ?? UserRole.client;
+    final outcome = await platform.IdentityPlatform.instance.signInWithEmail(
+      email: email,
       password: password,
+      expectedRole: targetRole,
     );
-    final session = res.session;
+    
+    if (outcome == platform.AuthOutcome.unauthorized) {
+      throw StateError('Unauthorized role context');
+    }
+    
+    final session = Supabase.instance.client.auth.currentSession;
     if (session == null) {
-      throw StateError('Sign-in succeeded but no session was returned');
+      throw StateError('Session not established');
     }
-    final jwtRoles = _jwtRoles(session);
-    if (expectedRole != null && !_rolesInclude(expectedRole, jwtRoles)) {
-      await Supabase.instance.client.auth.signOut();
-      throw StateError(
-        'This account is missing the ${expectedRole.label} role in Supabase '
-        '(app_metadata.roles). Current roles: ${jwtRoles.isEmpty ? "none" : jwtRoles.join(", ")}. '
-        'Re-run scripts/supabase/seed-dev-auth-users.sql or add "client" for attendee sign-in.',
-      );
-    }
-    _preferredRole = expectedRole ?? _mapRole(jwtRoles);
+    
+    _preferredRole = targetRole;
     await _persistPreferredRole(_preferredRole);
     state = _sessionFromSupabase(session);
   }
 
   Future<void> refreshSession() async {
-    final res = await Supabase.instance.client.auth.refreshSession();
-    final session = res.session;
+    await platform.IdentityPlatform.instance.initialize();
+    final session = Supabase.instance.client.auth.currentSession;
     state = session != null ? _sessionFromSupabase(session) : null;
   }
 
   Future<void> signOut() async {
     _preferredRole = null;
     await _persistPreferredRole(null);
-    await Supabase.instance.client.auth.signOut();
+    await platform.IdentityPlatform.instance.signOut();
     state = null;
+  }
+
+  Future<void> resetPassword(String email) async {
+    final redirectTo = Uri.base.origin;
+    await Supabase.instance.client.auth.resetPasswordForEmail(
+      email.trim(),
+      redirectTo: redirectTo.isEmpty ? null : redirectTo,
+    );
+  }
+
+  Future<void> signUpStaff({
+    required String email,
+    required String password,
+    required String displayName,
+    required UserRole role,
+    String? phone,
+  }) async {
+    final res = await Supabase.instance.client.auth.signUp(
+      email: email.trim(),
+      password: password,
+      data: {
+        'display_name': displayName.trim(),
+        if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+      },
+      emailRedirectTo: Uri.base.origin.isEmpty ? null : Uri.base.origin,
+    );
+    if (res.session == null) {
+      throw StateError(
+        'Account created — check your email to verify, then sign in.',
+      );
+    }
+    _preferredRole = role;
+    await _persistPreferredRole(role);
+    await signInWithEmail(email: email, password: password, expectedRole: role);
   }
 
   Future<void> signInAttendee({

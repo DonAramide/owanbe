@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../eos/eos.dart';
 import '../../models/ai_planner_models.dart';
-import '../../router/customer_routes.dart';
+import '../../navigation/event_navigator.dart';
 
 class PlannerMissingRequirements extends StatelessWidget {
   const PlannerMissingRequirements({
@@ -73,11 +73,11 @@ class PlannerMissingRequirements extends StatelessWidget {
   void _navigate(BuildContext context, String route) {
     switch (route) {
       case 'vendors':
-        context.push(CustomerRoutes.vendors);
+        context.eventNav.openMarketplace();
       case 'guests':
-        context.push(CustomerRoutes.eventGuests(eventId));
+        context.eventNav.openGuests(eventId);
       case 'budget':
-        context.push(CustomerRoutes.eventBudget(eventId));
+        context.eventNav.openBudget(eventId);
     }
   }
 

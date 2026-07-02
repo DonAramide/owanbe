@@ -1,3 +1,8 @@
+@Deprecated(
+  'Migrate to Customer Event OS store in portals/customer/data/customer_event_dev_store.dart.',
+)
+library;
+
 import '../models/organizer_models.dart';
 import '../../../core/api/vendors_api.dart';
 
@@ -249,7 +254,7 @@ class OrganizerEventStore {
     return [
       OrganizerEvent(
         id: 'evt_lagos_owanbe_2026',
-        title: 'Lagos Sunset Owanbe',
+        title: 'Lagos Sunset Owambe',
         tagline: 'An evening of live Afrobeats, culture, and celebration',
         description:
             'Join thousands for Lagos\' most curated open-air experience. Premium sound, vendor village, and reserved seating zones.',

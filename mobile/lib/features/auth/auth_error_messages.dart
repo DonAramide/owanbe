@@ -41,9 +41,9 @@ AuthErrorMessage formatAuthError(Object error, {String roleLabel = 'this portal'
       title: 'Authentication database needs setup',
       body: 'Supabase Auth returned a server error while validating your account.',
       steps: [
-        'In Supabase SQL Editor, run scripts/supabase/repair-auth-null-columns.sql.',
-        'Then run scripts/supabase/seed-dev-auth-users.sql.',
-        'Sign in again with password 123456.',
+        'In Supabase SQL Editor, run scripts/supabase/repair-auth-null-columns.sql if needed.',
+        'Then run scripts/supabase/seed-dev-auth-users.sql for development accounts.',
+        'Sign in again after seeding.',
       ],
     );
   }
@@ -53,8 +53,8 @@ AuthErrorMessage formatAuthError(Object error, {String roleLabel = 'this portal'
       title: 'Invalid email or password',
       body: 'The credentials you entered could not be verified.',
       steps: [
-        'For development, use the seeded accounts (password 123456).',
-        'If the account does not exist, run scripts/supabase/seed-dev-auth-users.sql in Supabase.',
+        'Check your email and password, or use Forgot password.',
+        'Contact your administrator if you need a new account.',
       ],
     );
   }

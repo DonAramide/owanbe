@@ -154,7 +154,7 @@ int _defaultPrice(MarketplaceVendor vendor) {
 
 List<VendorReview> _seedReviews(MarketplaceVendor vendor, int seed) {
   final names = ['Amaka O.', 'Tunde B.', 'Chioma E.', 'Ngozi A.'];
-  final events = ['Wedding', 'Owanbe', 'Corporate gala', 'Birthday'];
+  final events = ['Wedding', 'Owambe', 'Corporate gala', 'Birthday'];
   return List.generate(3, (i) {
     final idx = (seed + i) % names.length;
     return VendorReview(

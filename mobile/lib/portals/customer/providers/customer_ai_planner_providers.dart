@@ -1,9 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/vendors_api.dart';
-import '../../../features/organizer/models/organizer_models.dart';
-import '../../../features/organizer/providers/organizer_providers.dart';
 import '../models/ai_planner_models.dart';
+import '../models/customer_event_models.dart';
+import '../providers/customer_event_providers.dart';
 import 'customer_budget_providers.dart';
 import 'marketplace_providers.dart';
 
@@ -32,9 +32,9 @@ void resetAiPlanner(WidgetRef ref, String eventId) {
 
 final aiPlannerEventContextProvider = FutureProvider.autoDispose.family<AiPlannerEventContext, String>(
   (ref, eventId) async {
-    ref.watch(organizerRevisionProvider);
+    ref.watch(customerEventRevisionProvider);
 
-    final event = await ref.watch(organizerEventProvider(eventId).future);
+    final event = await ref.watch(customerEventProvider(eventId).future);
     if (event == null) throw StateError('Event not found');
 
     var budgetMinor = 0;
@@ -62,7 +62,7 @@ class AiPlannerEventContext {
     required this.vendors,
   });
 
-  final OrganizerEvent event;
+  final CustomerEvent event;
   final int budgetMinor;
   final List<MarketplaceVendor> vendors;
 }

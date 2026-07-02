@@ -4,7 +4,7 @@ import '../../../core/api/persistence_providers.dart';
 import '../../../features/operations/data/operations_store.dart';
 import '../../../features/operations/models/operations_models.dart';
 import '../../../features/operations/providers/operations_providers.dart';
-import '../../../features/organizer/providers/organizer_providers.dart';
+import '../providers/customer_event_providers.dart';
 import '../providers/customer_guest_providers.dart';
 import '../services/contact_import_service.dart';
 
@@ -53,7 +53,7 @@ Future<OpsGuest> addCustomerGuest(
     tier: tier,
   );
   bumpOperationsRevision(ref);
-  bumpOrganizerRevision(ref);
+  bumpCustomerEventRevision(ref);
   refreshCustomerGuests(ref);
   return guest;
 }
@@ -77,7 +77,7 @@ Future<List<OpsGuest>> importCustomerContacts(
       .toList();
   final guests = OperationsStore.instance.importGuests(eventId, normalized);
   bumpOperationsRevision(ref);
-  bumpOrganizerRevision(ref);
+  bumpCustomerEventRevision(ref);
   refreshCustomerGuests(ref);
   return guests;
 }

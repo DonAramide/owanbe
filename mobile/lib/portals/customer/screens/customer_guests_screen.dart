@@ -10,8 +10,9 @@ import '../../../eos/eos.dart';
 
 import '../providers/customer_home_providers.dart';
 
-import '../router/customer_routes.dart';
+import '../navigation/event_navigator.dart';
 
+import '../workspace/widgets/event_friendly_errors.dart';
 import '../widgets/empty_state_card.dart';
 
 import '../widgets/home/home_active_event_card.dart';
@@ -54,11 +55,11 @@ class CustomerGuestsScreen extends ConsumerWidget {
 
               title: 'Could not load events',
 
-              message: error.toString(),
+              message: EventFriendlyErrors.genericMessage,
 
               actionLabel: 'Create event',
 
-              onAction: () => context.go(CustomerRoutes.createEvent),
+              onAction: () => context.eventNav.goCreateEvent(),
 
             ),
 
@@ -68,7 +69,7 @@ class CustomerGuestsScreen extends ConsumerWidget {
 
         data: (owned) {
 
-          final active = owned.map(CustomerEventSummary.fromOrganizerEvent).toList()
+          final active = owned.map(CustomerEventSummary.fromEvent).toList()
 
             ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
 
@@ -100,7 +101,7 @@ class CustomerGuestsScreen extends ConsumerWidget {
 
                   actionLabel: 'Create event',
 
-                  onAction: () => context.go(CustomerRoutes.createEvent),
+                  onAction: () => context.eventNav.goCreateEvent(),
 
                 ),
 
@@ -146,7 +147,7 @@ class CustomerGuestsScreen extends ConsumerWidget {
 
                       event: event,
 
-                      onTap: () => context.push(CustomerRoutes.eventGuests(event.id)),
+                      onTap: () => context.eventNav.openOverview(event.id),
 
                     );
 

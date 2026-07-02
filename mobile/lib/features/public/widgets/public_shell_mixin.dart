@@ -28,6 +28,7 @@ Widget buildPublicShell({
   required Widget child,
   String? activeNav,
   bool compact = false,
+  bool showSignIn = true,
 }) {
   final cart = ref.watch(cartProvider);
   final count = cart.fold(0, (s, l) => s + l.quantity);
@@ -44,7 +45,7 @@ Widget buildPublicShell({
         context.go('/attendee');
       }
     },
-    onSignIn: () => context.push('/auth'),
+    onSignIn: showSignIn ? () => context.push('/auth') : null,
     onCart: count > 0 ? () => context.push('/checkout') : null,
     body: child,
   );

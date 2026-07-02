@@ -1,54 +1,52 @@
+import 'event_route_registry.dart';
+
 /// Customer Portal route paths.
+///
+/// Deprecated: prefer [EventRouteRegistry] for all new code (Phase 42.1).
+@Deprecated('Use EventRouteRegistry — Customer Portal Event OS canonical paths')
 abstract final class CustomerRoutes {
-  static const home = '/home';
-  static const myEvents = '/events/mine';
-  static const createEvent = '/events/create';
-  static const guests = '/guests';
-  static const profile = '/profile';
+  static const home = EventRouteRegistry.home;
+  static const myEvents = EventRouteRegistry.myEvents;
+  static const createEvent = EventRouteRegistry.createEvent;
+  static const guests = EventRouteRegistry.guestsHub;
+  static const profile = EventRouteRegistry.profile;
 
-  static String eventDetail(String eventId) => '/events/$eventId';
+  static String eventDetail(String eventId) => EventRouteRegistry.event(eventId);
 
-  static String eventBudget(String eventId) => '/events/$eventId/budget';
+  static String eventBudget(String eventId) => EventRouteRegistry.eventBudget(eventId);
 
-  static String eventGuests(String eventId) => '/events/$eventId/guests';
+  static String eventGuests(String eventId) => EventRouteRegistry.eventGuests(eventId);
 
-  static String eventInvitations(String eventId) => '/events/$eventId/invitations';
+  static String eventInvitations(String eventId) => EventRouteRegistry.eventInvitations(eventId);
 
-  static String eventAiPlanner(String eventId) => '/events/$eventId/ai-planner';
+  static String eventAiPlanner(String eventId) => EventRouteRegistry.eventAiPlanner(eventId);
 
-  static String eventDay(String eventId) => '/events/$eventId/day';
+  static String eventDay(String eventId) => EventRouteRegistry.eventDay(eventId);
 
-  static String eventWebsite(String eventId) => '/events/$eventId/website';
+  static String eventWebsite(String eventId) => EventRouteRegistry.eventWebsite(eventId);
 
-  static String eventWall(String eventId) => '/events/$eventId/wall';
+  static String eventWall(String eventId) => EventRouteRegistry.eventWall(eventId);
 
-  static String eventWallDisplay(String eventId) => '/events/$eventId/wall/display';
+  static String eventWallDisplay(String eventId) => EventRouteRegistry.eventWallDisplay(eventId);
 
-  static String eventAsoEbi(String eventId) => '/events/$eventId/aso-ebi';
+  static String eventAsoEbi(String eventId) => EventRouteRegistry.eventAsoEbi(eventId);
 
-  static String eventAttire(String eventId) => '/events/$eventId/attire';
+  static String eventAttire(String eventId) => EventRouteRegistry.eventAttire(eventId);
 
-  static String eventRentals(String eventId) => '/events/$eventId/rentals';
+  static String eventRentals(String eventId) => EventRouteRegistry.eventRentals(eventId);
 
-  static String eventSeating(String eventId) => '/events/$eventId/seating';
+  static String eventSeating(String eventId) => EventRouteRegistry.eventSeating(eventId);
 
-  static String eventProgram(String eventId) => '/events/$eventId/program';
+  static String eventProgram(String eventId) => EventRouteRegistry.eventProgram(eventId);
 
-  static String eventVendorPipeline(String eventId) => '/events/$eventId/vendor-pipeline';
+  static String eventVendorPipeline(String eventId) => EventRouteRegistry.eventVendorPipeline(eventId);
 
   static String rentalsMarketplace({String? eventId}) =>
-      eventId != null ? '/vendors/rentals?eventId=$eventId' : '/vendors/rentals';
+      EventRouteRegistry.rentalsMarketplace(eventId: eventId);
 
-  static const vendors = '/vendors';
+  static const vendors = EventRouteRegistry.vendors;
 
-  static String vendorDetail(String vendorId) => '/vendors/$vendorId';
+  static String vendorDetail(String vendorId) => EventRouteRegistry.vendorDetail(vendorId);
 
-  static bool isShellPath(String location) {
-    if (location == home) return true;
-    if (location == createEvent) return true;
-    if (location == guests || location.startsWith('$guests/')) return true;
-    if (location == profile || location.startsWith('$profile/')) return true;
-    if (location == myEvents) return true;
-    return false;
-  }
+  static bool isShellPath(String location) => EventRouteRegistry.isShellPath(location);
 }

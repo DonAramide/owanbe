@@ -15,6 +15,7 @@ class EosTextField extends StatelessWidget {
     this.prefixIcon,
     this.suffixIcon,
     this.maxLines = 1,
+    this.enabled = true,
   });
 
   final TextEditingController? controller;
@@ -27,6 +28,7 @@ class EosTextField extends StatelessWidget {
   final Widget? prefixIcon;
   final Widget? suffixIcon;
   final int maxLines;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +39,7 @@ class EosTextField extends StatelessWidget {
       onChanged: onChanged,
       validator: validator,
       maxLines: maxLines,
+      enabled: enabled,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,

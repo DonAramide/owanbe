@@ -5,15 +5,15 @@ import 'router/app_router.dart';
 import 'theme/owanbe_theme.dart';
 import 'theme/theme_mode_provider.dart';
 
-class OwanbeApp extends ConsumerWidget {
-  const OwanbeApp({super.key});
+class OwambeApp extends ConsumerWidget {
+  const OwambeApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(goRouterProvider);
     final themeMode = ref.watch(themeModeProvider);
     return MaterialApp.router(
-      title: 'Owanbe',
+      title: 'Owambe',
       theme: owanbeTheme,
       darkTheme: owanbeDarkTheme,
       themeMode: themeMode,

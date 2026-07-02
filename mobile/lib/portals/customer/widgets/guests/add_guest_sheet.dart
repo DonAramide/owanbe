@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../eos/eos.dart';
+import '../../workspace/widgets/event_friendly_errors.dart';
 import '../../data/customer_guest_persistence.dart';
 
 class AddGuestSheet extends ConsumerStatefulWidget {
@@ -37,7 +38,9 @@ class _AddGuestSheetState extends ConsumerState<AddGuestSheet> {
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(EventFriendlyErrors.actionFailedMessage)),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }

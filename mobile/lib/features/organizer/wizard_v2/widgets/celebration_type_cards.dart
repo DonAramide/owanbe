@@ -71,8 +71,19 @@ class _CelebrationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = selected
+        ? EosColors.champagne.withValues(alpha: isDark ? 0.25 : 0.35)
+        : scheme.surface;
+    final borderColor = selected
+        ? EosColors.plum
+        : scheme.onSurface.withValues(alpha: 0.15);
+    final textColor = scheme.onSurface;
+    final iconColor = selected ? EosColors.plum : EosColors.plum.withValues(alpha: isDark ? 0.9 : 1.0);
+
     return Material(
-      color: selected ? EosColors.champagne.withValues(alpha: 0.35) : EosColors.surface,
+      color: cardColor,
       elevation: selected ? 2 : 0,
       shadowColor: EosColors.plum.withValues(alpha: 0.15),
       borderRadius: BorderRadius.circular(20),
@@ -83,7 +94,7 @@ class _CelebrationCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: selected ? EosColors.plum : EosColors.slate300.withValues(alpha: 0.4),
+              color: borderColor,
               width: selected ? 2 : 1,
             ),
           ),
@@ -91,12 +102,15 @@ class _CelebrationCard extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 40, color: EosColors.plum),
+              Icon(icon, size: 40, color: iconColor),
               SizedBox(height: context.eos.spacing.sm),
               Text(
                 label,
                 textAlign: TextAlign.center,
-                style: context.eosText.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                style: context.eosText.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: textColor,
+                ),
               ),
             ],
           ),

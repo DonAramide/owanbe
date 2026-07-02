@@ -93,7 +93,7 @@ const kInvitationTemplates = <InvitationTemplate>[
   ),
   InvitationTemplate(
     id: 'sunset-owanbe',
-    name: 'Sunset Owanbe',
+    name: 'Sunset Owambe',
     tier: InvitationTemplateTier.standard,
     priceMinor: 0,
     gradientStart: 0xFF7C2D12,

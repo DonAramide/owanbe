@@ -3,14 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../eos/eos.dart';
-import '../../../features/organizer/providers/organizer_providers.dart';
+import '../providers/customer_event_providers.dart';
+import '../navigation/event_navigator.dart';
 import '../models/program_constants.dart';
 import '../models/program_models.dart';
 import '../providers/program_providers.dart';
-import '../widgets/empty_state_card.dart';
+import '../workspace/event_empty_states.dart';
+import '../workspace/event_module_scaffold.dart';
+import '../workspace/widgets/event_error_view.dart';
+import '../workspace/widgets/event_friendly_errors.dart';
+import '../workspace/widgets/event_loading_skeleton.dart';
 import '../widgets/program/program_day_widget.dart';
 import '../widgets/program/program_status_badge.dart';
-import '../widgets/section_header.dart';
 
 /// Program / run sheet at `/events/:eventId/program`.
 class CustomerEventProgramScreen extends ConsumerStatefulWidget {
@@ -33,7 +37,9 @@ class _CustomerEventProgramScreenState extends ConsumerState<CustomerEventProgra
       refreshProgram(ref);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(EventFriendlyErrors.actionFailedMessage)),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -112,64 +118,59 @@ class _CustomerEventProgramScreenState extends ConsumerState<CustomerEventProgra
   @override
   Widget build(BuildContext context) {
     final program = ref.watch(eventProgramProvider(widget.eventId));
-    final event = ref.watch(organizerEventProvider(widget.eventId));
+    final event = ref.watch(customerEventProvider(widget.eventId));
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.pop()),
-        title: const Text('Program & run sheet'),
-        actions: [
-          if (_saving)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+    return EventModuleScaffold(
+      eventId: widget.eventId,
+      title: 'Program & run sheet',
+      subtitle: 'Timeline, owners, and day-of status',
+      busy: _saving,
+      actions: [
+        PopupMenuButton<String>(
+          onSelected: _applyTemplate,
+          itemBuilder: (context) => [
+            const PopupMenuItem(enabled: false, child: Text('Apply template')),
+            ...programTemplates.map(
+              (t) => PopupMenuItem(value: t.$1, child: Text(t.$2)),
             ),
-          PopupMenuButton<String>(
-            onSelected: _applyTemplate,
-            itemBuilder: (context) => [
-              const PopupMenuItem(enabled: false, child: Text('Apply template')),
-              ...programTemplates.map(
-                (t) => PopupMenuItem(value: t.$1, child: Text(t.$2)),
-              ),
-            ],
-          ),
-          IconButton(
-            tooltip: 'Add activity',
-            icon: const Icon(Icons.add),
-            onPressed: event.valueOrNull != null ? () => _addItem(event.value!.startsAt) : null,
-          ),
-        ],
-      ),
+          ],
+        ),
+        IconButton(
+          tooltip: 'Add activity',
+          icon: const Icon(Icons.add),
+          onPressed: event.valueOrNull != null ? () => _addItem(event.value!.startsAt) : null,
+        ),
+      ],
       body: program.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => ListView(
-          padding: EdgeInsets.all(context.eos.spacing.lg),
-          children: [EmptyStateCard(title: 'Could not load program', message: '$e')],
+        loading: () => const EventLoadingSkeleton(),
+        error: (_, _) => ListView(
+          padding: EosSpacing.pagePadding,
+          children: [
+            EventErrorView.module(
+              moduleLabel: 'program',
+              onRetry: () {
+                refreshProgram(ref);
+                ref.invalidate(eventProgramProvider(widget.eventId));
+              },
+              onBackToOverview: () => context.eventNav.backToOverview(widget.eventId),
+            ),
+          ],
         ),
         data: (snapshot) {
           final items = snapshot.items;
-          return RefreshIndicator(
+          return EventModuleScrollBody(
             onRefresh: () async {
               refreshProgram(ref);
               await ref.read(eventProgramProvider(widget.eventId).future);
             },
-            child: ListView(
-              padding: EdgeInsets.all(context.eos.spacing.lg),
-              children: [
-                ProgramDayWidget(day: snapshot.day),
-                SizedBox(height: context.eos.spacing.lg),
-                const SectionHeader(
-                  title: 'Timeline',
-                  subtitle: 'Drag to reorder · tap to edit · long-press status menu',
-                ),
-                if (items.isEmpty)
-                  const EmptyStateCard(
-                    title: 'No program items',
-                    message: 'Apply a template or add activities for your run sheet.',
-                    icon: Icons.schedule_outlined,
+            primaryKpi: ProgramDayWidget(day: snapshot.day),
+            content: items.isEmpty
+                ? EventEmptyStates.program(
+                    onAdd: event.valueOrNull != null
+                        ? () => _addItem(event.value!.startsAt)
+                        : () {},
                   )
-                else
-                  ReorderableListView.builder(
+                : ReorderableListView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: items.length,
@@ -198,20 +199,21 @@ class _CustomerEventProgramScreenState extends ConsumerState<CustomerEventProgra
                       );
                     },
                   ),
-                if (snapshot.recentActivity.isNotEmpty) ...[
-                  SizedBox(height: context.eos.spacing.lg),
-                  const SectionHeader(title: 'Activity log', subtitle: 'Program changes and reminders'),
-                  ...snapshot.recentActivity.take(8).map(
-                        (a) => ListTile(
-                          leading: const Icon(Icons.history, size: 20),
-                          title: Text(a.headline),
-                          subtitle: Text(a.detail),
-                        ),
-                      ),
-                ],
-                SizedBox(height: context.eos.spacing.xl),
-              ],
-            ),
+            activity: snapshot.recentActivity.isEmpty
+                ? null
+                : EosSection(
+                    title: 'Activity log',
+                    subtitle: 'Program changes and reminders',
+                    child: Column(
+                      children: snapshot.recentActivity.take(8).map(
+                            (a) => ListTile(
+                              leading: const Icon(Icons.history, size: 20),
+                              title: Text(a.headline),
+                              subtitle: Text(a.detail),
+                            ),
+                          ).toList(),
+                    ),
+                  ),
           );
         },
       ),

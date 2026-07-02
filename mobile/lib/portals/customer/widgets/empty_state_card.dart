@@ -11,6 +11,8 @@ class EmptyStateCard extends StatelessWidget {
     this.icon = Icons.celebration_outlined,
     this.actionLabel,
     this.onAction,
+    this.secondaryActionLabel,
+    this.onSecondaryAction,
   });
 
   final String title;
@@ -18,6 +20,8 @@ class EmptyStateCard extends StatelessWidget {
   final IconData icon;
   final String? actionLabel;
   final VoidCallback? onAction;
+  final String? secondaryActionLabel;
+  final VoidCallback? onSecondaryAction;
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +47,10 @@ class EmptyStateCard extends StatelessWidget {
           if (actionLabel != null && onAction != null) ...[
             SizedBox(height: context.eos.spacing.lg),
             FilledButton(onPressed: onAction, child: Text(actionLabel!)),
+          ],
+          if (secondaryActionLabel != null && onSecondaryAction != null) ...[
+            SizedBox(height: context.eos.spacing.sm),
+            OutlinedButton(onPressed: onSecondaryAction, child: Text(secondaryActionLabel!)),
           ],
         ],
       ),

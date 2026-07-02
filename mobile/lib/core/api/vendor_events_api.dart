@@ -2,21 +2,21 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-import 'owanbe_api_auth.dart';
+import 'owambe_api_auth.dart';
 
 import '../../features/vendor/models/vendor_models.dart';
 import 'events_api.dart';
-import 'owanbe_api_auth.dart';
+import 'owambe_api_auth.dart';
 
 class VendorEventsApi {
   VendorEventsApi({http.Client? client}) : _http = client ?? http.Client();
   final http.Client _http;
 
-  String get _base => OwanbeApiAuth.resolveApiBase();
+  String get _base => OwambeApiAuth.resolveApiBase();
 
-  String get _tenantId => OwanbeApiAuth.resolveTenantId(EventsApi.devTenantId);
+  String get _tenantId => OwambeApiAuth.resolveTenantId(EventsApi.devTenantId);
 
-  Future<Map<String, String>> _headers() => OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId);
+  Future<Map<String, String>> _headers() => OwambeApiAuth.authorizedHeaders(tenantId: _tenantId);
 
   Uri _u(String path) {
     final p = path.startsWith('/') ? path.substring(1) : path;

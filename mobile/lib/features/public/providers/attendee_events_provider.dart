@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../auth/auth_notifier.dart';
-import '../../organizer/data/organizer_event_store.dart';
 import '../models/attendee_event_models.dart';
 import '../models/public_models.dart';
 import '../providers/public_providers.dart';
@@ -66,24 +65,5 @@ final attendeeHasTicketProvider = Provider.autoDispose.family<bool, String>((ref
 });
 
 /// Demo tickets when API returns empty (development).
-void seedDemoAttendeeTicketsIfEmpty(WidgetRef ref) {
-  if (ref.read(attendeeTicketsProvider).isNotEmpty) return;
-
-  final published = OrganizerEventStore.instance.publishedForPublic();
-  if (published.isEmpty) return;
-
-  final event = published.first;
-  ref.read(attendeeTicketsProvider.notifier).addAll([
-    AttendeeTicket(
-      id: 'demo_ticket_${event.id}',
-      eventId: event.id,
-      eventTitle: event.title,
-      tierName: event.ticketTiers.isNotEmpty ? event.ticketTiers.first.name : 'General Admission',
-      venue: event.venue,
-      city: event.city,
-      startsAt: event.startsAt,
-      qrPayload: 'OWANBE:${event.id}:DEMO',
-      purchasedAt: DateTime.now().subtract(const Duration(days: 3)),
-    ),
-  ]);
-}
+@Deprecated('Removed in v1.0.1 — use ticket entitlements API')
+void seedDemoAttendeeTicketsIfEmpty(WidgetRef ref) {}

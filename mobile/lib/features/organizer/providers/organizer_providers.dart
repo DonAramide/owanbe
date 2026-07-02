@@ -1,3 +1,8 @@
+@Deprecated(
+  'Migrate to Customer Event OS providers in portals/customer/providers/customer_event_providers.dart.',
+)
+library;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/events_api.dart';

@@ -8,8 +8,12 @@ import '../../../eos/eos.dart';
 import '../models/celebration_wall_models.dart';
 import '../providers/celebration_wall_providers.dart';
 import '../providers/customer_event_command_providers.dart';
-import '../router/customer_routes.dart';
-import '../widgets/empty_state_card.dart';
+import '../navigation/event_navigator.dart';
+import '../workspace/event_module_scaffold.dart';
+import '../workspace/widgets/event_error_view.dart';
+import '../workspace/widgets/event_friendly_errors.dart';
+import '../workspace/widgets/event_loading_skeleton.dart';
+import '../workspace/event_empty_states.dart';
 import '../widgets/section_header.dart';
 
 /// Phase 2B — Celebration wall at `/events/:eventId/wall`.
@@ -74,7 +78,9 @@ class _CustomerEventWallScreenState extends ConsumerState<CustomerEventWallScree
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(EventFriendlyErrors.actionFailedMessage)),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -91,7 +97,9 @@ class _CustomerEventWallScreenState extends ConsumerState<CustomerEventWallScree
       refreshCelebrationWall(ref);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(EventFriendlyErrors.actionFailedMessage)),
+        );
       }
     }
   }
@@ -107,7 +115,9 @@ class _CustomerEventWallScreenState extends ConsumerState<CustomerEventWallScree
       refreshEventCommandCenter(ref);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(EventFriendlyErrors.actionFailedMessage)),
+        );
       }
     }
   }
@@ -122,7 +132,9 @@ class _CustomerEventWallScreenState extends ConsumerState<CustomerEventWallScree
       _scheduleLiveRefresh(value);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(EventFriendlyErrors.actionFailedMessage)),
+        );
       }
     }
   }
@@ -141,43 +153,34 @@ class _CustomerEventWallScreenState extends ConsumerState<CustomerEventWallScree
       });
     });
 
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go(CustomerRoutes.eventDetail(widget.eventId));
-            }
-          },
+    return EventModuleScaffold(
+      eventId: widget.eventId,
+      title: 'Celebration wall',
+      subtitle: 'Guest messages and photos',
+      busy: _busy,
+      actions: [
+        IconButton(
+          tooltip: 'Large-screen display',
+          icon: const Icon(Icons.tv_outlined),
+          onPressed: () => context.eventNav.openWallDisplay(widget.eventId),
         ),
-        title: const Text('Celebration wall'),
-        actions: [
-          IconButton(
-            tooltip: 'Large-screen display',
-            icon: const Icon(Icons.tv_outlined),
-            onPressed: () => context.push(CustomerRoutes.eventWallDisplay(widget.eventId)),
-          ),
-          if (_busy)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-            ),
-        ],
-      ),
+      ],
       body: wall.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => ListView(
-          padding: EdgeInsets.all(context.eos.spacing.lg),
+        loading: () => const EventLoadingSkeleton(),
+        error: (_, _) => ListView(
+          padding: EosSpacing.pagePadding,
           children: [
-            EmptyStateCard(
-              title: 'Could not load wall',
-              message: error.toString(),
-              actionLabel: 'Back to event',
-              onAction: () => context.go(CustomerRoutes.eventDetail(widget.eventId)),
+            EventErrorView.module(
+              moduleLabel: 'celebration wall',
+              onRetry: () {
+                refreshCelebrationWall(ref);
+                ref.invalidate(
+                  isOwner
+                      ? celebrationWallManageProvider(widget.eventId)
+                      : celebrationWallPublicProvider(widget.eventId),
+                );
+              },
+              onBackToOverview: () => context.eventNav.backToOverview(widget.eventId),
             ),
           ],
         ),
@@ -272,11 +275,7 @@ class _CustomerEventWallScreenState extends ConsumerState<CustomerEventWallScree
                   subtitle: data.settings.liveMode ? 'Live · updates every few seconds' : 'Messages from guests',
                 ),
                 if (visiblePosts.isEmpty)
-                  const EmptyStateCard(
-                    title: 'No messages yet',
-                    message: 'Be the first to congratulate the hosts.',
-                    icon: Icons.forum_outlined,
-                  )
+                  EventEmptyStates.wall(onPost: _busy ? null : _submitPost)
                 else
                   ...visiblePosts.map(
                     (post) => Padding(
@@ -353,7 +352,7 @@ class _WallPostCard extends StatelessWidget {
           if (post.isHidden && isOwner)
             Padding(
               padding: EdgeInsets.only(top: context.eos.spacing.xxs),
-              child: Text('Hidden from guests', style: context.eosText.labelSmall?.copyWith(color: Colors.orange)),
+              child: Text('Hidden from guests', style: context.eosText.labelSmall?.copyWith(color: EosColors.warning)),
             ),
           SizedBox(height: context.eos.spacing.xs),
           Text(post.message, style: context.eosText.bodyMedium),

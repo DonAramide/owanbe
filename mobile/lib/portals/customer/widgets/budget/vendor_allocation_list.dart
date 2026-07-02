@@ -2,19 +2,21 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/utils/money.dart';
 import '../../../../eos/eos.dart';
-import '../../../../features/organizer/models/organizer_models.dart';
 import '../../models/budget_dashboard_models.dart';
+import '../../models/customer_event_models.dart';
 
 class VendorAllocationList extends StatelessWidget {
   const VendorAllocationList({super.key, required this.vendors});
 
   final List<VendorBudgetAllocation> vendors;
 
-  Color _statusColor(VendorSlotStatus status) => switch (status) {
-        VendorSlotStatus.approved => EosColors.success,
-        VendorSlotStatus.pending || VendorSlotStatus.invited => EosColors.warning,
-        VendorSlotStatus.rejected || VendorSlotStatus.suspended => EosColors.critical,
+  Color _statusColor(CustomerVendorSlotStatus status) => switch (status) {
+        CustomerVendorSlotStatus.approved => EosColors.success,
+        CustomerVendorSlotStatus.pending || CustomerVendorSlotStatus.invited => EosColors.warning,
+        CustomerVendorSlotStatus.rejected || CustomerVendorSlotStatus.suspended => EosColors.critical,
       };
+
+  String _vendorSlotStatusLabel(CustomerVendorSlotStatus status) => status.name;
 
   @override
   Widget build(BuildContext context) {
@@ -93,7 +95,7 @@ class VendorAllocationList extends StatelessWidget {
                       borderRadius: EosRadius.chip,
                     ),
                     child: Text(
-                      vendorSlotStatusLabel(vendor.status),
+                      _vendorSlotStatusLabel(vendor.status),
                       style: context.eosText.labelSmall?.copyWith(
                         color: _statusColor(vendor.status),
                         fontWeight: FontWeight.w700,

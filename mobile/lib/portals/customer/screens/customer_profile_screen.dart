@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../navigation/event_navigator.dart';
+
 import '../../../auth/auth_notifier.dart';
 import '../../../eos/eos.dart';
 import '../widgets/section_header.dart';
@@ -41,20 +43,20 @@ class CustomerProfileScreen extends ConsumerWidget {
             leading: const Icon(Icons.confirmation_number_outlined),
             title: const Text('My tickets'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push('/attendee'),
+            onTap: () => context.eventNav.openAttendeeDashboard(),
           ),
           ListTile(
             leading: const Icon(Icons.explore_outlined),
             title: const Text('Discover events'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push('/events'),
+            onTap: () => context.eventNav.openDiscover(),
           ),
           ListTile(
             leading: const Icon(Icons.logout),
             title: const Text('Sign out'),
             onTap: () async {
               await ref.read(authSessionProvider.notifier).signOut();
-              if (context.mounted) context.go('/');
+              if (context.mounted) context.eventNav.goLanding();
             },
           ),
         ],

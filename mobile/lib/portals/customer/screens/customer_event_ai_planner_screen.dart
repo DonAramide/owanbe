@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../eos/eos.dart';
 import '../models/ai_planner_models.dart';
 import '../providers/customer_ai_planner_providers.dart';
-import '../router/customer_routes.dart';
+import '../navigation/event_navigator.dart';
 import '../widgets/ai_planner/planner_budget_allocation.dart';
 import '../widgets/ai_planner/planner_checklist.dart';
 import '../widgets/ai_planner/planner_hero_banner.dart';
@@ -14,7 +14,9 @@ import '../widgets/ai_planner/planner_missing_requirements.dart';
 import '../widgets/ai_planner/planner_recommended_vendors.dart';
 import '../widgets/ai_planner/planner_rental_recommendations.dart';
 import '../widgets/ai_planner/planner_timeline.dart';
-import '../widgets/empty_state_card.dart';
+import '../workspace/event_module_scaffold.dart';
+import '../workspace/widgets/event_error_view.dart';
+import '../workspace/widgets/event_loading_skeleton.dart';
 import '../widgets/section_header.dart';
 
 /// AI Event Planner at `/events/:eventId/ai-planner`.
@@ -79,39 +81,31 @@ class _CustomerEventAiPlannerScreenState extends ConsumerState<CustomerEventAiPl
     final plan = ref.watch(aiPlannerPlanProvider(widget.eventId));
     final generated = ref.watch(aiPlannerGeneratedProvider(widget.eventId));
 
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go(CustomerRoutes.eventDetail(widget.eventId));
-            }
-          },
-        ),
-        title: const Text('AI Event Planner'),
-        actions: [
-          if (generated)
-            IconButton(
-              tooltip: 'Regenerate',
-              onPressed: _generating ? null : _generate,
-              icon: const Icon(Icons.refresh),
-            ),
-        ],
-      ),
+    return EventModuleScaffold(
+      eventId: widget.eventId,
+      title: 'AI Event Planner',
+      subtitle: 'Smart planning for your celebration',
+      actions: [
+        if (generated)
+          IconButton(
+            tooltip: 'Regenerate',
+            onPressed: _generating ? null : _generate,
+            icon: const Icon(Icons.refresh),
+          ),
+      ],
       body: contextAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => ListView(
-          padding: EdgeInsets.all(context.eos.spacing.lg),
+        loading: () => const EventLoadingSkeleton(),
+        error: (_, _) => ListView(
+          padding: EosSpacing.pagePadding,
           children: [
-            EmptyStateCard(
-              title: 'Could not load event',
-              message: error.toString(),
-              actionLabel: 'Back to event',
-              onAction: () => context.go(CustomerRoutes.eventDetail(widget.eventId)),
+            EventErrorView.module(
+              moduleLabel: 'AI planner',
+              onRetry: () {
+                resetAiPlanner(ref, widget.eventId);
+                _initialized = false;
+                ref.invalidate(aiPlannerEventContextProvider(widget.eventId));
+              },
+              onBackToOverview: () => context.eventNav.backToOverview(widget.eventId),
             ),
           ],
         ),
@@ -124,21 +118,20 @@ class _CustomerEventAiPlannerScreenState extends ConsumerState<CustomerEventAiPl
 
           final currentInputs = inputs ?? defaults;
 
-          return RefreshIndicator(
+          return EventModuleScrollBody(
             onRefresh: () async {
               resetAiPlanner(ref, widget.eventId);
               _initialized = false;
               ref.invalidate(aiPlannerEventContextProvider(widget.eventId));
               await ref.read(aiPlannerEventContextProvider(widget.eventId).future);
             },
-            child: ListView(
-              padding: EdgeInsets.all(context.eos.spacing.lg),
+            hero: SectionHeader(
+              title: ctx.event.title,
+              subtitle: 'Smart planning for your celebration',
+            ),
+            content: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                SectionHeader(
-                  title: ctx.event.title,
-                  subtitle: 'Smart planning for your celebration',
-                ),
-                SizedBox(height: context.eos.spacing.md),
                 PlannerHeroBanner(
                   readinessScore: plan?.readinessScore ?? 0,
                   summary: plan?.summary ?? '',
@@ -175,48 +168,47 @@ class _CustomerEventAiPlannerScreenState extends ConsumerState<CustomerEventAiPl
                 ),
                 if (generated && plan != null) ...[
                   SizedBox(height: context.eos.spacing.lg),
-                  const SectionHeader(
+                  EosSection(
                     title: 'Missing requirements',
                     subtitle: 'Gaps to close before the big day.',
+                    child: PlannerMissingRequirements(items: plan.missingRequirements, eventId: widget.eventId),
                   ),
-                  PlannerMissingRequirements(items: plan.missingRequirements, eventId: widget.eventId),
-                  SizedBox(height: context.eos.spacing.lg),
-                  const SectionHeader(
+                  EosSection(
                     title: 'Recommended vendors',
                     subtitle: 'Matched to your event type and location.',
+                    child: PlannerRecommendedVendors(vendors: plan.recommendedVendors),
                   ),
-                  PlannerRecommendedVendors(vendors: plan.recommendedVendors),
-                  SizedBox(height: context.eos.spacing.lg),
-                  const SectionHeader(
+                  EosSection(
                     title: 'Rental equipment',
                     subtitle: 'Suggested quantities from guest count, event type, and venue.',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        PlannerRentalRecommendations(items: plan.rentalRecommendations),
+                        SizedBox(height: context.eos.spacing.sm),
+                        OutlinedButton.icon(
+                          onPressed: () => context.eventNav.openRentals(widget.eventId),
+                          icon: const Icon(Icons.inventory_2_outlined),
+                          label: const Text('Open equipment & rentals'),
+                        ),
+                      ],
+                    ),
                   ),
-                  PlannerRentalRecommendations(items: plan.rentalRecommendations),
-                  SizedBox(height: context.eos.spacing.sm),
-                  OutlinedButton.icon(
-                    onPressed: () => context.push(CustomerRoutes.eventRentals(widget.eventId)),
-                    icon: const Icon(Icons.inventory_2_outlined),
-                    label: const Text('Open equipment & rentals'),
-                  ),
-                  SizedBox(height: context.eos.spacing.lg),
-                  const SectionHeader(
+                  EosSection(
                     title: 'Budget allocation',
                     subtitle: 'Suggested split across celebration categories.',
+                    child: PlannerBudgetAllocation(slices: plan.budgetSlices),
                   ),
-                  PlannerBudgetAllocation(slices: plan.budgetSlices),
-                  SizedBox(height: context.eos.spacing.lg),
-                  const SectionHeader(
+                  EosSection(
                     title: 'Planning checklist',
                     subtitle: 'Track what is done and what is next.',
+                    child: PlannerChecklist(items: plan.checklist),
                   ),
-                  PlannerChecklist(items: plan.checklist),
-                  SizedBox(height: context.eos.spacing.lg),
-                  const SectionHeader(
+                  EosSection(
                     title: 'Timeline',
                     subtitle: 'Milestones counting down to your event.',
+                    child: PlannerTimeline(items: plan.timeline),
                   ),
-                  PlannerTimeline(items: plan.timeline),
-                  SizedBox(height: context.eos.spacing.xl),
                 ],
               ],
             ),

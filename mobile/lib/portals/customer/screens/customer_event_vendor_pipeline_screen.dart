@@ -3,10 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../eos/eos.dart';
+import '../navigation/event_navigator.dart';
 import '../models/vendor_crm_models.dart';
 import '../providers/vendor_crm_providers.dart';
-import '../widgets/empty_state_card.dart';
-import '../widgets/section_header.dart';
+import '../workspace/event_empty_states.dart';
+import '../workspace/event_module_scaffold.dart';
+import '../workspace/widgets/event_error_view.dart';
+import '../workspace/widgets/event_loading_skeleton.dart';
 import '../widgets/vendor_crm/vendor_stage_badge.dart';
 
 /// Vendor CRM pipeline at `/events/:eventId/vendor-pipeline`.
@@ -29,7 +32,11 @@ class _CustomerEventVendorPipelineScreenState extends ConsumerState<CustomerEven
       await ref.read(vendorCrmApiProvider).transitionStage(request.id, stage);
       refreshVendorCrm(ref);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not update vendor stage. Please try again.')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -39,44 +46,43 @@ class _CustomerEventVendorPipelineScreenState extends ConsumerState<CustomerEven
   Widget build(BuildContext context) {
     final crm = ref.watch(eventVendorCrmProvider(widget.eventId));
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.pop()),
-        title: const Text('Vendor pipeline'),
-      ),
+    return EventModuleScaffold(
+      eventId: widget.eventId,
+      title: 'Vendor pipeline',
+      subtitle: 'Requests through day-of arrival',
       body: crm.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => ListView(
-          padding: EdgeInsets.all(context.eos.spacing.lg),
-          children: [EmptyStateCard(title: 'Could not load vendor pipeline', message: '$e')],
+        loading: () => const EventLoadingSkeleton(),
+        error: (_, _) => ListView(
+          padding: EosSpacing.pagePadding,
+          children: [
+            EventErrorView.module(
+              moduleLabel: 'vendor pipeline',
+              onRetry: () {
+                refreshVendorCrm(ref);
+                ref.invalidate(eventVendorCrmProvider(widget.eventId));
+              },
+              onBackToOverview: () => context.eventNav.backToOverview(widget.eventId),
+            ),
+          ],
         ),
-        data: (snapshot) => RefreshIndicator(
+        data: (snapshot) => EventModuleScrollBody(
           onRefresh: () async {
             refreshVendorCrm(ref);
             await ref.read(eventVendorCrmProvider(widget.eventId).future);
           },
-          child: ListView(
-            padding: EdgeInsets.all(context.eos.spacing.lg),
-            children: [
-              const SectionHeader(
-                title: 'Pipeline',
-                subtitle: 'New request through completed service.',
-              ),
-              _PipelineStatsRow(stats: snapshot.stats),
-              SizedBox(height: context.eos.spacing.lg),
-              if (snapshot.items.isEmpty)
-                const EmptyStateCard(
-                  title: 'No vendor requests',
-                  message: 'Request vendors from the marketplace to start your pipeline.',
-                  icon: Icons.handshake_outlined,
+          primaryKpi: _PipelineStatsRow(stats: snapshot.stats),
+          content: snapshot.items.isEmpty
+              ? EventEmptyStates.vendors(
+                  onBrowse: () => context.eventNav.openMarketplace(),
                 )
-              else
-                ...snapshot.items.map((r) => _RequestCard(
-                      request: r,
-                      onStage: (s) => _transition(r, s),
-                    )),
-            ],
-          ),
+              : Column(
+                  children: [
+                    ...snapshot.items.map((r) => _RequestCard(
+                          request: r,
+                          onStage: (s) => _transition(r, s),
+                        )),
+                  ],
+                ),
         ),
       ),
     );

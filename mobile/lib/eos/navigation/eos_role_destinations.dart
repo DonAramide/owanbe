@@ -23,6 +23,7 @@ abstract final class EosRoleDestinations {
     EosNavDestination(label: 'Audit', icon: Icons.history_outlined),
     EosNavDestination(label: 'Analytics', icon: Icons.insights_outlined),
     EosNavDestination(label: 'Security', icon: Icons.security_outlined),
+    EosNavDestination(label: 'Platform Admin', icon: Icons.admin_panel_settings_outlined),
   ];
 
   static const adminFinance = [

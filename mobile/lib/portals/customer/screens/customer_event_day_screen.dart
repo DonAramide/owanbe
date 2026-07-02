@@ -5,11 +5,12 @@ import 'package:go_router/go_router.dart';
 import '../../../eos/eos.dart';
 import '../providers/customer_event_command_providers.dart';
 import '../providers/program_providers.dart';
-import '../router/customer_routes.dart';
+import '../navigation/event_navigator.dart';
 import '../widgets/celebration_hero.dart';
-import '../widgets/empty_state_card.dart';
+import '../workspace/event_module_scaffold.dart';
+import '../workspace/widgets/event_error_view.dart';
+import '../workspace/widgets/event_loading_skeleton.dart';
 import '../widgets/program/program_day_widget.dart';
-import '../widgets/section_header.dart';
 import '../models/home_hub_models.dart';
 
 /// Live operations hub at `/events/:eventId/day`.
@@ -23,112 +24,117 @@ class CustomerEventDayScreen extends ConsumerWidget {
     final snapshot = ref.watch(customerEventCommandProvider(eventId));
     final program = ref.watch(eventProgramProvider(eventId));
 
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: EosColors.plum,
-        foregroundColor: Colors.white,
-        title: const Text('Event day'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
-        ),
-      ),
+    return EventModuleScaffold(
+      eventId: eventId,
+      title: 'Event day',
+      subtitle: 'Live operations hub',
       body: snapshot.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => ListView(
-          padding: EdgeInsets.all(context.eos.spacing.lg),
+        loading: () => const EventLoadingSkeleton(),
+        error: (_, _) => ListView(
+          padding: EosSpacing.pagePadding,
           children: [
-            EmptyStateCard(
-              title: 'Could not load event day',
-              message: e.toString(),
-              actionLabel: 'Back',
-              onAction: () => context.go(CustomerRoutes.eventDetail(eventId)),
+            EventErrorView.module(
+              moduleLabel: 'event day',
+              onRetry: () {
+                ref.invalidate(customerEventCommandProvider(eventId));
+              },
+              onBackToOverview: () => context.eventNav.backToOverview(eventId),
             ),
           ],
         ),
         data: (data) {
           final event = data.event;
-          return ListView(
-            padding: EdgeInsets.all(context.eos.spacing.lg),
-            children: [
-              CelebrationHero(
-                title: event.title,
-                subtitle: 'Live now · ${formatEventDate(event.startsAt)}',
-                countdownLabel: formatCountdown(event.startsAt, DateTime.now()),
+          return EventModuleScrollBody(
+            hero: CelebrationHero(
+              title: event.title,
+              subtitle: 'Live now · ${formatEventDate(event.startsAt)}',
+              countdownLabel: formatCountdown(event.startsAt, DateTime.now()),
+            ),
+            primaryKpi: program.when(
+              loading: () => const SizedBox.shrink(),
+              error: (_, __) => const SizedBox.shrink(),
+              data: (p) => ProgramDayWidget(
+                day: p.day,
+                onOpenProgram: () => context.eventNav.openProgram(eventId),
               ),
-              SizedBox(height: context.eos.spacing.lg),
-              program.when(
-                loading: () => const SizedBox.shrink(),
-                error: (_, __) => const SizedBox.shrink(),
-                data: (p) => ProgramDayWidget(
-                  day: p.day,
-                  onOpenProgram: () => context.push(CustomerRoutes.eventProgram(eventId)),
+            ),
+            content: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                EosSection(
+                  title: 'Guest check-ins',
+                  subtitle: 'Who has arrived',
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _DayStat(label: 'Invited', value: '${data.guestInvited}'),
+                      _DayStat(label: 'RSVP', value: '${data.guestRsvp}'),
+                      _DayStat(label: 'Checked in', value: '${data.guestCheckedIn}'),
+                    ],
+                  ),
                 ),
-              ),
-              SizedBox(height: context.eos.spacing.lg),
-              const SectionHeader(title: 'Guest check-ins', subtitle: 'Who has arrived'),
-              EosSurfaceCard(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _DayStat(label: 'Invited', value: '${data.guestInvited}'),
-                    _DayStat(label: 'RSVP', value: '${data.guestRsvp}'),
-                    _DayStat(label: 'Checked in', value: '${data.guestCheckedIn}'),
-                  ],
+                EosSection(
+                  title: 'Vendor arrivals',
+                  subtitle: 'On-site status',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.storefront_outlined),
+                    title: Text('${data.vendorAccepted} vendors confirmed'),
+                    subtitle: Text('${data.vendorCompleted} completed setup'),
+                  ),
                 ),
-              ),
-              SizedBox(height: context.eos.spacing.lg),
-              const SectionHeader(title: 'Vendor arrivals', subtitle: 'On-site status'),
-              EosSurfaceCard(
-                child: Column(
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.storefront_outlined),
-                      title: Text('${data.vendorAccepted} vendors confirmed'),
-                      subtitle: Text('${data.vendorCompleted} completed setup'),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: context.eos.spacing.lg),
-              const SectionHeader(title: 'Celebration wall', subtitle: 'Large-screen display for the venue'),
-              EosSurfaceCard(
-                onTap: () => context.push(CustomerRoutes.eventWallDisplay(eventId)),
-                child: ListTile(
-                  leading: const Icon(Icons.tv_outlined, color: EosColors.plum),
-                  title: const Text('Open wall display'),
-                  subtitle: const Text('Show guest messages on a projector or TV'),
-                  trailing: const Icon(Icons.chevron_right),
-                ),
-              ),
-              SizedBox(height: context.eos.spacing.lg),
-              const SectionHeader(title: 'Live timeline', subtitle: 'Operations feed'),
-              ...data.feed.take(8).map(
-                    (f) => ListTile(
-                      leading: const Icon(Icons.bolt_outlined, color: EosColors.plum),
-                      title: Text(f.headline),
-                      subtitle: Text(f.detail),
+                EosSection(
+                  title: 'Celebration wall',
+                  subtitle: 'Large-screen display for the venue',
+                  child: EosSurfaceCard(
+                    onTap: () => context.eventNav.openWallDisplay(eventId),
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.tv_outlined, color: EosColors.plum),
+                      title: const Text('Open wall display'),
+                      subtitle: const Text('Show guest messages on a projector or TV'),
+                      trailing: const Icon(Icons.chevron_right),
                     ),
                   ),
-              SizedBox(height: context.eos.spacing.lg),
-              const SectionHeader(title: 'Emergency', subtitle: 'Key contacts'),
-              EosSurfaceCard(
-                child: Column(
-                  children: const [
-                    ListTile(
-                      leading: Icon(Icons.phone_in_talk_outlined),
-                      title: Text('Event coordinator'),
-                      subtitle: Text('+234 800 OWANBE'),
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.local_hospital_outlined),
-                      title: Text('Venue security'),
-                      subtitle: Text('Dial from venue desk'),
-                    ),
-                  ],
                 ),
-              ),
-            ],
+                EosSection(
+                  title: 'Emergency',
+                  subtitle: 'Key contacts',
+                  child: Column(
+                    children: const [
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.phone_in_talk_outlined),
+                        title: Text('Event coordinator'),
+                        subtitle: Text('+234 800 OWANBE'),
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.local_hospital_outlined),
+                        title: Text('Venue security'),
+                        subtitle: Text('Dial from venue desk'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            activity: data.feed.isEmpty
+                ? null
+                : EosSection(
+                    title: 'Live timeline',
+                    subtitle: 'Operations feed',
+                    child: Column(
+                      children: data.feed.take(8).map(
+                            (f) => ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(Icons.bolt_outlined, color: EosColors.plum),
+                              title: Text(f.headline),
+                              subtitle: Text(f.detail),
+                            ),
+                          ).toList(),
+                    ),
+                  ),
           );
         },
       ),

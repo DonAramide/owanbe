@@ -6,8 +6,11 @@ import 'package:go_router/go_router.dart';
 import '../../../eos/eos.dart';
 import '../models/event_website_models.dart';
 import '../providers/event_website_providers.dart';
-import '../router/customer_routes.dart';
-import '../widgets/empty_state_card.dart';
+import '../navigation/event_navigator.dart';
+import '../workspace/event_module_scaffold.dart';
+import '../workspace/widgets/event_error_view.dart';
+import '../workspace/widgets/event_friendly_errors.dart';
+import '../workspace/widgets/event_loading_skeleton.dart';
 import '../widgets/section_header.dart';
 import '../widgets/website/event_website_preview_frame.dart';
 
@@ -34,7 +37,9 @@ class _CustomerEventWebsiteScreenState extends ConsumerState<CustomerEventWebsit
       refreshEventWebsite(ref);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(EventFriendlyErrors.actionFailedMessage)),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -55,7 +60,9 @@ class _CustomerEventWebsiteScreenState extends ConsumerState<CustomerEventWebsit
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(EventFriendlyErrors.actionFailedMessage)),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -70,7 +77,9 @@ class _CustomerEventWebsiteScreenState extends ConsumerState<CustomerEventWebsit
       refreshEventWebsite(ref);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(EventFriendlyErrors.actionFailedMessage)),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -86,38 +95,23 @@ class _CustomerEventWebsiteScreenState extends ConsumerState<CustomerEventWebsit
   Widget build(BuildContext context) {
     final website = ref.watch(eventWebsiteProvider(widget.eventId));
 
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go(CustomerRoutes.eventDetail(widget.eventId));
-            }
-          },
-        ),
-        title: const Text('Event website'),
-        actions: [
-          if (_busy)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-            ),
-        ],
-      ),
+    return EventModuleScaffold(
+      eventId: widget.eventId,
+      title: 'Event website',
+      subtitle: 'Public microsite for your celebration',
+      busy: _busy,
       body: website.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => ListView(
-          padding: EdgeInsets.all(context.eos.spacing.lg),
+        loading: () => const EventLoadingSkeleton(),
+        error: (_, _) => ListView(
+          padding: EosSpacing.pagePadding,
           children: [
-            EmptyStateCard(
-              title: 'Could not load website',
-              message: error.toString(),
-              actionLabel: 'Back to event',
-              onAction: () => context.go(CustomerRoutes.eventDetail(widget.eventId)),
+            EventErrorView.module(
+              moduleLabel: 'website',
+              onRetry: () {
+                refreshEventWebsite(ref);
+                ref.invalidate(eventWebsiteProvider(widget.eventId));
+              },
+              onBackToOverview: () => context.eventNav.backToOverview(widget.eventId),
             ),
           ],
         ),

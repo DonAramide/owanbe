@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../../../../eos/eos.dart';
-import '../../../../features/organizer/models/organizer_models.dart';
+import '../../models/customer_event_models.dart';
 import '../../models/home_hub_models.dart';
 import '../../models/invitation_template_models.dart';
 
@@ -18,7 +18,7 @@ class InvitationCardRenderer extends StatelessWidget {
   });
 
   final InvitationTemplate template;
-  final OrganizerEvent event;
+  final CustomerEvent event;
   final bool compact;
   final bool showMotionBadge;
 
@@ -109,7 +109,7 @@ class _TopHeroLayout extends StatelessWidget {
   });
 
   final InvitationTemplate template;
-  final OrganizerEvent event;
+  final CustomerEvent event;
   final String location;
   final bool compact;
 
@@ -172,7 +172,7 @@ class _CircleInsetLayout extends StatelessWidget {
   });
 
   final InvitationTemplate template;
-  final OrganizerEvent event;
+  final CustomerEvent event;
   final String location;
   final bool compact;
 
@@ -239,7 +239,7 @@ class _FullBleedLayout extends StatelessWidget {
   });
 
   final InvitationTemplate template;
-  final OrganizerEvent event;
+  final CustomerEvent event;
   final String location;
   final bool compact;
 
@@ -309,7 +309,7 @@ class _FloralFrameLayout extends StatelessWidget {
   });
 
   final InvitationTemplate template;
-  final OrganizerEvent event;
+  final CustomerEvent event;
   final String location;
   final bool compact;
 
@@ -387,7 +387,7 @@ class _SplitPortraitLayout extends StatelessWidget {
   });
 
   final InvitationTemplate template;
-  final OrganizerEvent event;
+  final CustomerEvent event;
   final String location;
   final bool compact;
 
@@ -430,7 +430,7 @@ class _GradientLayout extends StatelessWidget {
   });
 
   final InvitationTemplate template;
-  final OrganizerEvent event;
+  final CustomerEvent event;
   final String location;
   final bool compact;
 
@@ -484,7 +484,7 @@ class _InviteTextBlock extends StatelessWidget {
     this.textColor,
   });
 
-  final OrganizerEvent event;
+  final CustomerEvent event;
   final String location;
   final Color accent;
   final bool compact;
@@ -554,7 +554,7 @@ class _InviteTextBlock extends StatelessWidget {
 class CelebrantPhoto extends StatelessWidget {
   const CelebrantPhoto({super.key, required this.event, this.fit = BoxFit.cover});
 
-  final OrganizerEvent event;
+  final CustomerEvent event;
   final BoxFit fit;
 
   @override
@@ -596,7 +596,7 @@ class _CelebrantImage extends StatelessWidget {
 class _PhotoPlaceholder extends StatelessWidget {
   const _PhotoPlaceholder({this.event});
 
-  final OrganizerEvent? event;
+  final CustomerEvent? event;
 
   @override
   Widget build(BuildContext context) {

@@ -23,7 +23,7 @@ class VendorHomeScreen extends ConsumerWidget {
     final profile = ref.watch(vendorProfileProvider);
 
     return EosAppShell(
-      brandLabel: 'Owanbe',
+      brandLabel: 'Owambe',
       brandSubtitle: 'Vendor Portal',
       destinations: EosRoleDestinations.vendor,
       selectedIndex: tab,

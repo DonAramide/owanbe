@@ -3,20 +3,20 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
-import '../../../core/api/owanbe_api_auth.dart';
+import '../../../core/api/owambe_api_auth.dart';
 import '../models/event_website_models.dart';
 
 class EventWebsiteApi {
   EventWebsiteApi({http.Client? client}) : _http = client ?? http.Client();
   final http.Client _http;
 
-  String get _base => OwanbeApiAuth.resolveApiBase();
-  String get _tenantId => OwanbeApiAuth.resolveTenantId();
+  String get _base => OwambeApiAuth.resolveApiBase();
+  String get _tenantId => OwambeApiAuth.resolveTenantId();
 
   Future<EventWebsiteConfig> fetch(String eventId) async {
     final res = await _http.get(
       Uri.parse('$_base/events/$eventId/website'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     return EventWebsiteConfig.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -25,7 +25,7 @@ class EventWebsiteApi {
   Future<EventWebsiteConfig> patch(String eventId, Map<String, dynamic> body) async {
     final res = await _http.patch(
       Uri.parse('$_base/events/$eventId/website'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode(body),
     );
     if (res.statusCode >= 400) _throw(res);
@@ -35,7 +35,7 @@ class EventWebsiteApi {
   Future<EventWebsiteConfig> publish(String eventId) async {
     final res = await _http.post(
       Uri.parse('$_base/events/$eventId/website/publish'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     return EventWebsiteConfig.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -44,7 +44,7 @@ class EventWebsiteApi {
   Future<EventWebsiteConfig> unpublish(String eventId) async {
     final res = await _http.post(
       Uri.parse('$_base/events/$eventId/website/unpublish'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     return EventWebsiteConfig.fromJson(jsonDecode(res.body) as Map<String, dynamic>);

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../auth/auth_notifier.dart';
 import '../../../eos/eos.dart';
-import '../../../eos/widgets/owanbe_logo.dart';
+import '../navigation/event_navigator.dart';
+import '../../../eos/widgets/owambe_logo.dart';
 import 'customer_nav_destinations.dart';
 
 /// Customer Portal shell — mobile bottom nav, tablet/desktop rail, route persistence.
@@ -14,7 +17,7 @@ class CustomerShell extends StatelessWidget {
 
   final StatefulNavigationShell navigationShell;
 
-  static const brandLabel = 'Owanbe';
+  static const brandLabel = 'Owambe';
   static const brandSubtitle = 'Plan. Invite. Celebrate.';
 
   void _onDestinationSelected(int index) {
@@ -44,7 +47,7 @@ class CustomerShell extends StatelessWidget {
   }
 }
 
-class _CustomerTopBar extends StatelessWidget {
+class _CustomerTopBar extends ConsumerWidget {
   const _CustomerTopBar({
     required this.title,
     required this.subtitle,
@@ -54,9 +57,14 @@ class _CustomerTopBar extends StatelessWidget {
   final String subtitle;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final session = ref.watch(authSessionProvider);
+    final scheme = Theme.of(context).colorScheme;
+    final firstName = (session?.displayName ?? '').trim().split(RegExp(r'\s+')).first;
+    final initial = firstName.isNotEmpty ? firstName[0].toUpperCase() : 'O';
+
     return Material(
-      color: EosColors.surface,
+      color: scheme.surface,
       elevation: 0,
       child: Container(
         decoration: BoxDecoration(
@@ -74,7 +82,7 @@ class _CustomerTopBar extends StatelessWidget {
           bottom: false,
           child: Row(
             children: [
-              const OwanbeLogo(size: 28),
+              const OwambeLogo(size: 28),
               SizedBox(width: context.eos.spacing.sm),
               Expanded(
                 child: Column(
@@ -88,7 +96,24 @@ class _CustomerTopBar extends StatelessWidget {
               IconButton(
                 tooltip: 'Discover events',
                 icon: const Icon(Icons.explore_outlined),
-                onPressed: () => context.push('/events'),
+                onPressed: () => context.eventNav.openDiscover(),
+              ),
+              GestureDetector(
+                onTap: () => context.eventNav.goProfile(),
+                child: Tooltip(
+                  message: session?.displayName ?? 'My profile',
+                  child: CircleAvatar(
+                    radius: 17,
+                    backgroundColor: EosColors.plum,
+                    child: Text(
+                      initial,
+                      style: context.eosText.labelMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ],
           ),

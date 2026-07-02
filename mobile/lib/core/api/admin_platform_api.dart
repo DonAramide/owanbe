@@ -2,14 +2,19 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-import 'owanbe_api_auth.dart';
+import 'owambe_api_auth.dart';
 
 class AdminPlatformApiException implements Exception {
   AdminPlatformApiException({required this.code, required this.message});
   final String code;
   final String message;
   @override
-  String toString() => 'AdminPlatformApiException($code): $message';
+  String toString() {
+    if (code.toUpperCase() == 'INTERNAL' || message.toLowerCase().contains('internal server error')) {
+      return 'Internal Server Error';
+    }
+    return message;
+  }
 }
 
 class AdminPlatformApi {
@@ -19,11 +24,11 @@ class AdminPlatformApi {
   static const devTenantId = '11111111-1111-4111-8111-111111111111';
   static const devAdminUserId = '77777777-7777-4777-8777-777777777777';
 
-  String get _base => OwanbeApiAuth.resolveApiBase();
+  String get _base => OwambeApiAuth.resolveApiBase();
 
-  String get _tenantId => OwanbeApiAuth.resolveTenantId(devTenantId);
+  String get _tenantId => OwambeApiAuth.resolveTenantId(devTenantId);
 
-  Future<Map<String, String>> _headers() => OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId);
+  Future<Map<String, String>> _headers() => OwambeApiAuth.authorizedHeaders(tenantId: _tenantId);
 
   Uri _u(String path, [Map<String, String>? query]) {
     final p = path.startsWith('/') ? path.substring(1) : path;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../eos/eos.dart';
+import '../../workspace/widgets/event_friendly_errors.dart';
 import '../../data/customer_guest_persistence.dart';
 import '../../services/contact_import_service.dart';
 
@@ -59,7 +60,9 @@ class _ImportContactsSheetState extends ConsumerState<ImportContactsSheet> {
       Navigator.pop(context, contacts.length);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(EventFriendlyErrors.actionFailedMessage)),
+      );
     } finally {
       if (mounted) setState(() => _importing = false);
     }

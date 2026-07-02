@@ -1,4 +1,4 @@
-/// Owanbe Event Operating System (EOS) — foundational UI architecture.
+/// Owambe Event Operating System (EOS) — foundational UI architecture.
 ///
 /// Every feature module should import from this library and compose EOS primitives
 /// instead of ad-hoc Material widgets.
@@ -22,6 +22,7 @@ export 'tokens/eos_tokens.dart';
 export 'tokens/eos_typography.dart';
 export 'widgets/analytics/eos_chart_legend.dart';
 export 'widgets/analytics/eos_sparkline.dart';
+export 'widgets/analytics/eos_time_series_chart.dart';
 export 'widgets/analytics/eos_trend_badge.dart';
 export 'widgets/attendees/eos_attendee_chip.dart';
 export 'widgets/attendees/eos_checkin_status.dart';
@@ -35,6 +36,7 @@ export 'widgets/financial/eos_money_text.dart';
 export 'widgets/forms/eos_search_field.dart';
 export 'widgets/forms/eos_select_field.dart';
 export 'widgets/forms/eos_text_field.dart';
+export 'widgets/forms/searchable_selector.dart';
 export 'widgets/monitoring/eos_feed_item.dart';
 export 'widgets/monitoring/eos_live_indicator.dart';
 export 'widgets/monitoring/eos_status_pulse.dart';

@@ -1,7 +1,7 @@
 import '../data/app_database.dart';
 
-/// Outbox [OutboxActions.actionType] values understood by [OwanbeRestOutboxTransport].
-abstract final class OwanbeOutboxActionKinds {
+/// Outbox [OutboxActions.actionType] values understood by [OwambeRestOutboxTransport].
+abstract final class OwambeOutboxActionKinds {
   /// POST `/bookings` — [OutboxActions.payloadJson] is the raw JSON request body.
   static const bookingCreate = 'owanbe.booking.create';
 
@@ -43,7 +43,7 @@ class OutboxDeliveryResult {
   final int? httpStatus;
 }
 
-/// Sends one durable outbox mutation to the Owanbe API (or another backend).
+/// Sends one durable outbox mutation to the Owambe API (or another backend).
 abstract class OutboxTransport {
   Future<OutboxDeliveryResult> send(OutboxActionRow row);
 }

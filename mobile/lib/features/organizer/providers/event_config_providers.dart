@@ -1,10 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
 
 import '../../../core/api/event_config_api.dart';
+import '../../../core/api/owambe_http_client.dart';
 import '../../../core/api/persistence_providers.dart';
 
-final eventConfigApiProvider = Provider<EventConfigApi>((ref) => EventConfigApi(http.Client()));
+final eventConfigApiProvider = Provider<EventConfigApi>((ref) => EventConfigApi(createOwambeHttpClient()));
 
 final eventCategoriesProvider = FutureProvider.autoDispose<List<EventCategoryConfig>>((ref) async {
   try {

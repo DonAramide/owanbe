@@ -8,7 +8,10 @@ export class RequestLogMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
     const start = Date.now();
     const requestId = req.requestId ?? 'unknown';
-    const tenantId = (req.headers['x-tenant-id'] as string | undefined) ?? undefined;
+    const tenantId =
+      (req as Request & { tenantId?: string }).tenantId ??
+      (req.headers['x-tenant-id'] as string | undefined) ??
+      undefined;
     const userId = (req as Request & { user?: { userId?: string } }).user?.userId;
 
     res.on('finish', () => {

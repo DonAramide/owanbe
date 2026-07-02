@@ -256,7 +256,7 @@ class _CheckoutBody extends StatelessWidget {
         ),
         SizedBox(height: context.eos.spacing.sm),
         Text(
-          'Real ticket commerce — payment captured via Owanbe API.',
+          'Real ticket commerce — payment captured via Owambe API.',
           style: context.eosText.bodySmall,
         ),
       ],

@@ -1,14 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../eos/eos.dart';
-import '../../../portals/customer/models/vendor_crm_models.dart';
-import '../../../portals/customer/providers/vendor_crm_providers.dart';
-import '../../../portals/customer/widgets/vendor_crm/vendor_stage_badge.dart';
-import '../providers/vendor_providers.dart';
+import '../providers/vendor_intelligence_engine.dart';
 
-/// Vendor CRM inbox at `/vendor/crm`.
 class VendorCrmScreen extends ConsumerStatefulWidget {
   const VendorCrmScreen({super.key});
 
@@ -16,174 +11,206 @@ class VendorCrmScreen extends ConsumerStatefulWidget {
   ConsumerState<VendorCrmScreen> createState() => _VendorCrmScreenState();
 }
 
-class _VendorCrmScreenState extends ConsumerState<VendorCrmScreen> {
-  bool _saving = false;
+class _VendorCrmScreenState extends ConsumerState<VendorCrmScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final TextEditingController _noteController = TextEditingController();
 
-  Future<void> _transition(VendorRequest request, String stage) async {
-    if (_saving) return;
-    setState(() => _saving = true);
-    try {
-      await ref.read(vendorCrmApiProvider).transitionStage(request.id, stage);
-      refreshVendorCrm(ref);
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
+  final List<Map<String, dynamic>> _mockLeads = [
+    {
+      'id': 'lead_01',
+      'name': 'Chika Daniel',
+      'budgetMinor': 95000000,
+      'service': 'Catering & Service Staff',
+      'status': 'Hot Lead',
+    },
+    {
+      'id': 'lead_02',
+      'name': 'Bayo Coker',
+      'budgetMinor': 45000000,
+      'service': 'Sound system & DJ rig',
+      'status': 'Cold Lead',
+    },
+  ];
+
+  final List<String> _crmNotes = [
+    'Called Segun to follow up on the menu adjustments.',
+    'Amina requested custom lighting specifications.',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final profile = ref.watch(vendorProfileProvider);
-    final inbox = ref.watch(vendorInboxProvider(profile.id));
+    final intel = ref.watch(vendorIntelligenceProvider);
 
-    return EosPageScaffold(
-      title: 'Requests & pipeline',
-      subtitle: profile.businessName,
-      actions: [
-        IconButton(
-          tooltip: 'Calendar',
-          icon: const Icon(Icons.calendar_month_outlined),
-          onPressed: () => context.push('/vendor/calendar'),
+    return Theme(
+      data: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: const Color(0xFF1A1333),
+        cardColor: const Color(0xFF241B3F),
+      ),
+      child: Scaffold(
+        backgroundColor: const Color(0xFF1A1333),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text('Organizer CRM Workspace', style: context.eosText.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+          bottom: TabBar(
+            controller: _tabController,
+            indicatorColor: EosColors.champagne,
+            labelColor: EosColors.champagne,
+            unselectedLabelColor: Colors.white60,
+            tabs: const [
+              Tab(text: 'Clients Segment'),
+              Tab(text: 'Leads & Pipeline'),
+              Tab(text: 'Notes & Follow-ups'),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          controller: _tabController,
+          children: [
+            _buildClientsTab(intel),
+            _buildLeadsTab(),
+            _buildNotesTab(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClientsTab(IntelligenceState state) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const Text('ORGANIZER PROFILES & SEGMENTS', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        for (final c in state.crmClients)
+          Card(
+            color: const Color(0xFF241B3F),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.white10)),
+            margin: const EdgeInsets.only(bottom: 12),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(c.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white)),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: c.segment == 'VIP'
+                              ? Colors.purple.withOpacity(0.2)
+                              : c.segment == 'Returning'
+                                  ? Colors.green.withOpacity(0.2)
+                                  : Colors.red.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          c.segment,
+                          style: TextStyle(
+                            color: c.segment == 'VIP'
+                                ? Colors.purpleAccent
+                                : c.segment == 'Returning'
+                                    ? Colors.greenAccent
+                                    : Colors.redAccent,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text('Lifetime Spend: ₦${(c.lifetimeSpendMinor / 100).toStringAsFixed(0)}', style: const TextStyle(color: Colors.white70)),
+                  const SizedBox(height: 2),
+                  Text('Events Booked: ${c.eventsBooked}', style: const TextStyle(color: Colors.white70)),
+                  const SizedBox(height: 8),
+                  Text('Latest Review: "${c.latestReview}"', style: const TextStyle(color: Colors.white60, fontSize: 11, fontStyle: FontStyle.italic)),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildLeadsTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const Text('INCOMING LEADS PIPELINE', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        for (final l in _mockLeads)
+          Card(
+            color: const Color(0xFF241B3F),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.white10)),
+            child: ListTile(
+              title: Text(l['name'] as String, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+              subtitle: Text('Budget: ₦${((l['budgetMinor'] as int) / 100).toStringAsFixed(0)} • Service: ${l['service']}', style: const TextStyle(color: Colors.white70)),
+              trailing: Text(l['status'] as String, style: const TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold, fontSize: 12)),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildNotesTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const Text('CRM NOTES & TIMELINE FOLLOW-UPS', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        for (final note in _crmNotes)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: Row(
+              children: [
+                const Icon(Icons.note_alt_outlined, color: EosColors.champagne, size: 16),
+                const SizedBox(width: 8),
+                Expanded(child: Text(note, style: const TextStyle(color: Colors.white70))),
+              ],
+            ),
+          ),
+        const SizedBox(height: 24),
+        TextField(
+          controller: _noteController,
+          decoration: const InputDecoration(
+            hintText: 'Add new client follow-up note...',
+            fillColor: Colors.white10,
+            filled: true,
+          ),
+          style: const TextStyle(color: Colors.white),
+        ),
+        const SizedBox(height: 12),
+        ElevatedButton(
+          onPressed: () {
+            final text = _noteController.text.trim();
+            if (text.isEmpty) return;
+            setState(() {
+              _crmNotes.add(text);
+            });
+            _noteController.clear();
+          },
+          child: const Text('Save Note'),
         ),
       ],
-      body: inbox.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('$e')),
-        data: (snapshot) => ListView(
-          padding: EdgeInsets.all(context.eos.spacing.lg),
-          children: [
-            if (snapshot.items.isEmpty)
-              const Text('No event requests yet.')
-            else
-              ...snapshot.items.map(
-                (r) => Card(
-                  margin: EdgeInsets.only(bottom: context.eos.spacing.md),
-                  child: ListTile(
-                    title: Text(r.eventTitle ?? 'Event'),
-                    subtitle: Text(r.message.isEmpty ? (r.serviceLabel ?? '') : r.message),
-                    trailing: VendorStageBadge(stage: r.stage),
-                    onTap: () => _showActions(context, r),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
     );
   }
-
-  void _showActions(BuildContext context, VendorRequest request) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (request.stage == 'negotiating')
-              ListTile(
-                leading: const Icon(Icons.check),
-                title: const Text('Accept request'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _transition(request, 'accepted');
-                },
-              ),
-            if (request.stage == 'scheduled')
-              ListTile(
-                leading: const Icon(Icons.place),
-                title: const Text('Mark arrived on site'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _transition(request, 'arrived');
-                },
-              ),
-            if (request.stage == 'arrived')
-              ListTile(
-                leading: const Icon(Icons.task_alt),
-                title: const Text('Mark completed'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _transition(request, 'completed');
-                },
-              ),
-            ListTile(
-              leading: const Icon(Icons.block),
-              title: const Text('Decline'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _transition(request, 'declined');
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Unified vendor calendar at `/vendor/calendar`.
-class VendorCalendarScreen extends ConsumerStatefulWidget {
-  const VendorCalendarScreen({super.key});
-
-  @override
-  ConsumerState<VendorCalendarScreen> createState() => _VendorCalendarScreenState();
-}
-
-class _VendorCalendarScreenState extends ConsumerState<VendorCalendarScreen> {
-  @override
-  Widget build(BuildContext context) {
-    final profile = ref.watch(vendorProfileProvider);
-    final calendar = ref.watch(vendorCalendarProvider(profile.id));
-
-    return EosPageScaffold(
-      title: 'Schedule & availability',
-      subtitle: profile.businessName,
-      body: calendar.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('$e')),
-        data: (snap) => ListView(
-          padding: EdgeInsets.all(context.eos.spacing.lg),
-          children: [
-            SwitchListTile(
-              title: const Text('Vacation mode'),
-              subtitle: Text(snap.vacationUntil != null ? 'Until ${snap.vacationUntil}' : 'Pause new bookings'),
-              value: snap.vacationMode,
-              onChanged: (v) async {
-                await ref.read(vendorCrmApiProvider).patchVacation(profile.id, vacationMode: v);
-                refreshVendorCrm(ref);
-              },
-            ),
-            SizedBox(height: context.eos.spacing.lg),
-            Text('Upcoming blocks', style: Theme.of(context).textTheme.titleMedium),
-            SizedBox(height: context.eos.spacing.sm),
-            if (snap.blocks.isEmpty)
-              const Text('No calendar blocks in the next 60 days.')
-            else
-              ...snap.blocks.map(
-                (b) => ListTile(
-                  leading: Icon(_iconForKind(b.kind), color: EosColors.plum),
-                  title: Text(b.kind.replaceAll('_', ' ')),
-                  subtitle: Text(
-                    b.allDay
-                        ? '${b.startsAt.month}/${b.startsAt.day}/${b.startsAt.year}'
-                        : '${b.startsAt.hour}:${b.startsAt.minute.toString().padLeft(2, '0')} – ${b.endsAt.hour}:${b.endsAt.minute.toString().padLeft(2, '0')}',
-                  ),
-                  trailing: b.reason != null ? Text(b.reason!, style: Theme.of(context).textTheme.bodySmall) : null,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  IconData _iconForKind(String kind) => switch (kind) {
-        'vacation' => Icons.beach_access,
-        'blackout' => Icons.event_busy,
-        'rental_delivery' => Icons.local_shipping_outlined,
-        'crm_scheduled' => Icons.event,
-        _ => Icons.schedule,
-      };
 }

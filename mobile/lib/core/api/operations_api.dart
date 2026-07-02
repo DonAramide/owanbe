@@ -4,17 +4,17 @@ import 'package:http/http.dart' as http;
 
 import '../../features/operations/models/operations_models.dart';
 import 'events_api.dart';
-import 'owanbe_api_auth.dart';
+import 'owambe_api_auth.dart';
 
 class OperationsApi {
   OperationsApi({http.Client? client}) : _http = client ?? http.Client();
   final http.Client _http;
 
-  String get _base => OwanbeApiAuth.resolveApiBase();
+  String get _base => OwambeApiAuth.resolveApiBase();
 
-  String get _tenantId => OwanbeApiAuth.resolveTenantId(EventsApi.devTenantId);
+  String get _tenantId => OwambeApiAuth.resolveTenantId(EventsApi.devTenantId);
 
-  Future<Map<String, String>> _headers() => OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId);
+  Future<Map<String, String>> _headers() => OwambeApiAuth.authorizedHeaders(tenantId: _tenantId);
 
   Uri _u(String path) {
     final p = path.startsWith('/') ? path.substring(1) : path;
@@ -113,6 +113,16 @@ class OperationsApi {
     return (body['items'] as List<dynamic>? ?? [])
         .map((e) => mapOpsFeed(e as Map<String, dynamic>))
         .toList();
+  }
+
+  Future<OpsIncident> updateIncidentStatus(String eventId, String incidentId, IncidentStatus status) async {
+    final res = await _http.patch(
+      _u('events/$eventId/incidents/$incidentId'),
+      headers: await _headers(),
+      body: jsonEncode({'status': _incidentStatusApi(status)}),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return mapOpsIncident(jsonDecode(res.body) as Map<String, dynamic>);
   }
 }
 
@@ -216,4 +226,10 @@ String _incidentCategoryApi(IncidentCategory category) => switch (category) {
       IncidentCategory.technical => 'technical',
       IncidentCategory.medical => 'medical',
       _ => 'other',
+    };
+
+String _incidentStatusApi(IncidentStatus status) => switch (status) {
+      IncidentStatus.open => 'open',
+      IncidentStatus.investigating => 'escalated',
+      IncidentStatus.resolved => 'resolved',
     };

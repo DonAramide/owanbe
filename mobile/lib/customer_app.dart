@@ -1,0 +1,23 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'router/app_router.dart';
+import 'theme/owanbe_theme.dart';
+import 'theme/theme_mode_provider.dart';
+
+class CustomerApp extends ConsumerWidget {
+  const CustomerApp({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(goRouterProvider);
+    final themeMode = ref.watch(themeModeProvider);
+    return MaterialApp.router(
+      title: 'Owambe Customer',
+      theme: owanbeTheme,
+      darkTheme: owanbeDarkTheme,
+      themeMode: themeMode,
+      routerConfig: router,
+    );
+  }
+}

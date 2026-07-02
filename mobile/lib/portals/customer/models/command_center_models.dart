@@ -1,7 +1,7 @@
 import '../../../features/operations/models/operations_models.dart';
-import '../../../features/organizer/finance/organizer_finance_api.dart';
-import '../../../features/organizer/models/organizer_models.dart';
-import 'home_hub_models.dart';
+import '../models/customer_event_models.dart';
+import '../models/customer_finance_models.dart';
+import '../models/home_hub_models.dart';
 import 'vendor_crm_models.dart';
 
 class EventCommandCenterSnapshot {
@@ -23,7 +23,7 @@ class EventCommandCenterSnapshot {
     required this.feed,
   });
 
-  final OrganizerEvent event;
+  final CustomerEvent event;
   final double progress;
   final int tasksCompleted;
   final int tasksRemaining;
@@ -47,7 +47,7 @@ class PlanningTaskItem {
   final bool done;
 }
 
-List<PlanningTaskItem> buildPlanningTasks(OrganizerEvent event) {
+List<PlanningTaskItem> buildPlanningTasks(CustomerEvent event) {
   final tasks = <PlanningTaskItem>[
     PlanningTaskItem(
       label: 'Set event details',
@@ -62,7 +62,7 @@ List<PlanningTaskItem> buildPlanningTasks(OrganizerEvent event) {
   }
   tasks.add(PlanningTaskItem(
     label: 'Book vendors',
-    done: event.vendors.any((v) => v.status == VendorSlotStatus.approved),
+    done: event.vendors.any((v) => v.status == CustomerVendorSlotStatus.approved),
   ));
   if (event.isPublicTicketed) {
     tasks.add(PlanningTaskItem(
@@ -77,14 +77,14 @@ List<PlanningTaskItem> buildPlanningTasks(OrganizerEvent event) {
   }
   tasks.add(PlanningTaskItem(
     label: 'Publish celebration',
-    done: event.status == OrganizerEventStatus.published ||
-        event.status == OrganizerEventStatus.live ||
-        event.status == OrganizerEventStatus.completed,
+    done: event.status == CustomerEventStatus.published ||
+        event.status == CustomerEventStatus.live ||
+        event.status == CustomerEventStatus.completed,
   ));
   return tasks;
 }
 
-GuestCommandStats guestStats(OrganizerEvent event, List<OpsGuest> opsGuests) {
+GuestCommandStats guestStats(CustomerEvent event, List<OpsGuest> opsGuests) {
   final invited = opsGuests.isNotEmpty ? opsGuests.length : event.attendees.length;
   final rsvp = event.attendees.where((a) => a.ticketId.isNotEmpty || a.purchasedAt != null).length;
   final checkedIn = opsGuests.isNotEmpty
@@ -105,7 +105,7 @@ class GuestCommandStats {
   final int checkedIn;
 }
 
-VendorCommandStats vendorStats(OrganizerEvent event, {VendorCrmSnapshot? crm}) {
+VendorCommandStats vendorStats(CustomerEvent event, {VendorCrmSnapshot? crm}) {
   if (crm != null) {
     final s = crm.stats;
     return VendorCommandStats(
@@ -117,10 +117,13 @@ VendorCommandStats vendorStats(OrganizerEvent event, {VendorCrmSnapshot? crm}) {
   final vendors = event.vendors;
   return VendorCommandStats(
     requested: vendors
-        .where((v) => v.status == VendorSlotStatus.invited || v.status == VendorSlotStatus.pending)
+        .where((v) =>
+            v.status == CustomerVendorSlotStatus.invited || v.status == CustomerVendorSlotStatus.pending)
         .length,
-    accepted: vendors.where((v) => v.status == VendorSlotStatus.approved).length,
-    completed: vendors.where((v) => v.status == VendorSlotStatus.approved && v.ordersCount > 0).length,
+    accepted: vendors.where((v) => v.status == CustomerVendorSlotStatus.approved).length,
+    completed: vendors
+        .where((v) => v.status == CustomerVendorSlotStatus.approved && v.ordersCount > 0)
+        .length,
   );
 }
 
@@ -136,7 +139,7 @@ class VendorCommandStats {
   final int completed;
 }
 
-BudgetCommandStats budgetStats(OrganizerEvent event, OrganizerEventFinanceSummary? finance) {
+BudgetCommandStats budgetStats(CustomerEvent event, CustomerEventFinanceSummary? finance) {
   final estimatedBudget = event.budgetMinor > 0
       ? event.budgetMinor
       : event.ticketTiers.fold<int>(
@@ -164,10 +167,10 @@ class BudgetCommandStats {
 }
 
 EventCommandCenterSnapshot buildCommandCenterSnapshot({
-  required OrganizerEvent event,
+  required CustomerEvent event,
   required List<OpsGuest> opsGuests,
   required List<OpsFeedEvent> feed,
-  OrganizerEventFinanceSummary? finance,
+  CustomerEventFinanceSummary? finance,
   VendorCrmSnapshot? crm,
 }) {
   final tasks = buildPlanningTasks(event);

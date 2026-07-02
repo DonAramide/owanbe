@@ -1,7 +1,8 @@
 import '../../../operations/models/operations_models.dart';
+import '../../../../portals/customer/models/command_center_models.dart' show PlanningTaskItem, formatTimeAgo;
+import '../../../../portals/customer/models/home_hub_models.dart' show formatEventDate;
 import '../../finance/organizer_finance_api.dart';
 import '../../models/organizer_models.dart';
-import '../../../../portals/customer/models/home_hub_models.dart';
 import '../workspace_tabs.dart';
 
 enum GuestRsvpStatus { invited, accepted, pending, declined, checkedIn }
@@ -594,13 +595,65 @@ String formatBudgetMinor(int minor) {
   return '₦${naira.toStringAsFixed(0)}';
 }
 
+double computeOrganizerPlanningProgress(OrganizerEvent event) {
+  var score = 0.0;
+  if (event.title.trim().isNotEmpty) score += 0.12;
+  if (event.description.trim().isNotEmpty) score += 0.08;
+  if (event.attendees.isNotEmpty) score += 0.22;
+  if (event.vendors.isNotEmpty) score += 0.18;
+  if (event.ticketTiers.isNotEmpty) score += 0.15;
+  if (event.status == OrganizerEventStatus.published ||
+      event.status == OrganizerEventStatus.live ||
+      event.status == OrganizerEventStatus.completed) {
+    score += 0.25;
+  }
+  return score.clamp(0.0, 1.0);
+}
+
+List<PlanningTaskItem> buildOrganizerPlanningTasks(OrganizerEvent event) {
+  final tasks = <PlanningTaskItem>[
+    PlanningTaskItem(
+      label: 'Set event details',
+      done: event.title.trim().isNotEmpty && event.venue.trim().isNotEmpty,
+    ),
+  ];
+  if (event.isPrivateCelebration) {
+    tasks.add(PlanningTaskItem(
+      label: 'Add guests',
+      done: event.attendees.isNotEmpty || event.expectedGuests > 0,
+    ));
+  }
+  tasks.add(PlanningTaskItem(
+    label: 'Book vendors',
+    done: event.vendors.any((v) => v.status == VendorSlotStatus.approved),
+  ));
+  if (event.isPublicTicketed) {
+    tasks.add(PlanningTaskItem(
+      label: 'Configure tickets',
+      done: event.ticketTiers.isNotEmpty,
+    ));
+  } else {
+    tasks.add(PlanningTaskItem(
+      label: 'Send invitations',
+      done: event.attendees.isNotEmpty,
+    ));
+  }
+  tasks.add(PlanningTaskItem(
+    label: 'Publish celebration',
+    done: event.status == OrganizerEventStatus.published ||
+        event.status == OrganizerEventStatus.live ||
+        event.status == OrganizerEventStatus.completed,
+  ));
+  return tasks;
+}
+
 EventCommandCenterV3Snapshot buildCommandCenterV3Snapshot({
   required OrganizerEvent event,
   OrganizerEventFinanceSummary? finance,
   List<OpsFeedEvent> feed = const [],
 }) {
   final financial = buildFinancialHealth(event, finance);
-  final planning = computePlanningProgress(event);
+  final planning = computeOrganizerPlanningProgress(event);
   final days = event.startsAt.difference(DateTime.now()).inDays.clamp(0, 999);
   PublicEventMetrics? publicMetrics;
   if (event.isPublicTicketed) {

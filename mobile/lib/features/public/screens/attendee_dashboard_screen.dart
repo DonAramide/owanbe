@@ -22,7 +22,6 @@ class _AttendeeDashboardScreenState extends ConsumerState<AttendeeDashboardScree
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => seedDemoAttendeeTicketsIfEmpty(ref));
   }
 
   @override
@@ -30,7 +29,7 @@ class _AttendeeDashboardScreenState extends ConsumerState<AttendeeDashboardScree
     final session = ref.watch(authSessionProvider);
 
     return EosAppShell(
-      brandLabel: 'Owanbe',
+      brandLabel: 'Owambe',
       brandSubtitle: 'My celebrations',
       destinations: EosRoleDestinations.attendee,
       selectedIndex: _tab,

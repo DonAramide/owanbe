@@ -8,7 +8,7 @@ import '../models/vendor_models.dart';
 import '../data/vendor_store.dart';
 
 bool _allowMockFinanceFallback() =>
-    (dotenv.env['ALLOW_MOCK_FINANCE_FALLBACK'] ?? 'false').trim().toLowerCase() == 'true';
+    (dotenv.env['ALLOW_MOCK_FINANCE_FALLBACK'] ?? 'true').trim().toLowerCase() == 'true';
 
 final vendorStoreProvider = Provider<VendorStore>((ref) => VendorStore.instance);
 

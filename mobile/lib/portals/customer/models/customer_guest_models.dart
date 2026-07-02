@@ -1,5 +1,12 @@
 import '../../../features/operations/models/operations_models.dart';
-import '../../../features/organizer/models/organizer_models.dart';
+import 'customer_event_models.dart';
+
+class GuestTimelineEvent {
+  const GuestTimelineEvent({required this.label, required this.at});
+
+  final String label;
+  final DateTime at;
+}
 
 enum GuestRsvpStatus { confirmed, pending, declined }
 
@@ -58,7 +65,7 @@ class CustomerGuestView {
   final GuestRsvpStatus rsvpStatus;
   final DateTime? checkedInAt;
   final DateTime? purchasedAt;
-  final List<AttendeeTimelineEvent> timeline;
+  final List<GuestTimelineEvent> timeline;
 
   OpsGuest toOpsGuest() => OpsGuest(
         id: id,
@@ -82,7 +89,7 @@ GuestRsvpStatus deriveRsvpStatus({
   return GuestRsvpStatus.pending;
 }
 
-CustomerGuestView guestFromOps(OpsGuest guest, OrganizerAttendee? attendee) {
+CustomerGuestView guestFromOps(OpsGuest guest, CustomerAttendee? attendee) {
   return CustomerGuestView(
     id: guest.id,
     name: guest.name,
@@ -97,11 +104,11 @@ CustomerGuestView guestFromOps(OpsGuest guest, OrganizerAttendee? attendee) {
       hasTicket: guest.ticketId.isNotEmpty,
       purchasedAt: attendee?.purchasedAt,
     ),
-    timeline: attendee?.timeline ?? const [],
+    timeline: const [],
   );
 }
 
-CustomerGuestView guestFromAttendee(OrganizerAttendee attendee) {
+CustomerGuestView guestFromAttendee(CustomerAttendee attendee) {
   final tier = attendee.tierName.toLowerCase().contains('vvip')
       ? GuestTier.vvip
       : attendee.tierName.toLowerCase().contains('vip')
@@ -120,13 +127,13 @@ CustomerGuestView guestFromAttendee(OrganizerAttendee attendee) {
       hasTicket: attendee.ticketId.isNotEmpty,
       purchasedAt: attendee.purchasedAt,
     ),
-    timeline: attendee.timeline,
+    timeline: const [],
   );
 }
 
 List<CustomerGuestView> mergeGuestViews({
   required List<OpsGuest> opsGuests,
-  required List<OrganizerAttendee> attendees,
+  required List<CustomerAttendee> attendees,
 }) {
   final attendeeById = {for (final a in attendees) a.id: a};
   final attendeeByTicket = {

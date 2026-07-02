@@ -3,6 +3,10 @@ import 'package:go_router/go_router.dart';
 
 import '../auth/auth_notifier.dart';
 import '../auth/user_role.dart';
+import '../platform/bootstrap/bootstrap.dart';
+import '../platform/identity/identity_platform.dart';
+import '../core/config/enterprise_brand_config.dart';
+import '../features/auth/enterprise_auth_shell.dart';
 import '../features/super_admin/screens/platform_configuration_screen.dart';
 import '../features/super_admin/super_admin_home_screen.dart';
 import '../features/admin/admin_home_screen.dart';
@@ -32,6 +36,7 @@ import '../features/vendor/screens/vendor_fashion_attire_screen.dart';
 import '../features/vendor/screens/vendor_crm_screen.dart';
 import '../features/vendor/screens/vendor_onboarding_screen.dart';
 import '../features/vendor/screens/vendor_rentals_screen.dart';
+import '../features/vendor/screens/vendor_calendar_screen.dart';
 import '../features/public/screens/landing_screen.dart';
 import '../features/public/screens/payment_success_screen.dart';
 import '../features/public/screens/public_auth_screen.dart';
@@ -101,6 +106,33 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final session = ref.read(authSessionProvider);
       final loc = state.matchedLocation;
+
+      if (session != null) {
+        final contextUser = IdentityPlatform.instance.currentUserContext;
+        final roles = contextUser?.roles ?? [];
+        final customerRoles = roles.where((r) => r == UserRole.client || r == UserRole.organizer || r == UserRole.vendor).toList();
+
+        if (loc == '/workspace-selection') {
+          if (customerRoles.length <= 1) {
+            final singleRole = customerRoles.isNotEmpty ? customerRoles.first : UserRole.client;
+            return _homePath(singleRole);
+          }
+        }
+
+        if (!SharedBootstrap.isAdmin) {
+          if (customerRoles.length > 1 &&
+              (loc == '/' || loc == '/home' || loc == '/client' || loc.startsWith('/auth')) &&
+              loc != '/workspace-selection') {
+            return '/workspace-selection';
+          }
+        }
+      }
+
+      if (session == null) {
+        if (SharedBootstrap.isAdmin && loc != '/staff/login') {
+          return '/staff/login?role=admin';
+        }
+      }
 
       if (CustomerRoutes.isShellPath(loc)) {
         if (session == null) {
@@ -339,9 +371,23 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/staff/login',
         name: 'staff-login',
-        builder: (context, state) => LoginScreen(
-          initialRole: _roleFromQuery(state.uri.queryParameters['role']),
-        ),
+        builder: (context, state) {
+          final queryRole = _roleFromQuery(state.uri.queryParameters['role']);
+          if (SharedBootstrap.isAdmin) {
+            final config = queryRole == UserRole.organizer
+                ? EnterpriseBrandConfig.defaultOrganizerConfig
+                : (queryRole == UserRole.vendor
+                    ? EnterpriseBrandConfig.defaultVendorConfig
+                    : EnterpriseBrandConfig.defaultAdminConfig);
+            return EnterpriseAuthenticationShell(
+              config: config,
+              role: queryRole ?? UserRole.admin,
+            );
+          }
+          return LoginScreen(
+            initialRole: queryRole,
+          );
+        },
       ),
       GoRoute(path: '/login', redirect: (context, state) => '/staff/login'),
       GoRoute(

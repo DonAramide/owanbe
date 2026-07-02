@@ -1,4 +1,4 @@
-import '../../../features/organizer/models/organizer_models.dart';
+import 'customer_event_models.dart';
 import 'customer_guest_models.dart';
 import 'home_hub_models.dart';
 
@@ -48,7 +48,7 @@ class InvitationHubSnapshot {
     required this.guestCount,
   });
 
-  final OrganizerEvent event;
+  final CustomerEvent event;
   final InvitationFunnelStats stats;
   final InvitationShareTargets share;
   final int guestCount;
@@ -75,7 +75,7 @@ InvitationFunnelStats buildInvitationStats(List<CustomerGuestView> guests) {
   );
 }
 
-InvitationShareTargets buildShareTargets(OrganizerEvent event) {
+InvitationShareTargets buildShareTargets(CustomerEvent event) {
   final eventId = event.id;
   final eventPage = 'https://app.owanbe.com/events/$eventId';
   final rsvpPage = 'https://app.owanbe.com/events/$eventId/tickets';
@@ -99,7 +99,7 @@ InvitationShareTargets buildShareTargets(OrganizerEvent event) {
 }
 
 InvitationHubSnapshot buildInvitationHubSnapshot({
-  required OrganizerEvent event,
+  required CustomerEvent event,
   required List<CustomerGuestView> guests,
   InvitationFunnelStats? apiStats,
 }) {

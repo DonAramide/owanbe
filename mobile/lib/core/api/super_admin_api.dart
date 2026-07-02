@@ -2,14 +2,19 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-import 'owanbe_api_auth.dart';
+import 'owambe_api_auth.dart';
 
 class SuperAdminApiException implements Exception {
   SuperAdminApiException({required this.code, required this.message});
   final String code;
   final String message;
   @override
-  String toString() => 'SuperAdminApiException($code): $message';
+  String toString() {
+    if (code.toUpperCase() == 'INTERNAL' || message.toLowerCase().contains('internal server error')) {
+      return 'Internal Server Error';
+    }
+    return message;
+  }
 }
 
 class SuperAdminApi {
@@ -18,9 +23,9 @@ class SuperAdminApi {
 
   static const devSuperAdminUserId = '88888888-8888-4888-8888-888888888888';
 
-  String get _base => OwanbeApiAuth.resolveApiBase();
+  String get _base => OwambeApiAuth.resolveApiBase();
 
-  Future<Map<String, String>> _headers() => OwanbeApiAuth.authorizedHeaders(json: true);
+  Future<Map<String, String>> _headers() => OwambeApiAuth.authorizedHeaders(json: true);
 
   Uri _u(String path, [Map<String, String>? query]) {
     final p = path.startsWith('/') ? path.substring(1) : path;

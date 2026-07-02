@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'events_api.dart';
-import 'owanbe_api_auth.dart';
+import 'owambe_api_auth.dart';
 
 class EventGuestRecord {
   const EventGuestRecord({
@@ -65,8 +65,8 @@ class EventGuestsApi {
   EventGuestsApi({http.Client? client}) : _http = client ?? http.Client();
   final http.Client _http;
 
-  String get _base => OwanbeApiAuth.resolveApiBase();
-  String get _tenantId => OwanbeApiAuth.resolveTenantId(EventsApi.devTenantId);
+  String get _base => OwambeApiAuth.resolveApiBase();
+  String get _tenantId => OwambeApiAuth.resolveTenantId(EventsApi.devTenantId);
 
   Uri _u(String path) {
     final p = path.startsWith('/') ? path.substring(1) : path;
@@ -100,7 +100,7 @@ class EventGuestsApi {
   Future<List<EventGuestRecord>> listGuests(String eventId) async {
     final res = await _http.get(
       _u('events/$eventId/guests'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     final body = jsonDecode(res.body) as Map<String, dynamic>;
@@ -118,7 +118,7 @@ class EventGuestsApi {
   }) async {
     final res = await _http.post(
       _u('events/$eventId/guests'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({
         'name': name,
         if (email != null) 'email': email,
@@ -135,7 +135,7 @@ class EventGuestsApi {
   ) async {
     final res = await _http.get(
       _u('events/$eventId/invitations'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     final body = jsonDecode(res.body) as Map<String, dynamic>;
@@ -173,7 +173,7 @@ class EventGuestsApi {
   }) async {
     final res = await _http.post(
       _u('events/$eventId/invitations/send'),
-      headers: await OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({
         if (guestIds != null) 'guestIds': guestIds,
         'channel': channel,

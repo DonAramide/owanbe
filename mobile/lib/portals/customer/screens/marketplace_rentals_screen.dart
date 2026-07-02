@@ -7,6 +7,8 @@ import '../../../eos/eos.dart';
 import '../models/rentals_constants.dart';
 import '../models/rentals_models.dart';
 import '../providers/rentals_providers.dart';
+import '../workspace/widgets/event_friendly_errors.dart';
+import '../workspace/widgets/event_loading_skeleton.dart';
 import '../widgets/empty_state_card.dart';
 import '../widgets/section_header.dart';
 
@@ -33,10 +35,15 @@ class _MarketplaceRentalsScreenState extends ConsumerState<MarketplaceRentalsScr
         title: const Text('Rentals & equipment'),
       ),
       body: catalog.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => ListView(
+        loading: () => const EventLoadingSkeleton(variant: EventLoadingVariant.list),
+        error: (_, _) => ListView(
           padding: EdgeInsets.all(context.eos.spacing.lg),
-          children: [EmptyStateCard(title: 'Could not load rentals', message: '$e')],
+          children: [
+            EmptyStateCard(
+              title: EventFriendlyErrors.headlineFor('rentals'),
+              message: EventFriendlyErrors.genericMessage,
+            ),
+          ],
         ),
         data: (items) => ListView(
           padding: EdgeInsets.all(context.eos.spacing.lg),
@@ -122,7 +129,11 @@ class _RentalItemCardState extends ConsumerState<_RentalItemCard> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rental request submitted')));
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(EventFriendlyErrors.actionFailedMessage)),
+        );
+      }
     }
   }
 

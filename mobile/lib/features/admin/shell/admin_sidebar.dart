@@ -37,7 +37,7 @@ class AdminSidebar extends StatelessWidget {
                 ? Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Owanbe', style: context.eosText.titleLarge?.copyWith(color: EosColors.plum, fontWeight: FontWeight.w800)),
+                      Text('Owambe', style: context.eosText.titleLarge?.copyWith(color: EosColors.plum, fontWeight: FontWeight.w800)),
                       SizedBox(height: context.eos.spacing.xxs),
                       Text('Platform Admin', style: context.eosText.labelSmall?.copyWith(color: context.eosColors.onSurfaceVariant)),
                     ],

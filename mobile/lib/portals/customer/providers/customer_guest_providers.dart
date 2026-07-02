@@ -5,9 +5,9 @@ import '../../../core/api/persistence_providers.dart';
 import '../../../features/operations/data/operations_store.dart';
 import '../../../features/operations/models/operations_models.dart';
 import '../../../features/operations/providers/operations_providers.dart';
-import '../../../features/organizer/providers/organizer_providers.dart';
 import '../data/customer_guest_persistence.dart';
 import '../models/customer_guest_models.dart';
+import '../providers/customer_event_providers.dart';
 
 final customerGuestRefreshProvider = StateProvider<int>((ref) => 0);
 
@@ -45,9 +45,9 @@ final customerEventGuestsProvider =
     FutureProvider.autoDispose.family<List<CustomerGuestView>, String>((ref, eventId) async {
   ref.watch(customerGuestRefreshProvider);
   ref.watch(operationsRevisionProvider);
-  ref.watch(organizerRevisionProvider);
+  ref.watch(customerEventRevisionProvider);
 
-  final event = await ref.watch(organizerEventProvider(eventId).future);
+  final event = await ref.watch(customerEventProvider(eventId).future);
 
   try {
     final apiGuests = await ref.read(eventGuestsApiProvider).listGuests(eventId);

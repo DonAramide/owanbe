@@ -72,8 +72,16 @@ export class LaunchOpsDashboardService {
         ticketMinor: today.ticketRevenueMinor,
         rentalMinor: today.rentalRevenueMinor,
         asoEbiMinor: today.asoEbiRevenueMinor,
+        serviceChargeMinor: today.serviceChargeRevenueMinor,
+        tailoringMinor: today.tailoringRevenueMinor,
+        confectioneryMinor: today.confectioneryRevenueMinor,
         totalMinor:
-          today.ticketRevenueMinor + today.rentalRevenueMinor + today.asoEbiRevenueMinor,
+          today.ticketRevenueMinor +
+          today.rentalRevenueMinor +
+          today.asoEbiRevenueMinor +
+          today.serviceChargeRevenueMinor +
+          today.tailoringRevenueMinor +
+          today.confectioneryRevenueMinor,
       },
     };
   }
@@ -86,6 +94,9 @@ export class LaunchOpsDashboardService {
       ticket_revenue: string;
       rental_revenue: string;
       aso_ebi_revenue: string;
+      service_charge_revenue: string;
+      tailoring_revenue: string;
+      confectionery_revenue: string;
       failed_payments: string;
       pending_vendors: string;
     }>(
@@ -110,6 +121,18 @@ export class LaunchOpsDashboardService {
           FROM payments
           WHERE tenant_id = $1 AND created_at >= date_trunc('day', now())
             AND metadata->>'rail' = 'aso_ebi' AND status::text = 'captured') AS aso_ebi_revenue,
+         (SELECT COALESCE(SUM(amount_captured_minor), 0)::text
+          FROM payments
+          WHERE tenant_id = $1 AND created_at >= date_trunc('day', now())
+            AND metadata->>'rail' = 'service_charge' AND status::text = 'captured') AS service_charge_revenue,
+         (SELECT COALESCE(SUM(amount_captured_minor), 0)::text
+          FROM payments
+          WHERE tenant_id = $1 AND created_at >= date_trunc('day', now())
+            AND metadata->>'rail' = 'tailoring' AND status::text = 'captured') AS tailoring_revenue,
+         (SELECT COALESCE(SUM(amount_captured_minor), 0)::text
+          FROM payments
+          WHERE tenant_id = $1 AND created_at >= date_trunc('day', now())
+            AND metadata->>'rail' = 'confectionery' AND status::text = 'captured') AS confectionery_revenue,
          (SELECT COUNT(*)::text FROM ticket_payments
           WHERE tenant_id = $1 AND created_at >= date_trunc('day', now())
             AND status::text IN ('failed', 'cancelled')) AS failed_payments,
@@ -125,6 +148,9 @@ export class LaunchOpsDashboardService {
       ticketRevenueMinor: Number(r.ticket_revenue),
       rentalRevenueMinor: Number(r.rental_revenue),
       asoEbiRevenueMinor: Number(r.aso_ebi_revenue),
+      serviceChargeRevenueMinor: Number(r.service_charge_revenue),
+      tailoringRevenueMinor: Number(r.tailoring_revenue),
+      confectioneryRevenueMinor: Number(r.confectionery_revenue),
       failedPaymentsToday: Number(r.failed_payments),
       pendingVendorApprovals: Number(r.pending_vendors),
     };

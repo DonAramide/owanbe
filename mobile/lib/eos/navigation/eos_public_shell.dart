@@ -4,7 +4,7 @@ import '../extensions/eos_context.dart';
 import '../layout/eos_responsive.dart';
 import '../tokens/eos_colors.dart';
 import '../tokens/eos_spacing.dart';
-import '../widgets/owanbe_logo.dart';
+import '../widgets/owambe_logo.dart';
 
 /// Marketing / marketplace shell — distinct from operational [EosAppShell].
 class EosPublicShell extends StatelessWidget {
@@ -90,9 +90,12 @@ class _PublicHeader extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const OwanbeLogo(size: 28),
-              SizedBox(width: context.eos.spacing.xs),
-              Text('Owanbe', style: context.eosText.titleLarge?.copyWith(color: EosColors.plum)),
+              if (!isMobile) ...[
+                const OwambeLogo(size: 28),
+                SizedBox(width: context.eos.spacing.xs),
+              ],
+              if (!isMobile)
+                Text('Owambe', style: context.eosText.titleLarge?.copyWith(color: EosColors.plum)),
               if (!isMobile) ...[
                 SizedBox(width: context.eos.spacing.xxl),
                 _NavLink(label: 'Discover', active: activeNav == 'discover', onTap: onDiscover),
@@ -154,7 +157,7 @@ class _PublicFooter extends StatelessWidget {
         color: EosColors.plumDark,
       ),
       child: Text(
-        '© ${DateTime.now().year} Owanbe · Event Operating System',
+        '© ${DateTime.now().year} Owambe · Event Operating System',
         style: context.eosText.bodySmall?.copyWith(color: Colors.white70),
         textAlign: TextAlign.center,
       ),

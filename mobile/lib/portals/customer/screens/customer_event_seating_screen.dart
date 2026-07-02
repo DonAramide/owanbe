@@ -4,13 +4,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../eos/eos.dart';
-import '../../../features/organizer/providers/organizer_providers.dart';
+import '../providers/customer_event_providers.dart';
+import '../navigation/event_navigator.dart';
 import '../../../features/operations/models/operations_models.dart';
 import '../models/customer_guest_models.dart';
 import '../models/seating_models.dart';
 import '../providers/customer_guest_providers.dart';
 import '../providers/seating_providers.dart';
-import '../widgets/empty_state_card.dart';
+import '../workspace/event_module_scaffold.dart';
+import '../workspace/widgets/event_error_view.dart';
+import '../workspace/widgets/event_friendly_errors.dart';
+import '../workspace/widgets/event_loading_skeleton.dart';
 import '../widgets/section_header.dart';
 import '../widgets/seating/seating_canvas.dart';
 
@@ -35,7 +39,9 @@ class _CustomerEventSeatingScreenState extends ConsumerState<CustomerEventSeatin
       refreshSeating(ref);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(EventFriendlyErrors.actionFailedMessage)),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -138,61 +144,70 @@ class _CustomerEventSeatingScreenState extends ConsumerState<CustomerEventSeatin
   Widget build(BuildContext context) {
     final seating = ref.watch(eventSeatingProvider(widget.eventId));
     final guests = ref.watch(customerEventGuestsProvider(widget.eventId));
-    final event = ref.watch(organizerEventProvider(widget.eventId));
+    final event = ref.watch(customerEventProvider(widget.eventId));
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+    return EventModuleScaffold(
+      eventId: widget.eventId,
+      title: 'Seating planner',
+      subtitle: 'Tables, VIP zones, and guest assignments',
+      busy: _saving,
+      actions: [
+        IconButton(
+          tooltip: 'Export layout',
+          icon: const Icon(Icons.download_outlined),
+          onPressed: seating.maybeWhen(
+            data: (layout) => () => _exportLayout(layout),
+            orElse: () => null,
+          ),
         ),
-        title: const Text('Seating planner'),
-        actions: [
-          if (_saving)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-            ),
-          IconButton(
-            tooltip: 'Export layout',
-            icon: const Icon(Icons.download_outlined),
-            onPressed: seating.maybeWhen(
-              data: (layout) => () => _exportLayout(layout),
-              orElse: () => null,
-            ),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) async {
-              final guestCount = event.valueOrNull?.expectedGuests ?? 150;
-              switch (value) {
-                case 'table':
-                  await _addTable();
-                case 'vip':
-                  await _addVipTable();
-                case 'auto':
-                  await _autoLayout(guestCount);
-              }
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'table', child: Text('Add table')),
-              PopupMenuItem(value: 'vip', child: Text('Add VIP table')),
-              PopupMenuItem(value: 'auto', child: Text('Auto-layout from guest count')),
-            ],
-          ),
-        ],
-      ),
+        PopupMenuButton<String>(
+          onSelected: (value) async {
+            final guestCount = event.valueOrNull?.expectedGuests ?? 150;
+            switch (value) {
+              case 'table':
+                await _addTable();
+              case 'vip':
+                await _addVipTable();
+              case 'auto':
+                await _autoLayout(guestCount);
+            }
+          },
+          itemBuilder: (context) => const [
+            PopupMenuItem(value: 'table', child: Text('Add table')),
+            PopupMenuItem(value: 'vip', child: Text('Add VIP table')),
+            PopupMenuItem(value: 'auto', child: Text('Auto-layout from guest count')),
+          ],
+        ),
+      ],
       body: seating.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => ListView(
-          padding: EdgeInsets.all(context.eos.spacing.lg),
-          children: [EmptyStateCard(title: 'Could not load seating', message: '$e')],
+        loading: () => const EventLoadingSkeleton(),
+        error: (_, _) => ListView(
+          padding: EosSpacing.pagePadding,
+          children: [
+            EventErrorView.module(
+              moduleLabel: 'seating',
+              onRetry: () {
+                refreshSeating(ref);
+                ref.invalidate(eventSeatingProvider(widget.eventId));
+              },
+              onBackToOverview: () => context.eventNav.backToOverview(widget.eventId),
+            ),
+          ],
         ),
         data: (layout) {
           return guests.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => ListView(
-              padding: EdgeInsets.all(context.eos.spacing.lg),
-              children: [EmptyStateCard(title: 'Could not load guests', message: '$e')],
+            loading: () => const EventLoadingSkeleton(),
+            error: (_, _) => ListView(
+              padding: EosSpacing.pagePadding,
+              children: [
+                EventErrorView.module(
+                  moduleLabel: 'guest list',
+                  onRetry: () {
+                    ref.invalidate(customerEventGuestsProvider(widget.eventId));
+                  },
+                  onBackToOverview: () => context.eventNav.backToOverview(widget.eventId),
+                ),
+              ],
             ),
             data: (guestList) {
               final assigned = layout.assignedGuestRefs;

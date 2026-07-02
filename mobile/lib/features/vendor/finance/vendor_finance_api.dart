@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-import '../../../core/api/owanbe_api_auth.dart';
+import '../../../core/api/owambe_api_auth.dart';
 import 'vendor_finance_models.dart';
 
 class VendorFinanceApi {
@@ -12,13 +12,13 @@ class VendorFinanceApi {
 
   static const devTenantId = '11111111-1111-4111-8111-111111111111';
 
-  String get _base => OwanbeApiAuth.resolveApiBase();
+  String get _base => OwambeApiAuth.resolveApiBase();
 
-  String get _tenantId => OwanbeApiAuth.resolveTenantId(devTenantId);
+  String get _tenantId => OwambeApiAuth.resolveTenantId(devTenantId);
 
   bool get isConfigured => _tenantId.isNotEmpty;
 
-  Future<Map<String, String>> _headers() => OwanbeApiAuth.authorizedHeaders(tenantId: _tenantId);
+  Future<Map<String, String>> _headers() => OwambeApiAuth.authorizedHeaders(tenantId: _tenantId);
 
   Uri _u(String path, [Map<String, String>? query]) {
     final p = path.startsWith('/') ? path.substring(1) : path;

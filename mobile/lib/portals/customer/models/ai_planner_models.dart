@@ -1,5 +1,5 @@
 import '../../../core/api/vendors_api.dart';
-import '../../../features/organizer/models/organizer_models.dart';
+import 'customer_event_models.dart';
 import 'budget_dashboard_models.dart';
 import 'marketplace_models.dart';
 
@@ -15,7 +15,7 @@ enum AiPlannerEventType {
 extension AiPlannerEventTypeX on AiPlannerEventType {
   String get label => switch (this) {
         AiPlannerEventType.wedding => 'Wedding',
-        AiPlannerEventType.birthday => 'Birthday / Owanbe',
+        AiPlannerEventType.birthday => 'Birthday / Owambe',
         AiPlannerEventType.corporate => 'Corporate',
         AiPlannerEventType.festival => 'Festival',
         AiPlannerEventType.babyShower => 'Baby shower',
@@ -62,7 +62,7 @@ class AiPlannerInputs {
   }
 }
 
-AiPlannerInputs defaultInputsFromEvent(OrganizerEvent event, {int? budgetMinor}) {
+AiPlannerInputs defaultInputsFromEvent(CustomerEvent event, {int? budgetMinor}) {
   final guests = event.totalCapacity > 0 ? event.totalCapacity : event.attendees.length;
   return AiPlannerInputs(
     eventType: AiPlannerEventTypeX.fromCategory(event.category),
@@ -243,7 +243,7 @@ const _sliceColors = <BudgetCategory, int>{
 
 AiPlannerPlan buildAiPlannerPlan({
   required AiPlannerInputs inputs,
-  required OrganizerEvent event,
+  required CustomerEvent event,
   required List<MarketplaceVendor> vendors,
 }) {
   final enriched = enrichCatalog(vendors);
@@ -291,7 +291,7 @@ AiPlannerPlan buildAiPlannerPlan({
   );
 }
 
-String _buildSummary(AiPlannerInputs inputs, OrganizerEvent event, int gaps, int vendorCount) {
+String _buildSummary(AiPlannerInputs inputs, CustomerEvent event, int gaps, int vendorCount) {
   final type = inputs.eventType.label.toLowerCase();
   final location = inputs.location.isNotEmpty ? inputs.location : event.city;
   if (gaps == 0) {
@@ -381,12 +381,12 @@ String _vendorReason(MarketplaceVendor vendor, AiPlannerEventType type, {require
   return 'Top ${vendor.categoryLabel.toLowerCase()} pick $locality for ${type.label.toLowerCase()} events.';
 }
 
-List<PlannerChecklistItem> _buildChecklist(AiPlannerInputs inputs, OrganizerEvent event) {
+List<PlannerChecklistItem> _buildChecklist(AiPlannerInputs inputs, CustomerEvent event) {
   final hasVenue = event.venue.trim().isNotEmpty;
   final hasGuests = event.attendees.isNotEmpty;
   final hasTickets = event.ticketTiers.isNotEmpty;
-  final published = event.status == OrganizerEventStatus.published ||
-      event.status == OrganizerEventStatus.live;
+  final published = event.status == CustomerEventStatus.published ||
+      event.status == CustomerEventStatus.live;
 
   final base = <PlannerChecklistItem>[
     PlannerChecklistItem(label: 'Confirm venue & date', done: hasVenue, priority: 1),
@@ -409,10 +409,10 @@ List<PlannerChecklistItem> _buildChecklist(AiPlannerInputs inputs, OrganizerEven
   return base;
 }
 
-bool _hasCategoryBooked(OrganizerEvent event, String needle) {
+bool _hasCategoryBooked(CustomerEvent event, String needle) {
   return event.vendors.any(
     (v) =>
-        v.status == VendorSlotStatus.approved &&
+        v.status == CustomerVendorSlotStatus.approved &&
         (v.category.toLowerCase().contains(needle) || v.businessName.toLowerCase().contains(needle)),
   );
 }
@@ -453,7 +453,7 @@ PlannerTimelineStatus _timelineStatus(DateTime due, DateTime now, bool isEventDa
 
 List<PlannerMissingRequirement> _detectMissingRequirements(
   AiPlannerInputs inputs,
-  OrganizerEvent event,
+  CustomerEvent event,
   int budgetMinor,
 ) {
   final items = <PlannerMissingRequirement>[];
@@ -489,7 +489,7 @@ List<PlannerMissingRequirement> _detectMissingRequirements(
     );
   }
 
-  if (event.vendors.where((v) => v.status == VendorSlotStatus.approved).isEmpty) {
+  if (event.vendors.where((v) => v.status == CustomerVendorSlotStatus.approved).isEmpty) {
     items.add(
       const PlannerMissingRequirement(
         title: 'No vendors confirmed',
@@ -511,7 +511,7 @@ List<PlannerMissingRequirement> _detectMissingRequirements(
     );
   }
 
-  if (event.status == OrganizerEventStatus.draft) {
+  if (event.status == CustomerEventStatus.draft) {
     items.add(
       const PlannerMissingRequirement(
         title: 'Event not published',
@@ -535,7 +535,7 @@ List<PlannerMissingRequirement> _detectMissingRequirements(
   return items;
 }
 
-List<PlannerRentalRecommendation> _recommendRentals(AiPlannerInputs inputs, OrganizerEvent event) {
+List<PlannerRentalRecommendation> _recommendRentals(AiPlannerInputs inputs, CustomerEvent event) {
   final guests = inputs.guestCount > 0 ? inputs.guestCount : 150;
   final venue = '${event.venue} ${event.city} ${inputs.location}'.toLowerCase();
   final outdoor = venue.contains('outdoor') || venue.contains('garden') || venue.contains('beach');

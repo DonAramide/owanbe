@@ -24,7 +24,7 @@ class OrganizerHomeScreen extends ConsumerWidget {
     final tab = ref.watch(organizerShellTabProvider);
 
     return EosAppShell(
-      brandLabel: 'Owanbe',
+      brandLabel: 'Owambe',
       brandSubtitle: 'Organizer Portal',
       destinations: EosRoleDestinations.organizer,
       selectedIndex: tab,

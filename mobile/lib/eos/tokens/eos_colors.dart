@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'eos_design_tokens.dart';
 
 /// EOS brand and semantic palette — event premium + fintech clarity.
 abstract final class EosColors {
   // Brand
-  static const Color plum = Color(0xFF4B2C6F);
+  static const Color plum = EosDesignTokens.primaryBase;
   static const Color plumDark = Color(0xFF2E1A45);
   static const Color plumLight = Color(0xFF7B4FA3);
   static const Color champagne = Color(0xFFD4A853);
@@ -20,15 +21,15 @@ abstract final class EosColors {
   static const Color surface = Color(0xFFFFFFFF);
 
   // Semantic
-  static const Color success = Color(0xFF0D9488);
+  static const Color success = EosDesignTokens.successBase;
   static const Color successSoft = Color(0xFFCCFBF1);
-  static const Color warning = Color(0xFFD97706);
+  static const Color warning = EosDesignTokens.warningBase;
   static const Color warningSoft = Color(0xFFFFEDD5);
-  static const Color critical = Color(0xFFDC2626);
+  static const Color critical = EosDesignTokens.dangerBase;
   static const Color criticalSoft = Color(0xFFFEE2E2);
   static const Color info = Color(0xFF2563EB);
   static const Color infoSoft = Color(0xFFDBEAFE);
-  static const Color live = Color(0xFF16A34A);
+  static const Color live = EosDesignTokens.successBase;
 
   static ColorScheme lightScheme() {
     return const ColorScheme(

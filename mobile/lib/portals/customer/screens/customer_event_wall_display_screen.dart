@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../eos/eos.dart';
 import '../models/celebration_wall_models.dart';
 import '../providers/celebration_wall_providers.dart';
+import '../workspace/widgets/event_loading_skeleton.dart';
 
 /// Large-screen celebration wall display at `/events/:eventId/wall/display`.
 class CustomerEventWallDisplayScreen extends ConsumerStatefulWidget {
@@ -49,9 +50,32 @@ class _CustomerEventWallDisplayScreenState extends ConsumerState<CustomerEventWa
       backgroundColor: const Color(0xFF1A0F1E),
       body: SafeArea(
         child: wall.when(
-          loading: () => const Center(child: CircularProgressIndicator(color: Colors.white)),
-          error: (e, _) => Center(
-            child: Text('Could not load wall', style: TextStyle(color: Colors.white.withValues(alpha: 0.8))),
+          loading: () => const _VenueWallLoading(),
+          error: (_, _) => Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.wifi_off_outlined, color: Colors.white.withValues(alpha: 0.7), size: 48),
+                const SizedBox(height: 16),
+                Text(
+                  'Could not load celebration wall',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.white),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Check the connection and try again.',
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+                ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: () {
+                    refreshCelebrationWall(ref);
+                    ref.invalidate(celebrationWallPublicProvider(widget.eventId));
+                  },
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
           ),
           data: (data) {
             final posts = data.items.where((p) => p.isVisible).take(12).toList();
@@ -213,4 +237,14 @@ String _formatWallTime(DateTime dt) {
   final period = h >= 12 ? 'PM' : 'AM';
   final hour12 = h % 12 == 0 ? 12 : h % 12;
   return '$hour12:$m $period';
+}
+
+/// Dark-venue loading placeholder for wall display mode.
+class _VenueWallLoading extends StatelessWidget {
+  const _VenueWallLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const EventLoadingSkeleton(variant: EventLoadingVariant.card);
+  }
 }
