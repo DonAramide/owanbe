@@ -1,14 +1,18 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../common/decorators/public.decorator';
 import { TenantId } from '../../common/decorators/tenant-id.decorator';
 import { CommerceAuthGuard } from '../commerce/commerce-auth.guard';
 import { CommerceActorParam, type CommerceActor } from '../commerce/commerce-auth.service';
+import { AttendeeEventServicesService } from './attendee-event-services.service';
 import { RentalsService } from './rentals.service';
 
 @Controller()
 export class RentalsController {
-  constructor(private readonly rentals: RentalsService) {}
+  constructor(
+    private readonly rentals: RentalsService,
+    private readonly attendeeServices: AttendeeEventServicesService,
+  ) {}
 
   @Public()
   @Throttle({ public: { limit: 300, ttl: 60_000 } })
@@ -94,7 +98,15 @@ export class RentalsController {
     @CommerceActorParam() actor: CommerceActor,
   ) {
     const qty = body.quantity != null ? Number(body.quantity) : undefined;
-    return this.rentals.approveBooking(actor!, vendorId, bookingId, qty);
+    const booking = await this.rentals.approveBooking(actor!, vendorId, bookingId, qty);
+    await this.attendeeServices.notifyRequesterOfStatus(
+      actor!.tenantId,
+      bookingId,
+      'service_booking_confirmed',
+      'Booking confirmed',
+      `${booking.itemName} was confirmed by the vendor.`,
+    );
+    return booking;
   }
 
   @Public()
@@ -106,7 +118,20 @@ export class RentalsController {
     @Body() body: Record<string, unknown>,
     @CommerceActorParam() actor: CommerceActor,
   ) {
-    return this.rentals.counterBooking(actor!, vendorId, bookingId, Number(body.counterQuantity ?? 0));
+    const booking = await this.rentals.counterBooking(
+      actor!,
+      vendorId,
+      bookingId,
+      Number(body.counterQuantity ?? 0),
+    );
+    await this.attendeeServices.notifyRequesterOfStatus(
+      actor!.tenantId,
+      bookingId,
+      'service_booking_updated',
+      'Booking updated',
+      `${booking.itemName} — vendor proposed a different quantity.`,
+    );
+    return booking;
   }
 
   @Public()
@@ -117,7 +142,15 @@ export class RentalsController {
     @Param('bookingId') bookingId: string,
     @CommerceActorParam() actor: CommerceActor,
   ) {
-    return this.rentals.declineBooking(actor!, vendorId, bookingId);
+    const booking = await this.rentals.declineBooking(actor!, vendorId, bookingId);
+    await this.attendeeServices.notifyRequesterOfStatus(
+      actor!.tenantId,
+      bookingId,
+      'service_booking_cancelled',
+      'Booking declined',
+      `${booking.itemName} was declined by the vendor.`,
+    );
+    return booking;
   }
 
   @Public()
@@ -128,7 +161,15 @@ export class RentalsController {
     @Param('bookingId') bookingId: string,
     @CommerceActorParam() actor: CommerceActor,
   ) {
-    return this.rentals.markDelivered(actor!, vendorId, bookingId);
+    const booking = await this.rentals.markDelivered(actor!, vendorId, bookingId);
+    await this.attendeeServices.notifyRequesterOfStatus(
+      actor!.tenantId,
+      bookingId,
+      'service_booking_updated',
+      'Rental ready',
+      `${booking.itemName} is ready / delivered.`,
+    );
+    return booking;
   }
 
   @Public()
@@ -140,7 +181,20 @@ export class RentalsController {
     @Body() body: Record<string, unknown>,
     @CommerceActorParam() actor: CommerceActor,
   ) {
-    return this.rentals.markReturned(actor!, vendorId, bookingId, body.damageNotes as string | undefined);
+    const booking = await this.rentals.markReturned(
+      actor!,
+      vendorId,
+      bookingId,
+      body.damageNotes as string | undefined,
+    );
+    await this.attendeeServices.notifyRequesterOfStatus(
+      actor!.tenantId,
+      bookingId,
+      'service_booking_completed',
+      'Booking completed',
+      `${booking.itemName} was marked returned / completed.`,
+    );
+    return booking;
   }
 
   @Public()
@@ -164,5 +218,78 @@ export class RentalsController {
     @CommerceActorParam() actor: CommerceActor | null,
   ) {
     return this.rentals.createBooking(tenantId, eventId, body, actor?.userId);
+  }
+
+  // —— Phase 9 attendee event services (event-scoped) ——
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Get('events/:eventId/services')
+  async eventServicesHub(
+    @Param('eventId') eventId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.attendeeServices.hub(actor!, eventId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Get('events/:eventId/services/vendors')
+  async eventServiceVendors(
+    @Param('eventId') eventId: string,
+    @CommerceActorParam() actor: CommerceActor,
+    @Query('q') q?: string,
+    @Query('category') category?: string,
+  ) {
+    return this.attendeeServices.listEventVendors(actor!, eventId, { q, category });
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Get('events/:eventId/services/rentals')
+  async eventServiceRentals(
+    @Param('eventId') eventId: string,
+    @CommerceActorParam() actor: CommerceActor,
+    @Query('category') category?: string,
+  ) {
+    return this.attendeeServices.listEventRentalCatalog(actor!, eventId, category);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('events/:eventId/services/rentals/bookings')
+  async attendeeBookRental(
+    @Param('eventId') eventId: string,
+    @CommerceActorParam() actor: CommerceActor,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.attendeeServices.bookRental(actor!, eventId, body);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Get('me/service-bookings')
+  async myServiceBookings(
+    @CommerceActorParam() actor: CommerceActor,
+    @Query('eventId') eventId?: string,
+  ) {
+    return this.attendeeServices.listMyBookings(actor!, eventId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('me/service-bookings/:bookingId/cancel')
+  async cancelServiceBooking(
+    @Param('bookingId') bookingId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.attendeeServices.cancelBooking(actor!, bookingId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Get('me/service-notifications')
+  async serviceNotifications(@CommerceActorParam() actor: CommerceActor) {
+    return this.attendeeServices.listNotifications(actor!);
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../eos/eos.dart';
 import '../models/attendee_event_models.dart';
@@ -63,12 +64,17 @@ class AttendeeEventCard extends StatelessWidget {
             ),
           ),
           SizedBox(height: context.eos.spacing.md),
-          Row(
+                          Row(
             children: [
               Icon(Icons.confirmation_number_outlined, size: 18, color: context.eosColors.primary),
               SizedBox(width: context.eos.spacing.xs),
               Expanded(child: Text(event.tierName, style: context.eosText.titleSmall)),
-              EosCheckinStatus(checkedIn: event.checkedIn),
+              Text(
+                event.liveStatusLabel,
+                style: context.eosText.labelMedium?.copyWith(
+                  color: event.checkedIn ? Colors.green.shade800 : context.eosColors.onSurfaceVariant,
+                ),
+              ),
             ],
           ),
           SizedBox(height: context.eos.spacing.sm),
@@ -132,7 +138,14 @@ class _DetailRow extends StatelessWidget {
   }
 }
 
-void showAttendeeQrSheet(BuildContext context, AttendeeEventView event) {
+void showAttendeeQrSheet(
+  BuildContext context,
+  AttendeeEventView event, {
+  Future<void> Function()? onResend,
+  Future<void> Function()? onShare,
+  Future<void> Function()? onDownload,
+}) {
+  final payload = event.qrPayload.trim();
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -142,23 +155,67 @@ void showAttendeeQrSheet(BuildContext context, AttendeeEventView event) {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(event.eventTitle, style: context.eosText.titleMedium),
-          Text('${event.tierName} · ${event.city}', style: context.eosText.bodySmall),
+          Text('${event.tierName} · ${event.lifecycleLabel} · ${event.city}', style: context.eosText.bodySmall),
           SizedBox(height: context.eos.spacing.md),
           Container(
             padding: EdgeInsets.all(context.eos.spacing.lg),
             decoration: BoxDecoration(
-              color: context.eosColors.surfaceContainerHighest,
+              color: Colors.white,
               borderRadius: EosRadius.card,
+              border: Border.all(color: context.eosColors.outlineVariant),
             ),
             child: Column(
               children: [
-                Icon(Icons.qr_code_2, size: 160, color: context.eosColors.primary),
+                if (payload.isEmpty)
+                  Icon(Icons.qr_code_2, size: 160, color: context.eosColors.outline)
+                else
+                  QrImageView(
+                    data: payload,
+                    version: QrVersions.auto,
+                    size: 200,
+                    backgroundColor: Colors.white,
+                    eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: Colors.black),
+                    dataModuleStyle: const QrDataModuleStyle(
+                      dataModuleShape: QrDataModuleShape.square,
+                      color: Colors.black,
+                    ),
+                  ),
                 SizedBox(height: context.eos.spacing.sm),
-                SelectableText(event.qrPayload, style: context.eosText.labelSmall),
+                SelectableText(
+                  payload.isEmpty ? 'Validation payload unavailable' : payload,
+                  style: context.eosText.labelSmall,
+                  textAlign: TextAlign.center,
+                ),
               ],
             ),
           ),
           SizedBox(height: context.eos.spacing.md),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              if (onShare != null)
+                OutlinedButton.icon(
+                  onPressed: () async => onShare(),
+                  icon: const Icon(Icons.ios_share, size: 18),
+                  label: const Text('Share'),
+                ),
+              if (onDownload != null)
+                OutlinedButton.icon(
+                  onPressed: () async => onDownload(),
+                  icon: const Icon(Icons.download_outlined, size: 18),
+                  label: const Text('Download'),
+                ),
+              if (onResend != null)
+                OutlinedButton.icon(
+                  onPressed: () async => onResend(),
+                  icon: const Icon(Icons.mark_email_read_outlined, size: 18),
+                  label: const Text('Resend'),
+                ),
+            ],
+          ),
+          SizedBox(height: context.eos.spacing.sm),
           FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
         ],
       ),

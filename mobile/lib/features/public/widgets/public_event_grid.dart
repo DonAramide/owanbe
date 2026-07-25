@@ -32,13 +32,17 @@ class PublicEventGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final gap = context.eos.spacing.md;
-        final width = (constraints.maxWidth - gap * (cols - 1)) / cols;
+        final maxWidth = constraints.maxWidth;
+        final colsForWidth = maxWidth < 560 ? 1 : cols;
+        final width = colsForWidth == 1
+            ? maxWidth
+            : (maxWidth - gap * (colsForWidth - 1)) / colsForWidth;
         return Wrap(
           spacing: gap,
           runSpacing: gap,
           children: events.map((e) {
             return SizedBox(
-              width: width.clamp(280, 420),
+              width: width,
               child: _DiscoverCard(
                 event: e,
                 onTap: () {

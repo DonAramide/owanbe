@@ -2,16 +2,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../auth/auth_notifier.dart';
+import '../auth/auth_session.dart';
 import '../auth/user_role.dart';
 import '../platform/bootstrap/bootstrap.dart';
-import '../platform/identity/identity_platform.dart';
-import '../core/config/enterprise_brand_config.dart';
-import '../features/auth/enterprise_auth_shell.dart';
 import '../features/super_admin/screens/platform_configuration_screen.dart';
 import '../features/super_admin/screens/vendor_governance_screen.dart';
 import '../features/super_admin/super_admin_home_screen.dart';
 import '../features/admin/admin_home_screen.dart';
-import '../features/auth/login_screen.dart';
+import '../portals/attendee/navigation/attendee_commerce_routes.dart';
 import '../features/public/screens/attendee_dashboard_screen.dart';
 import '../features/public/screens/checkout_screen.dart';
 import '../features/public/screens/discover_screen.dart';
@@ -30,76 +28,141 @@ import '../portals/customer/screens/customer_event_attire_screen.dart';
 import '../portals/customer/screens/customer_event_rentals_screen.dart';
 import '../portals/customer/screens/customer_event_seating_screen.dart';
 import '../portals/customer/screens/customer_event_program_screen.dart';
+import '../portals/customer/screens/customer_event_tickets_manage_screen.dart';
 import '../portals/customer/screens/customer_event_vendor_pipeline_screen.dart';
-import '../portals/customer/screens/marketplace_rentals_screen.dart';
-import '../portals/customer/screens/customer_event_aso_ebi_screen.dart';
+import '../features/operations/screens/check_in_center_screen.dart';
+import '../features/operations/screens/incident_center_screen.dart';
+import '../features/operations/screens/live_event_feed_screen.dart';
+import '../features/operations/screens/qr_scan_screen.dart';
+import '../portals/customer/screens/customer_event_ops_module_screen.dart';
+import '../../../portals/customer/screens/marketplace_rentals_screen.dart';
 import '../features/vendor/screens/vendor_fashion_attire_screen.dart';
 import '../features/vendor/screens/vendor_crm_screen.dart';
+import '../applications/owanbe_customer/screens/onboarding_form_screen.dart';
 import '../features/vendor/screens/vendor_onboarding_screen.dart';
 import '../features/vendor/screens/vendor_rentals_screen.dart';
 import '../features/vendor/screens/vendor_calendar_screen.dart';
-import '../features/public/screens/landing_screen.dart';
 import '../features/public/screens/splash_screen.dart';
+import '../features/public/screens/supabase_diagnostics_route.dart';
 import '../features/public/screens/walkthrough_screen.dart';
 import '../features/public/screens/payment_success_screen.dart';
-import '../features/public/screens/public_auth_screen.dart';
 import '../features/public/screens/ticket_select_screen.dart';
+import '../features/identity/screens/organizer_onboarding_screen.dart';
 import '../features/organizer/wizard_v2/event_create_wizard_v2_screen.dart';
 import '../features/organizer/screens/event_workspace_screen.dart';
-import '../features/organizer/screens/organizer_home_screen.dart';
 import '../features/vendor/vendor_home_screen.dart';
 import '../portals/customer/router/customer_routes.dart';
+import '../portals/customer/screens/organizer_portfolio_workspace_screen.dart';
 import '../portals/customer/router/customer_shell_route.dart';
+import '../portals/customer/router/event_route_registry.dart';
+import '../features/auth/screens/universal_auth_screen.dart';
+import '../features/auth/screens/admin_auth_screen.dart';
+import '../features/home/screens/owanbe_home_screen.dart';
+import '../features/activation/screens/workspace_activation_screen.dart';
+import '../identity/identity_provider.dart';
+import '../identity/user_identity.dart';
+import '../identity/workspace_lifecycle.dart';
+import '../identity/workspace_models.dart';
+import '../router/experience_routes.dart';
+import 'experience_onboarding.dart';
+import 'portal_routes.dart';
 import 'router_notifier.dart';
+import 'deep_link_listener.dart';
 
-String _homePath(UserRole role) => switch (role) {
-      UserRole.client => '/home',
-      UserRole.organizer => '/organizer',
-      UserRole.vendor => '/vendor',
-      UserRole.admin => '/admin',
-      UserRole.superAdmin => '/super-admin',
-    };
-
-bool _isPublicEventPath(String loc) {
-  final match = RegExp(r'^/events/([^/]+)(?:/(.*))?$').firstMatch(loc);
-  if (match == null) return false;
-  final segment = match.group(1)!;
-  if (segment == 'mine' || segment == 'create') return false;
-  final sub = match.group(2);
-  if (sub == null || sub.isEmpty) return true;
-  if (sub == 'wall/display' || sub.startsWith('wall/display')) return true;
-  final first = sub.split('/').first;
-  return first == 'tickets' || first == 'aso-ebi' || first == 'attire';
-}
-
-bool _isPublicPath(String loc) {
-  if (loc == '/') return true;
-  if (loc == '/events') return true;
-  if (loc == '/vendors' || loc.startsWith('/vendors/')) return true;
-  if (loc == '/checkout') return true;
-  if (loc.startsWith('/auth')) return true;
-  if (loc == '/payment/success') return true;
-
-  if (CustomerRoutes.isShellPath(loc)) return false;
-
-  if (loc.startsWith('/events/')) {
-    return _isPublicEventPath(loc);
+String? _unifiedIdentityRedirect({
+  required AuthSession? session,
+  required String loc,
+  String? pendingDeepLink,
+  OwanbeUserIdentity? identity,
+}) {
+  if (pendingDeepLink != null && loc != pendingDeepLink && loc != '/') {
+    return pendingDeepLink;
   }
-  return false;
-}
 
-bool _pathAllowedForRole(String location, UserRole role) {
-  if (CustomerRoutes.isShellPath(location)) return role == UserRole.client;
-  if (location.startsWith('/attendee')) return true;
-  if (location.startsWith('/organizer')) return role == UserRole.organizer;
-  if (location.startsWith('/vendor')) return role == UserRole.vendor;
-  if (location.startsWith('/admin')) return role == UserRole.admin;
-  if (location.startsWith('/super-admin')) return role == UserRole.superAdmin;
-  if (location.startsWith('/client')) return role == UserRole.client;
-  return true;
+  // —— Admin Flutter binary ——
+  if (SharedBootstrap.isAdmin) {
+    if (ExperienceRoutes.isDiagnosticsPath(loc)) return null;
+    if (session == null) {
+      if (loc == '/' || loc == ExperienceRoutes.adminAuth) return null;
+      if (loc == '/walkthrough' ||
+          ExperienceRoutes.isCustomerAuthPath(loc) ||
+          ExperienceRoutes.isLegacyPortalAuthPath(loc) ||
+          ExperienceRoutes.isHubPath(loc) ||
+          ExperienceRoutes.workspaceFromPath(loc) != null ||
+          ExperienceRoutes.isActivationPath(loc)) {
+        return ExperienceRoutes.adminAuth;
+      }
+      if (ExperienceRoutes.isAdminHomePath(loc)) {
+        return ExperienceRoutes.adminAuth;
+      }
+      return ExperienceRoutes.adminAuth;
+    }
+    // Authenticated admin session
+    if (ExperienceRoutes.isCustomerAuthPath(loc) ||
+        ExperienceRoutes.isLegacyPortalAuthPath(loc) ||
+        ExperienceRoutes.isHubPath(loc) ||
+        ExperienceRoutes.workspaceFromPath(loc) != null ||
+        ExperienceRoutes.isActivationPath(loc) ||
+        loc == '/walkthrough' ||
+        loc == ExperienceRoutes.adminAuth) {
+      return ExperienceRoutes.adminHome;
+    }
+    if (ExperienceRoutes.isAdminHomePath(loc)) return null;
+    return ExperienceRoutes.adminHome;
+  }
+
+  // —— Customer Flutter binary ——
+  if (session != null) {
+    final wsGuard = experienceWorkspaceRouteGuard(
+      loc: loc,
+      session: session,
+      identity: identity,
+    );
+    if (wsGuard != null) return wsGuard;
+  }
+
+  if (ExperienceRoutes.isAdminAuthPath(loc) || ExperienceRoutes.isAdminHomePath(loc)) {
+    // Customer binary never hosts Admin login / Control Tower.
+    return session != null ? ExperienceRoutes.hub : ExperienceRoutes.auth;
+  }
+
+  if (ExperienceRoutes.isPublicPath(loc) ||
+      ExperienceRoutes.isActivationPath(loc) ||
+      PortalRoutes.isOnboardingPath(loc)) {
+    if (session == null && !ExperienceRoutes.isPublicPath(loc)) {
+      return ExperienceRoutes.auth;
+    }
+    return null;
+  }
+
+  if (ExperienceRoutes.isLegacyPortalAuthPath(loc)) {
+    return session != null ? ExperienceRoutes.hub : ExperienceRoutes.auth;
+  }
+
+  if (session == null) {
+    return ExperienceRoutes.auth;
+  }
+
+  if (loc == ExperienceRoutes.auth ||
+      loc == PortalRoutes.gate ||
+      loc == '/walkthrough') {
+    return WorkspaceLifecycle.postLoginDestination(identity);
+  }
+
+  if (ExperienceRoutes.isHubPath(loc)) {
+    return null;
+  }
+
+  final ws = ExperienceRoutes.workspaceFromPath(loc);
+  if (ws != null) {
+    return null;
+  }
+
+  return ExperienceRoutes.hub;
 }
 
 final goRouterProvider = Provider<GoRouter>((ref) {
+  ref.watch(deepLinkListenerProvider);
   final refresh = RouterNotifier(ref);
   ref.onDispose(refresh.dispose);
 
@@ -108,133 +171,50 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: refresh,
     redirect: (context, state) {
       final session = ref.read(authSessionProvider);
+      final pendingDeepLink = ref.read(pendingDeepLinkProvider);
       final loc = state.matchedLocation;
 
-      if (session != null) {
-        final contextUser = IdentityPlatform.instance.currentUserContext;
-        final roles = contextUser?.roles ?? [];
-        final customerRoles = roles.where((r) => r == UserRole.client || r == UserRole.organizer || r == UserRole.vendor).toList();
-
-        if (loc == '/workspace-selection') {
-          if (customerRoles.length <= 1) {
-            final singleRole = customerRoles.isNotEmpty ? customerRoles.first : UserRole.client;
-            return _homePath(singleRole);
-          }
-        }
-
-        if (!SharedBootstrap.isAdmin) {
-          if (customerRoles.length > 1 &&
-              (loc == '/' || loc == '/home' || loc == '/client' || loc.startsWith('/auth')) &&
-              loc != '/workspace-selection') {
-            return '/workspace-selection';
-          }
-        }
+      final redirectLoc = _unifiedIdentityRedirect(
+              session: session,
+              loc: loc,
+              pendingDeepLink: pendingDeepLink,
+              identity: ref.read(userIdentityProvider).valueOrNull,
+            );
+      if (pendingDeepLink != null && redirectLoc == pendingDeepLink) {
+        ref.read(pendingDeepLinkProvider.notifier).state = null;
       }
-
-      if (session == null) {
-        if (SharedBootstrap.isAdmin && loc != '/staff/login') {
-          return '/staff/login?role=admin';
-        }
-      }
-
-      if (CustomerRoutes.isShellPath(loc)) {
-        if (session == null) {
-          return '/auth?return=${Uri.encodeComponent(loc)}';
-        }
-        if (session.role != UserRole.client) {
-          return _homePath(session.role);
-        }
-        return null;
-      }
-
-      if (loc.startsWith('/events/') && !_isPublicEventPath(loc)) {
-        if (session == null) {
-          return '/auth?return=${Uri.encodeComponent(loc)}';
-        }
-        if (session.role != UserRole.client) {
-          return _homePath(session.role);
-        }
-        return null;
-      }
-
-      // Public marketplace — always accessible (except attendee dashboard).
-      if (_isPublicPath(loc)) {
-        if (loc.startsWith('/auth')) return null;
-        return null;
-      }
-
-      if (loc == '/attendee') {
-        if (session == null) {
-          return '/auth?return=/attendee';
-        }
-        return null;
-      }
-
-      if (loc == '/staff/login') {
-        if (session != null) {
-          return _homePath(session.role);
-        }
-        return null;
-      }
-
-      if (loc.startsWith('/organizer')) {
-        if (session == null) {
-          return '/staff/login';
-        }
-        if (session.role != UserRole.organizer) {
-          return _homePath(session.role);
-        }
-        return null;
-      }
-
-      if (loc.startsWith('/vendor')) {
-        if (session == null) {
-          return '/staff/login?role=vendor';
-        }
-        if (session.role != UserRole.vendor) {
-          return _homePath(session.role);
-        }
-        return null;
-      }
-
-      if (loc.startsWith('/admin')) {
-        if (session == null) {
-          return '/staff/login?role=admin';
-        }
-        if (session.role != UserRole.admin) {
-          return _homePath(session.role);
-        }
-        return null;
-      }
-
-      if (loc.startsWith('/super-admin')) {
-        if (session == null) {
-          return '/staff/login?role=superAdmin';
-        }
-        if (session.role != UserRole.superAdmin) {
-          return _homePath(session.role);
-        }
-        return null;
-      }
-
-      if (session == null) {
-        return null;
-      }
-
-      if (loc == '/login' || loc == '/client') {
-        return _homePath(session.role);
-      }
-
-      if (!_pathAllowedForRole(loc, session.role)) {
-        return _homePath(session.role);
-      }
-
-      return null;
+      return redirectLoc;
     },
     routes: [
       customerShellRoute(),
+      GoRoute(
+        path: EventRouteRegistry.portfolio,
+        builder: (context, state) => const OrganizerPortfolioWorkspaceScreen(),
+      ),
       GoRoute(path: '/', builder: (context, state) => const SplashScreen()),
-      GoRoute(path: '/home', builder: (context, state) => const LandingScreen()),
+      GoRoute(
+        path: ExperienceRoutes.supabaseDiagnostics,
+        builder: (context, state) => const SupabaseDiagnosticsScreen(),
+      ),
+      GoRoute(path: ExperienceRoutes.auth, builder: (context, state) => const UniversalAuthScreen()),
+      GoRoute(path: ExperienceRoutes.adminAuth, builder: (context, state) => const AdminAuthScreen()),
+      GoRoute(path: ExperienceRoutes.hub, builder: (context, state) => const OwanbeHomeScreen()),
+      GoRoute(
+        path: '/activate/attendee',
+        builder: (context, state) =>
+            const WorkspaceActivationScreen(workspace: ExperienceWorkspace.attendee),
+      ),
+      GoRoute(
+        path: '/activate/organizer',
+        builder: (context, state) =>
+            const WorkspaceActivationScreen(workspace: ExperienceWorkspace.organizer),
+      ),
+      GoRoute(
+        path: '/activate/vendor',
+        builder: (context, state) =>
+            const WorkspaceActivationScreen(workspace: ExperienceWorkspace.vendor),
+      ),
+      GoRoute(path: PortalRoutes.gate, redirect: (context, state) => ExperienceRoutes.hub),
       GoRoute(path: '/walkthrough', builder: (context, state) => const WalkthroughScreen()),
       GoRoute(
         path: '/events',
@@ -256,6 +236,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: 'tickets',
                 builder: (context, state) => TicketSelectScreen(eventId: state.pathParameters['id']!),
+                routes: [
+                  GoRoute(
+                    path: 'manage',
+                    builder: (context, state) => CustomerEventTicketsManageScreen(
+                      eventId: state.pathParameters['id']!,
+                    ),
+                  ),
+                ],
               ),
               GoRoute(
                 path: 'budget',
@@ -286,6 +274,56 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 builder: (context, state) => CustomerEventDayScreen(
                   eventId: state.pathParameters['id']!,
                 ),
+                routes: [
+                  GoRoute(
+                    path: 'check-in',
+                    builder: (context, state) {
+                      final eventId = state.pathParameters['id']!;
+                      return CustomerEventOpsModuleScreen(
+                        eventId: eventId,
+                        title: 'Check-in',
+                        subtitle: 'Guest arrivals and entry',
+                        body: CheckInCenterScreen(eventId: eventId),
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: 'scan',
+                    builder: (context, state) {
+                      final eventId = state.pathParameters['id']!;
+                      return CustomerEventOpsModuleScreen(
+                        eventId: eventId,
+                        title: 'Scan tickets',
+                        subtitle: 'QR check-in',
+                        body: QrScanScreen(eventId: eventId),
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: 'incidents',
+                    builder: (context, state) {
+                      final eventId = state.pathParameters['id']!;
+                      return CustomerEventOpsModuleScreen(
+                        eventId: eventId,
+                        title: 'Incidents',
+                        subtitle: 'Operational issues',
+                        body: IncidentCenterScreen(eventId: eventId),
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: 'feed',
+                    builder: (context, state) {
+                      final eventId = state.pathParameters['id']!;
+                      return CustomerEventOpsModuleScreen(
+                        eventId: eventId,
+                        title: 'Command feed',
+                        subtitle: 'Live operational timeline',
+                        body: LiveEventFeedScreen(eventId: eventId),
+                      );
+                    },
+                  ),
+                ],
               ),
               GoRoute(
                 path: 'website',
@@ -348,7 +386,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/vendors',
-        builder: (context, state) => const MarketplaceScreen(),
+        builder: (context, state) => MarketplaceScreen(
+          eventId: state.uri.queryParameters['eventId'],
+        ),
         routes: [
           GoRoute(
             path: 'rentals',
@@ -360,41 +400,53 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             path: ':vendorId',
             builder: (context, state) => MarketplaceVendorDetailScreen(
               vendorId: state.pathParameters['vendorId']!,
+              eventId: state.uri.queryParameters['eventId'],
             ),
           ),
         ],
       ),
       GoRoute(path: '/checkout', builder: (context, state) => const CheckoutScreen()),
       GoRoute(
-        path: '/auth',
-        builder: (context, state) => PublicAuthScreen(
-          returnPath: state.uri.queryParameters['return'] ?? '/home',
-        ),
+        path: '/auth/attendee',
+        redirect: (context, state) => ExperienceRoutes.auth,
       ),
-      GoRoute(path: '/payment/success', builder: (context, state) => const PaymentSuccessScreen()),
-      GoRoute(path: '/attendee', builder: (context, state) => const AttendeeDashboardScreen()),
       GoRoute(
-        path: '/staff/login',
-        name: 'staff-login',
+        path: '/auth/organizer',
+        redirect: (context, state) => ExperienceRoutes.auth,
+      ),
+      GoRoute(
+        path: '/auth/vendor',
+        redirect: (context, state) => ExperienceRoutes.auth,
+      ),
+      // /auth/admin is registered above as AdminAuthScreen (Admin Flutter entry).
+      GoRoute(
+        path: '/onboarding/complete',
+        redirect: (context, state) {
+          final role = state.uri.queryParameters['role'];
+          if (role == UserRole.vendor.name) return PortalRoutes.onboardingFor(UserRole.vendor);
+          return null;
+        },
         builder: (context, state) {
-          final queryRole = _roleFromQuery(state.uri.queryParameters['role']);
-          if (SharedBootstrap.isAdmin) {
-            final config = queryRole == UserRole.organizer
-                ? EnterpriseBrandConfig.defaultOrganizerConfig
-                : (queryRole == UserRole.vendor
-                    ? EnterpriseBrandConfig.defaultVendorConfig
-                    : EnterpriseBrandConfig.defaultAdminConfig);
-            return EnterpriseAuthenticationShell(
-              config: config,
-              role: queryRole ?? UserRole.admin,
-            );
-          }
-          return LoginScreen(
-            initialRole: queryRole,
-          );
+          final roleName = state.uri.queryParameters['role'] ?? UserRole.client.name;
+          final role = UserRole.values.byName(roleName);
+          return OnboardingFormScreen(role: role);
         },
       ),
-      GoRoute(path: '/login', redirect: (context, state) => '/staff/login'),
+      GoRoute(path: '/payment/success', builder: (context, state) => const PaymentSuccessScreen()),
+      ...attendeeCommerceRoutes(),
+      GoRoute(
+        path: '/attendee',
+        builder: (context, state) => const AttendeeDashboardScreen(),
+      ),
+      GoRoute(
+        path: '/attending',
+        redirect: (context, state) => '/attendee/find-ticket',
+      ),
+      GoRoute(
+        path: '/staff/login',
+        redirect: (context, state) => PortalRoutes.authFor(UserRole.admin),
+      ),
+      GoRoute(path: '/login', redirect: (context, state) => PortalRoutes.gate),
       GoRoute(
         path: '/vendor',
         builder: (context, state) => const VendorHomeScreen(),
@@ -433,8 +485,15 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/organizer',
-        builder: (context, state) => const OrganizerHomeScreen(),
+        redirect: (context, state) {
+          if (state.uri.path == '/organizer') return '/home';
+          return null;
+        },
         routes: [
+          GoRoute(
+            path: 'onboarding',
+            builder: (context, state) => const OrganizerOnboardingScreen(),
+          ),
           GoRoute(
             path: 'events/new',
             builder: (context, state) => const EventCreateWizardV2Screen(),
@@ -449,15 +508,6 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
-      GoRoute(path: '/client', redirect: (context, state) => '/home'),
     ],
   );
 });
-
-UserRole? _roleFromQuery(String? value) {
-  if (value == null) return null;
-  for (final role in UserRole.values) {
-    if (role.name == value) return role;
-  }
-  return null;
-}

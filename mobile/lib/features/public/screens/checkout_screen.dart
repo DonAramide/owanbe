@@ -4,12 +4,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../../auth/auth_notifier.dart';
 import '../../../auth/auth_session.dart';
+import '../../../auth/user_role.dart';
 import '../../../core/api/ticket_commerce_api.dart';
 import '../../../core/utils/money.dart';
 import '../../../eos/eos.dart';
+import '../../../identity/experience_navigation.dart';
+import '../../../portals/attendee/commerce/ticket_checkout_coordinator.dart';
 import '../models/public_models.dart';
 import '../providers/public_providers.dart';
-import '../providers/ticket_commerce_providers.dart';
 import '../widgets/public_shell_mixin.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
@@ -22,6 +24,8 @@ class CheckoutScreen extends ConsumerStatefulWidget {
 class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   bool _processing = false;
   String? _error;
+  String? _orderIdem;
+  String? _payIdem;
 
   @override
   Widget build(BuildContext context) {
@@ -100,7 +104,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   Future<void> _pay(AuthSession? session) async {
     if (session == null) {
-      context.push('/auth?return=/checkout');
+      context.push(ExperienceNavigation.signInForRole(UserRole.client));
       return;
     }
     if (_processing) return;
@@ -111,34 +115,31 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     });
 
     try {
-      final cart = ref.read(cartProvider);
-      final api = ref.read(ticketCommerceApiProvider);
-      final eventId = cart.first.eventId;
-      final currency = cart.first.currency;
-      final idem = 'checkout_${DateTime.now().millisecondsSinceEpoch}';
-
-      final order = await api.createTicketOrder(
+      _orderIdem ??= 'checkout_${DateTime.now().millisecondsSinceEpoch}';
+      _payIdem ??= '${_orderIdem}_pay';
+      final result = await TicketCheckoutCoordinator(ref).pay(
         session: session,
-        eventId: eventId,
-        currency: currency,
-        items: [
-          for (final line in cart)
-            {'tierId': line.tierId, 'quantity': line.quantity},
-        ],
-        idempotencyKey: idem,
+        cart: ref.read(cartProvider),
+        orderIdempotencyKey: _orderIdem,
+        paymentIdempotencyKey: _payIdem,
       );
 
-      final payment = await api.createTicketPayment(
-        session: session,
-        orderId: order.orderId,
-        idempotencyKey: '${idem}_pay',
-      );
+      if (!mounted) return;
 
-      ref.read(cartProvider.notifier).clear();
-      ref.read(checkoutEntitlementsProvider.notifier).set(payment.entitlements);
-
-      if (mounted) {
-        context.go('/payment/success?orderId=${order.orderId}');
+      switch (result.phase) {
+        case TicketCheckoutPhase.captured:
+          context.go('/payment/success?orderId=${result.orderId}');
+        case TicketCheckoutPhase.awaitingHostedPayment:
+        case TicketCheckoutPhase.awaitingCapture:
+          final q = <String, String>{
+            'orderId': result.orderId,
+            if (result.clientActionUrl != null) 'payUrl': result.clientActionUrl!,
+            if (result.idempotencyKey != null) 'orderIdem': result.idempotencyKey!,
+            if (result.paymentIdempotencyKey != null) 'payIdem': result.paymentIdempotencyKey!,
+          };
+          context.go(Uri(path: '/attendee/payment-pending', queryParameters: q).toString());
+        case TicketCheckoutPhase.failed:
+          setState(() => _error = result.message ?? 'Payment failed');
       }
     } on TicketCommerceApiException catch (e) {
       setState(() => _error = e.message);

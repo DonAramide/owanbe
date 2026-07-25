@@ -5,7 +5,9 @@ import 'package:http/http.dart' as http;
 
 import '../../../core/api/owambe_api_auth.dart';
 import '../../../core/api/persistence_providers.dart';
+import '../../../features/organizer/models/organizer_models.dart';
 import '../models/vendor_crm_models.dart';
+import '../providers/customer_event_providers.dart';
 
 class VendorCrmApi {
   VendorCrmApi({http.Client? client}) : _http = client ?? http.Client();
@@ -38,6 +40,33 @@ class VendorCrmApi {
       Uri.parse('$_base/vendor-requests/$requestId/stage'),
       headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({'stage': stage, if (note != null) 'note': note}),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return VendorCrmSnapshot.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<VendorCrmSnapshot> counterOffer(
+    String requestId, {
+    required int amountMinor,
+    String? message,
+  }) async {
+    final res = await _http.post(
+      Uri.parse('$_base/vendor-requests/$requestId/counter'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      body: jsonEncode({
+        'amountMinor': amountMinor,
+        if (message != null) 'message': message,
+      }),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return VendorCrmSnapshot.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<VendorCrmSnapshot> postMessage(String requestId, {required String message}) async {
+    final res = await _http.post(
+      Uri.parse('$_base/vendor-requests/$requestId/messages'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      body: jsonEncode({'message': message}),
     );
     if (res.statusCode >= 400) _throw(res);
     return VendorCrmSnapshot.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -126,6 +155,48 @@ final vendorInboxProvider = FutureProvider.autoDispose.family<VendorCrmSnapshot,
       items: [],
       stats: VendorPipelineStats(),
     );
+  }
+});
+
+final organizerVendorCrmAlertsProvider =
+    FutureProvider.autoDispose<List<OrganizerAttentionItem>>((ref) async {
+  ref.watch(vendorCrmRefreshProvider);
+  try {
+    final events = await ref.watch(customerEventsProvider.future);
+    final items = <OrganizerAttentionItem>[];
+    for (final e in events) {
+      final snap = await ref.read(vendorCrmApiProvider).listForEvent(e.id);
+      for (final r in snap.items) {
+        if (r.stage == 'negotiating') {
+          items.add(OrganizerAttentionItem(
+            type: OrganizerAttentionType.lowTicketSales,
+            headline: 'Vendor negotiation',
+            message: '${r.vendorName ?? 'Vendor'} · ${r.eventTitle ?? e.title}',
+            eventId: e.id,
+            severity: 'INFO',
+          ));
+        } else if (r.stage == 'accepted') {
+          items.add(OrganizerAttentionItem(
+            type: OrganizerAttentionType.unpublishedDraft,
+            headline: 'Vendor accepted',
+            message: '${r.vendorName ?? 'Vendor'} accepted ${r.eventTitle ?? e.title}',
+            eventId: e.id,
+            severity: 'INFO',
+          ));
+        } else if (r.stage == 'declined') {
+          items.add(OrganizerAttentionItem(
+            type: OrganizerAttentionType.lowTicketSales,
+            headline: 'Vendor declined',
+            message: '${r.vendorName ?? 'Vendor'} declined ${r.eventTitle ?? e.title}',
+            eventId: e.id,
+            severity: 'WARNING',
+          ));
+        }
+      }
+    }
+    return items;
+  } catch (_) {
+    return const [];
   }
 });
 

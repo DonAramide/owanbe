@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../identity/experience_navigation.dart';
 import '../router/event_route_registry.dart';
-
 /// Shared navigator for Event OS modules (Phase 42.1+).
 ///
 /// All Customer Portal navigation must use this abstraction — no hardcoded routes.
@@ -23,6 +23,8 @@ class EventNavigator {
 
   void goProfile() => context.go(EventRouteRegistry.profile);
 
+  void openPortfolio() => context.push(EventRouteRegistry.portfolio);
+
   void openDiscover() => context.push(EventRouteRegistry.discover);
 
   void openAttendeeDashboard() => context.push(EventRouteRegistry.attendeeDashboard);
@@ -34,15 +36,10 @@ class EventNavigator {
   /// Opens the Event Command Center (`/events/:eventId`).
   void openOverview(String eventId) => context.push(EventRouteRegistry.event(eventId));
 
-  /// Returns to Command Center — pop when possible, otherwise `go` to overview.
+  /// Returns to Command Center — pop when possible, otherwise policy fallback.
   void backToOverview(String eventId) {
-    if (context.canPop()) {
-      context.pop();
-    } else {
-      context.go(EventRouteRegistry.event(eventId));
-    }
+    ExperienceNavigation.navigateBack(context);
   }
-
   void openGuests(String eventId) => context.push(EventRouteRegistry.eventGuests(eventId));
 
   void openInvitations(String eventId) => context.push(EventRouteRegistry.eventInvitations(eventId));
@@ -58,7 +55,12 @@ class EventNavigator {
   void openVendorPipeline(String eventId) =>
       context.push(EventRouteRegistry.eventVendorPipeline(eventId));
 
+  /// Attendee ticket purchase at `/events/:id/tickets`.
   void openTickets(String eventId) => context.push(EventRouteRegistry.eventTickets(eventId));
+
+  /// Organizer tier management at `/events/:id/tickets/manage`.
+  void openTicketsManage(String eventId) =>
+      context.push(EventRouteRegistry.eventTicketsManage(eventId));
 
   void openWebsite(String eventId) => context.push(EventRouteRegistry.eventWebsite(eventId));
 
@@ -73,18 +75,39 @@ class EventNavigator {
 
   void openEventDay(String eventId) => context.push(EventRouteRegistry.eventDay(eventId));
 
+  void openCheckIn(String eventId) => context.push(EventRouteRegistry.eventDayCheckIn(eventId));
+
+  void openQrScan(String eventId) => context.push(EventRouteRegistry.eventDayQrScan(eventId));
+
+  void openIncidents(String eventId) => context.push(EventRouteRegistry.eventDayIncidents(eventId));
+
+  void openOpsFeed(String eventId) => context.push(EventRouteRegistry.eventDayFeed(eventId));
+
   void openAiPlanner(String eventId) => context.push(EventRouteRegistry.eventAiPlanner(eventId));
 
-  void openMarketplace() => context.push(EventRouteRegistry.vendors);
+  /// Global marketplace; pass [eventId] when launched from Event Desktop.
+  void openMarketplace({String? eventId}) {
+    if (eventId != null && eventId.isNotEmpty) {
+      context.push(EventRouteRegistry.vendorsForEvent(eventId));
+    } else {
+      context.push(EventRouteRegistry.vendors);
+    }
+  }
 
-  void openMarketplaceCategory(String category) => context.push(
-        EventRouteRegistry.vendorsWithCategory(category),
-      );
+  void openMarketplaceCategory(String category, {String? eventId}) {
+    final base = EventRouteRegistry.vendorsWithCategory(category);
+    if (eventId != null && eventId.isNotEmpty) {
+      context.push('$base&eventId=${Uri.encodeComponent(eventId)}');
+    } else {
+      context.push(base);
+    }
+  }
 
   void openRentalsMarketplace({String? eventId}) =>
       context.push(EventRouteRegistry.rentalsMarketplace(eventId: eventId));
 
-  void openVendorDetail(String vendorId) => context.push(EventRouteRegistry.vendorDetail(vendorId));
+  void openVendorDetail(String vendorId, {String? eventId}) =>
+      context.push(EventRouteRegistry.vendorDetailForEvent(vendorId, eventId: eventId));
 
   void openPublicEvent(String eventId) => context.push(EventRouteRegistry.event(eventId));
 }
@@ -121,7 +144,11 @@ abstract final class EventNavigation {
   static void openRentals(BuildContext context, String eventId) =>
       context.eventNav.openRentals(eventId);
 
-  static void openMarketplace(BuildContext context) => context.eventNav.openMarketplace();
+  static void openMarketplace(BuildContext context, {String? eventId}) =>
+      context.eventNav.openMarketplace(eventId: eventId);
+
+  static void openTicketsManage(BuildContext context, String eventId) =>
+      context.eventNav.openTicketsManage(eventId);
 
   static void openVendorPipeline(BuildContext context, String eventId) =>
       context.eventNav.openVendorPipeline(eventId);

@@ -1,19 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import '../../../eos/eos.dart';
-
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-class WalkthroughScreen extends StatefulWidget {
+import '../../../core/bootstrap/shared_preferences_provider.dart';
+import '../../../eos/eos.dart';
+import '../../../identity/experience_navigation.dart';
+
+class WalkthroughScreen extends ConsumerStatefulWidget {
   const WalkthroughScreen({super.key});
 
   @override
-  State<WalkthroughScreen> createState() => _WalkthroughScreenState();
+  ConsumerState<WalkthroughScreen> createState() => _WalkthroughScreenState();
 }
 
-class _WalkthroughScreenState extends State<WalkthroughScreen> {
+class _WalkthroughScreenState extends ConsumerState<WalkthroughScreen> {
   final PageController _controller = PageController();
   int _currentIndex = 0;
 
@@ -51,10 +52,10 @@ class _WalkthroughScreenState extends State<WalkthroughScreen> {
   ];
 
   Future<void> _completeWalkthrough() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = ref.read(sharedPreferencesProvider);
     await prefs.setBool('show_walkthrough', false);
     if (mounted) {
-      context.go('/home');
+      context.go(ExperienceNavigation.entryWhenSignedOut());
     }
   }
 

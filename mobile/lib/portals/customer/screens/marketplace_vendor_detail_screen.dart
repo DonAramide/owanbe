@@ -19,9 +19,26 @@ import '../widgets/section_header.dart';
 
 /// Vendor detail at `/vendors/:vendorId`.
 class MarketplaceVendorDetailScreen extends ConsumerWidget {
-  const MarketplaceVendorDetailScreen({super.key, required this.vendorId});
+  const MarketplaceVendorDetailScreen({
+    super.key,
+    required this.vendorId,
+    this.eventId,
+  });
 
   final String vendorId;
+
+  /// Active event when opened from Event Desktop marketplace.
+  final String? eventId;
+
+  void _handleBack(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+    } else if (eventId != null && eventId!.isNotEmpty) {
+      context.eventNav.openMarketplace(eventId: eventId);
+    } else {
+      context.eventNav.openMarketplace();
+    }
+  }
 
   Future<void> _requestVendor(BuildContext context, WidgetRef ref) async {
     final profile = await ref.read(marketplaceVendorProfileProvider(vendorId).future);
@@ -29,7 +46,10 @@ class MarketplaceVendorDetailScreen extends ConsumerWidget {
     final sent = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => RequestVendorSheet(vendor: profile.vendor),
+      builder: (context) => RequestVendorSheet(
+        vendor: profile.vendor,
+        lockedEventId: eventId,
+      ),
     );
     if (sent == true && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -47,13 +67,7 @@ class MarketplaceVendorDetailScreen extends ConsumerWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.eventNav.openMarketplace();
-            }
-          },
+          onPressed: () => _handleBack(context),
         ),
         title: const Text('Vendor profile'),
       ),
@@ -74,7 +88,7 @@ class MarketplaceVendorDetailScreen extends ConsumerWidget {
               title: EventFriendlyErrors.headlineFor('this vendor'),
               message: EventFriendlyErrors.genericMessage,
               actionLabel: 'Browse vendors',
-              onAction: () => context.eventNav.openMarketplace(),
+              onAction: () => context.eventNav.openMarketplace(eventId: eventId),
             ),
           ],
         ),

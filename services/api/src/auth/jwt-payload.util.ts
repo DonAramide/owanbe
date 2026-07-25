@@ -20,6 +20,8 @@ export function normalizeJwtRoleCode(raw: string): OwanbeRole | null {
     'admin_super',
     'admin_ops',
     'admin_support',
+    'platform_admin',
+    'organizer',
     'client',
     'vendor',
     'vendor_pending',

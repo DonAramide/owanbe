@@ -312,8 +312,8 @@ export class ProgramService {
     }));
   }
 
-  async getProgram(tenantId: string, eventKey: string): Promise<ProgramView> {
-    const event = await this.access.resolveEventRow(tenantId, eventKey, true);
+  async getProgram(tenantId: string, eventKey: string, publicOnly = true): Promise<ProgramView> {
+    const event = await this.access.resolveEventRow(tenantId, eventKey, publicOnly);
     await this.processDueReminders(tenantId, event.id);
     const items = await this.loadItems(tenantId, event.id);
     return {
@@ -324,8 +324,9 @@ export class ProgramService {
   }
 
   async getProgramForOrganizer(actor: CommerceActor, eventKey: string): Promise<ProgramView> {
-    await this.access.assertOrganizerOwnsEvent(actor.tenantId, actor.userId, eventKey);
-    return this.getProgram(actor.tenantId, eventKey);
+    const event = await this.access.assertOrganizerOwnsEvent(actor.tenantId, actor.userId, eventKey);
+    // Use resolved UUID without public-status filter so draft/planning events work.
+    return this.getProgram(actor.tenantId, event.id, false);
   }
 
   async createItem(actor: CommerceActor, eventKey: string, body: Record<string, unknown>): Promise<ProgramView> {

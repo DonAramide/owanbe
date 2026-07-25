@@ -8,6 +8,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
+import { promises as fs } from 'fs';
+import * as path from 'path';
 import type { Pool } from 'pg';
 import { PG_POOL } from '../../database/database.tokens';
 import type { EnvVars } from '../../config/env.schema';
@@ -30,6 +32,11 @@ export interface PresignUploadResult {
   headers?: Record<string, string>;
 }
 
+export interface LocalObjectPayload {
+  contentType: string;
+  body: Buffer;
+}
+
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
@@ -44,6 +51,26 @@ export class StorageService {
     return this.config.get('STORAGE_BUCKET', { infer: true }).trim() || 'owanbe-media';
   }
 
+  private apiBase(): string {
+    return (
+      this.config.get('PUBLIC_API_BASE_URL', { infer: true }).trim() || 'http://localhost:8080'
+    ).replace(/\/$/, '');
+  }
+
+  private localRoot(): string {
+    return path.resolve(process.cwd(), '.data', 'media');
+  }
+
+  private localPathFor(objectKey: string): string {
+    // Keep keys under root; reject path traversal.
+    const safe = objectKey.replace(/\\/g, '/').split('/').filter((p) => p && p !== '..').join('/');
+    return path.join(this.localRoot(), safe);
+  }
+
+  private objectPublicUrl(objectKey: string): string {
+    return `${this.apiBase()}/v1/media/object/${encodeURIComponent(objectKey)}`;
+  }
+
   isSupabaseConfigured(): boolean {
     return Boolean(
       this.config.get('SUPABASE_URL', { infer: true }).trim() &&
@@ -56,18 +83,15 @@ export class StorageService {
     const objectKey = `${input.tenantId}/${input.purpose ?? 'general'}/${randomUUID()}-${safeName}`;
     const bucket = this.bucket();
 
-    let uploadUrl: string;
-    let publicUrl: string;
-
-    const base = this.config.get('PUBLIC_API_BASE_URL', { infer: true }).trim() || 'http://localhost:8080';
-    uploadUrl = `${base.replace(/\/$/, '')}/v1/media/upload/${encodeURIComponent(objectKey)}`;
-
+    const uploadUrl = `${this.apiBase()}/v1/media/upload/${encodeURIComponent(objectKey)}`;
+    // Always expose a GET-able object URL for clients (NetworkImage / <img>).
+    // When Supabase Storage is configured, prefer its public URL; otherwise use API serve.
+    let publicUrl = this.objectPublicUrl(objectKey);
     if (this.isSupabaseConfigured()) {
       const supabaseUrl = this.config.get('SUPABASE_URL', { infer: true }).replace(/\/$/, '');
       publicUrl = `${supabaseUrl}/storage/v1/object/public/${bucket}/${objectKey}`;
     } else {
-      publicUrl = uploadUrl;
-      this.logger.warn('Supabase storage not configured — using API upload proxy URL');
+      this.logger.warn('Supabase storage not configured — using local media serve URL');
     }
 
     const { rows } = await this.pool.query<{ id: string }>(
@@ -90,7 +114,12 @@ export class StorageService {
     body: Buffer;
   }): Promise<{ ok: true; publicUrl: string }> {
     const objectKey = decodeURIComponent(params.encodedKey);
-    const { rows } = await this.pool.query<{ id: string; uploaded_by: string; public_url: string; bucket: string }>(
+    const { rows } = await this.pool.query<{
+      id: string;
+      uploaded_by: string;
+      public_url: string;
+      bucket: string;
+    }>(
       `SELECT id, uploaded_by::text, public_url, bucket
        FROM media_objects
        WHERE tenant_id = $1 AND object_key = $2`,
@@ -104,9 +133,29 @@ export class StorageService {
       throw new ForbiddenException({ code: 'UPLOAD_FORBIDDEN', message: 'Not allowed to upload to this object' });
     }
 
+    // Always persist locally so GET /media/object works in local_fallback and as backup.
+    await this.writeLocalObject(objectKey, params.body);
+    await this.pool.query(
+      `UPDATE media_objects
+       SET size_bytes = $3, content_type = COALESCE(NULLIF($4, ''), content_type),
+           public_url = CASE
+             WHEN $5::boolean THEN public_url
+             ELSE $6
+           END
+       WHERE tenant_id = $1 AND object_key = $2`,
+      [
+        params.tenantId,
+        objectKey,
+        params.body.length,
+        params.contentType,
+        this.isSupabaseConfigured(),
+        this.objectPublicUrl(objectKey),
+      ],
+    );
+
     if (!this.isSupabaseConfigured()) {
       this.metrics.inc('storage_proxy_upload_total');
-      return { ok: true, publicUrl: row.public_url };
+      return { ok: true, publicUrl: this.objectPublicUrl(objectKey) };
     }
 
     const supabaseUrl = this.config.get('SUPABASE_URL', { infer: true }).replace(/\/$/, '');
@@ -122,14 +171,43 @@ export class StorageService {
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
-      throw new UnprocessableEntityException({
-        code: 'STORAGE_UPLOAD_FAILED',
-        message: detail || 'Storage upload failed',
-      });
+      this.logger.warn(`Supabase storage upload failed; serving local copy. ${detail}`);
+      // Fall back to local public URL so avatars still render.
+      const localUrl = this.objectPublicUrl(objectKey);
+      await this.pool.query(
+        `UPDATE media_objects SET public_url = $3 WHERE tenant_id = $1 AND object_key = $2`,
+        [params.tenantId, objectKey, localUrl],
+      );
+      this.metrics.inc('storage_proxy_upload_total');
+      return { ok: true, publicUrl: localUrl };
     }
 
     this.metrics.inc('storage_proxy_upload_total');
     return { ok: true, publicUrl: row.public_url };
+  }
+
+  /** Serve stored object bytes (public read for avatars / portfolio). */
+  async readObject(encodedKey: string): Promise<LocalObjectPayload> {
+    const objectKey = decodeURIComponent(encodedKey);
+    const { rows } = await this.pool.query<{ content_type: string; object_key: string }>(
+      `SELECT content_type, object_key FROM media_objects WHERE object_key = $1 LIMIT 1`,
+      [objectKey],
+    );
+    const row = rows[0];
+    if (!row) {
+      throw new NotFoundException({ code: 'OBJECT_NOT_FOUND', message: 'Media object not found' });
+    }
+
+    const filePath = this.localPathFor(row.object_key);
+    try {
+      const body = await fs.readFile(filePath);
+      return { contentType: row.content_type || 'application/octet-stream', body };
+    } catch {
+      throw new NotFoundException({
+        code: 'OBJECT_BYTES_MISSING',
+        message: 'Media file is not available. Re-upload the image.',
+      });
+    }
   }
 
   async resolvePublicUrl(tenantId: string, objectId: string): Promise<string | null> {
@@ -138,5 +216,11 @@ export class StorageService {
       [tenantId, objectId],
     );
     return rows[0]?.public_url ?? null;
+  }
+
+  private async writeLocalObject(objectKey: string, body: Buffer): Promise<void> {
+    const filePath = this.localPathFor(objectKey);
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, body);
   }
 }

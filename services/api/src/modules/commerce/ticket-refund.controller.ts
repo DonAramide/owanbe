@@ -24,6 +24,16 @@ export class TicketRefundController {
     return this.refunds.createCase(actor!, orderId, body.amountMinor, body.reason ?? '');
   }
 
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Get('ticket-orders/:orderId/refunds')
+  async listOrderRefunds(
+    @Param('orderId') orderId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.refunds.listForBuyerOrder(actor!, orderId);
+  }
+
   @Roles(...ADMIN_FINANCE_ROLES)
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
   @Get('admin/finance/ticket-refunds')

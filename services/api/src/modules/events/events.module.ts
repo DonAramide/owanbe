@@ -15,6 +15,8 @@ import { SeatingService } from './seating.service';
 import { ProgramService } from './program.service';
 import { EventGuestsService } from './event-guests.service';
 import { EventInvitationsService } from './event-invitations.service';
+import { AttendeeNetworkingService } from './attendee-networking.service';
+import { AttendeePostEventService } from './attendee-post-event.service';
 
 @Module({
   imports: [DatabaseModule, CommerceModule],
@@ -33,6 +35,8 @@ import { EventInvitationsService } from './event-invitations.service';
     ProgramService,
     EventGuestsService,
     EventInvitationsService,
+    AttendeeNetworkingService,
+    AttendeePostEventService,
   ],
   exports: [EventsService, EventsAccessService],
 })

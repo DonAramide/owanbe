@@ -28,6 +28,8 @@ import { SeatingService } from './seating.service';
 import { ProgramService } from './program.service';
 import { EventGuestsService } from './event-guests.service';
 import { EventInvitationsService } from './event-invitations.service';
+import { AttendeeNetworkingService } from './attendee-networking.service';
+import { AttendeePostEventService } from './attendee-post-event.service';
 
 @Controller()
 export class EventsController {
@@ -44,6 +46,8 @@ export class EventsController {
     private readonly program: ProgramService,
     private readonly eventGuests: EventGuestsService,
     private readonly invitations: EventInvitationsService,
+    private readonly networking: AttendeeNetworkingService,
+    private readonly postEvent: AttendeePostEventService,
   ) {}
 
   @Public()
@@ -255,6 +259,140 @@ export class EventsController {
   @Get('events/:eventId/feed')
   async listFeed(@Param('eventId') eventId: string, @CommerceActorParam() actor: CommerceActor) {
     return this.ops.listFeed(actor!, eventId);
+  }
+
+  @Public()
+  @Throttle({ public: { limit: 300, ttl: 60_000 } })
+  @Get('events/:eventId/live-updates')
+  async listLiveUpdates(@TenantId() tenantId: string, @Param('eventId') eventId: string) {
+    return this.ops.listLiveUpdatesForAttendees(tenantId, eventId);
+  }
+
+  // —— Phase 8 attendee networking (event-scoped) ——
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Get('events/:eventId/people')
+  async listPeople(
+    @Param('eventId') eventId: string,
+    @CommerceActorParam() actor: CommerceActor,
+    @Query('q') q?: string,
+    @Query('company') company?: string,
+    @Query('interest') interest?: string,
+  ) {
+    return this.networking.listPeople(actor!, eventId, { q, company, interest });
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Get('events/:eventId/people/suggestions')
+  async peopleSuggestions(
+    @Param('eventId') eventId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.networking.suggestions(actor!, eventId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Get('events/:eventId/connections')
+  async listConnections(
+    @Param('eventId') eventId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.networking.listConnections(actor!, eventId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('events/:eventId/connections')
+  async requestConnection(
+    @Param('eventId') eventId: string,
+    @CommerceActorParam() actor: CommerceActor,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.networking.requestConnection(actor!, eventId, String(body.userId ?? ''));
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('networking/connections/:connectionId/accept')
+  async acceptConnection(
+    @Param('connectionId') connectionId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.networking.acceptConnection(actor!, connectionId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('networking/connections/:connectionId/decline')
+  async declineConnection(
+    @Param('connectionId') connectionId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.networking.declineConnection(actor!, connectionId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Delete('networking/connections/:connectionId')
+  async removeConnection(
+    @Param('connectionId') connectionId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.networking.removeConnection(actor!, connectionId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Get('me/business-card')
+  async myBusinessCard(@CommerceActorParam() actor: CommerceActor) {
+    return this.networking.businessCard(actor!);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Get('me/networking-notifications')
+  async networkingNotifications(@CommerceActorParam() actor: CommerceActor) {
+    return this.networking.listMyNetworkingNotifications(actor!);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('me/networking-share-notify')
+  async networkingShareNotify(
+    @CommerceActorParam() actor: CommerceActor,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.networking.notifyShare(actor!, {
+      kind: (body.kind as 'profile_shared' | 'business_card_shared') ?? 'profile_shared',
+      recipientUserId: String(body.recipientUserId ?? ''),
+      eventId: body.eventId != null ? String(body.eventId) : undefined,
+    });
+  }
+
+  // —— Phase 10 attendee post-event feedback ——
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Get('events/:eventId/feedback')
+  async getEventFeedback(
+    @Param('eventId') eventId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.postEvent.getFeedback(actor!, eventId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Put('events/:eventId/feedback')
+  async upsertEventFeedback(
+    @Param('eventId') eventId: string,
+    @CommerceActorParam() actor: CommerceActor,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.postEvent.upsertFeedback(actor!, eventId, body);
   }
 
   @Public()
@@ -637,6 +775,16 @@ export class EventsController {
 
   @Public()
   @UseGuards(CommerceAuthGuard)
+  @Get('events/:eventId/program/manage')
+  async manageProgram(
+    @Param('eventId') eventId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.program.getProgramForOrganizer(actor!, eventId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
   @Post('events/:eventId/program/items')
   async createProgramItem(
     @Param('eventId') eventId: string,
@@ -818,5 +966,25 @@ export class EventsController {
   ) {
     const status = String(body.status ?? '') === 'declined' ? 'declined' : 'confirmed';
     return this.invitations.rsvpByToken(tenantId, String(body.token ?? ''), status);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Get('me/guest-invitations')
+  async myGuestInvitations(@CommerceActorParam() actor: CommerceActor) {
+    return this.invitations.listForAttendee(actor!);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Throttle({ strict: { limit: 30, ttl: 60_000 } })
+  @Post('me/guest-invitations/:guestId/rsvp')
+  async myGuestRsvp(
+    @Param('guestId') guestId: string,
+    @Body() body: Record<string, unknown>,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    const status = String(body.status ?? '') === 'declined' ? 'declined' : 'confirmed';
+    return this.invitations.rsvpForAttendee(actor!, guestId, status);
   }
 }

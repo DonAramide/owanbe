@@ -8,6 +8,13 @@ import '../../../core/api/persistence_providers.dart';
 import '../../../eos/eos.dart';
 import '../../../eos/widgets/owambe_logo.dart';
 import '../../../portals/customer/router/event_route_registry.dart';
+import '../../../identity/experience_navigation.dart';
+import '../../../identity/identity_provider.dart';
+import '../../../identity/owanbe_identity_config.dart';
+import '../../../identity/workspace_models.dart';
+import '../../../identity/workspace_providers.dart';
+import '../../../router/experience_routes.dart';
+import '../../../router/portal_routes.dart';
 
 class OrganizerOnboardingScreen extends ConsumerStatefulWidget {
   const OrganizerOnboardingScreen({super.key});
@@ -121,8 +128,14 @@ class _OrganizerOnboardingScreenState extends ConsumerState<OrganizerOnboardingS
             organizationName: _organization.text.trim(),
             onboardingStep: 'complete',
           );
+      await ref.read(identityApiProvider).completeOnboarding(workspace: 'organizer');
+      await ref.read(userIdentityProvider.notifier).refresh();
       if (!mounted) return;
-      context.go(EventRouteRegistry.home);
+      if (OwanbeIdentityConfig.identityV2) {
+        context.go(ExperienceNavigation.workspaceHome(ExperienceWorkspace.organizer));
+      } else {
+        context.go(EventRouteRegistry.home);
+      }
     } catch (e) {
       setState(() => _error = '$e');
     } finally {
@@ -196,7 +209,12 @@ class _OrganizerOnboardingScreenState extends ConsumerState<OrganizerOnboardingS
 /// Redirect organizer after login if onboarding incomplete.
 Future<String?> organizerOnboardingRedirect(WidgetRef ref) async {
   final session = ref.read(authSessionProvider);
-  if (session == null || session.role != UserRole.organizer) return null;
+  if (session == null) return null;
+  if (OwanbeIdentityConfig.identityV2) {
+    if (!ref.read(isOrganizerWorkspaceProvider)) return null;
+  } else if (PortalRoutes.canonicalRole(session) != UserRole.organizer) {
+    return null;
+  }
   try {
     final profile = await ref.read(identityApiProvider).fetchOrganizerProfile(session);
     if (profile.isComplete) return null;

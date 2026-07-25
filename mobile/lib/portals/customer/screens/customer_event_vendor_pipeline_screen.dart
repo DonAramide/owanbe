@@ -75,7 +75,7 @@ class _CustomerEventVendorPipelineScreenState extends ConsumerState<CustomerEven
           primaryKpi: _PipelineStatsRow(stats: snapshot.stats),
           content: snapshot.items.isEmpty
               ? EventEmptyStates.vendors(
-                  onBrowse: () => context.eventNav.openMarketplace(),
+                  onBrowse: () => context.eventNav.openMarketplace(eventId: widget.eventId),
                 )
               : Column(
                   children: [

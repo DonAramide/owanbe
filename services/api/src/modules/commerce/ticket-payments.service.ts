@@ -30,6 +30,12 @@ export interface CreateTicketPaymentResult {
     ticketCode: string;
     qrPayload: string;
     tierName: string;
+    eventId: string;
+    eventTitle: string;
+    eventCity: string;
+    eventVenue: string;
+    startsAt: string;
+    issuedAt: string;
   }>;
 }
 
@@ -162,7 +168,11 @@ export class TicketPaymentsService {
         [
           paymentId,
           init.quaserReference,
-          JSON.stringify({ quaser_init: init.raw, initiated_at: new Date().toISOString() }),
+          JSON.stringify({
+            quaser_init: init.raw,
+            initiated_at: new Date().toISOString(),
+            client_action_url: init.clientActionUrl ?? null,
+          }),
         ],
       );
 
@@ -215,6 +225,9 @@ export class TicketPaymentsService {
       entitlements = await this.loadEntitlements(tenantId, p.ticket_order_id);
     }
 
+    const meta = (p.metadata ?? {}) as Record<string, unknown>;
+    const clientActionUrl = this.resolveClientActionUrl(meta);
+
     return {
       payment: {
         id: p.id,
@@ -224,10 +237,26 @@ export class TicketPaymentsService {
         amountExpectedMinor: expected,
         quaserReference: p.quaser_reference,
       },
-      quaser: {},
+      quaser: clientActionUrl ? { clientActionUrl } : {},
       capture: captureResult,
       entitlements,
     };
+  }
+
+  private resolveClientActionUrl(meta: Record<string, unknown>): string | undefined {
+    if (typeof meta.client_action_url === 'string' && meta.client_action_url.trim()) {
+      return meta.client_action_url.trim();
+    }
+    const init = meta.quaser_init;
+    if (init && typeof init === 'object') {
+      const raw = init as Record<string, unknown>;
+      const nested =
+        (typeof raw.client_action_url === 'string' && raw.client_action_url) ||
+        (typeof raw.checkout_url === 'string' && raw.checkout_url) ||
+        '';
+      if (nested.trim()) return nested.trim();
+    }
+    return undefined;
   }
 
   private async loadEntitlements(tenantId: string, orderId: string) {
@@ -235,9 +264,18 @@ export class TicketPaymentsService {
       id: string;
       ticket_code: string;
       metadata: { qr_payload?: string; tier_name?: string };
+      event_id: string;
+      title: string;
+      city: string | null;
+      venue: string | null;
+      starts_at: Date;
+      issued_at: Date;
     }>(
-      `SELECT id, ticket_code, metadata FROM ticket_entitlements
-       WHERE tenant_id = $1 AND ticket_order_id = $2`,
+      `SELECT te.id, te.ticket_code, te.metadata, te.event_id, te.issued_at,
+              e.title, e.metadata->>'city' AS city, e.metadata->>'venue' AS venue, e.starts_at
+       FROM ticket_entitlements te
+       INNER JOIN events e ON e.id = te.event_id
+       WHERE te.tenant_id = $1 AND te.ticket_order_id = $2`,
       [tenantId, orderId],
     );
     return rows.map((r) => ({
@@ -245,6 +283,12 @@ export class TicketPaymentsService {
       ticketCode: r.ticket_code,
       qrPayload: r.metadata?.qr_payload ?? r.ticket_code,
       tierName: r.metadata?.tier_name ?? 'Ticket',
+      eventId: r.event_id,
+      eventTitle: r.title,
+      eventCity: r.city ?? '',
+      eventVenue: r.venue ?? '',
+      startsAt: r.starts_at.toISOString(),
+      issuedAt: r.issued_at.toISOString(),
     }));
   }
 }

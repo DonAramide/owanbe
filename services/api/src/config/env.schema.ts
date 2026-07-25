@@ -30,11 +30,36 @@ export const envValidationSchema = Joi.object({
   /** Phase 9: production disables payment auto-stub; development allows Quaser-less stubs. */
   INTEGRATIONS_MODE: Joi.string().valid('development', 'production').default('development'),
 
-  /** Notifications — Resend (email) */
+  /**
+   * @deprecated Business email SMTP/API credentials live in Enterprise Email Infrastructure (DB).
+   * RESEND_API_KEY is no longer used for outbound mail. Kept optional for backward compatibility only.
+   */
   RESEND_API_KEY: Joi.string().optional().allow(''),
+  /** @deprecated Use Super Admin sender_email on the default provider. */
   NOTIFICATION_FROM_EMAIL: Joi.string().optional().allow(''),
-  /** Fallback delivery webhook for SMS/email when provider keys unset (gate / staging). */
+  /** Fallback delivery webhook for SMS/email when no enterprise provider configured. */
   NOTIFICATION_WEBHOOK_URL: Joi.string().uri().optional().allow(''),
+
+  /**
+   * REQUIRED — AES key material for encrypting email provider secrets at rest.
+   * Not an SMTP password. Use a long random string (32+ chars) or 64-char hex.
+   * API refuses to start if missing.
+   */
+  EMAIL_SECRETS_ENCRYPTION_KEY: Joi.string().min(32).required().messages({
+    'any.required':
+      'EMAIL_SECRETS_ENCRYPTION_KEY is required. Set a 32+ character secret (or 64-char hex) so email provider passwords are encrypted at rest. Without it the API will not start.',
+    'string.min':
+      'EMAIL_SECRETS_ENCRYPTION_KEY must be at least 32 characters (or a 64-character hex key).',
+    'string.empty':
+      'EMAIL_SECRETS_ENCRYPTION_KEY cannot be empty. Set a production encryption secret before starting the API.',
+  }),
+
+  /**
+   * Optional: sync default SMTP provider → Supabase Auth via Management API.
+   * Personal access token must be Owner/Administrator. Never commit the token.
+   */
+  SUPABASE_ACCESS_TOKEN: Joi.string().optional().allow(''),
+  SUPABASE_PROJECT_REF: Joi.string().optional().allow(''),
 
   /** SMS — Twilio */
   TWILIO_ACCOUNT_SID: Joi.string().optional().allow(''),
@@ -72,6 +97,9 @@ export type EnvVars = {
   RESEND_API_KEY: string;
   NOTIFICATION_FROM_EMAIL: string;
   NOTIFICATION_WEBHOOK_URL: string;
+  EMAIL_SECRETS_ENCRYPTION_KEY: string;
+  SUPABASE_ACCESS_TOKEN: string;
+  SUPABASE_PROJECT_REF: string;
   TWILIO_ACCOUNT_SID: string;
   TWILIO_AUTH_TOKEN: string;
   TWILIO_FROM_NUMBER: string;

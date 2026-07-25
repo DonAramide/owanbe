@@ -58,6 +58,28 @@ export class VendorOperationsController {
 
   @Public()
   @UseGuards(CommerceAuthGuard)
+  @Post('vendor-requests/:requestId/counter')
+  async counterVendorRequest(
+    @Param('requestId') requestId: string,
+    @Body() body: Record<string, unknown>,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.crm.counterOffer(actor!, requestId, body);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('vendor-requests/:requestId/messages')
+  async postVendorRequestMessage(
+    @Param('requestId') requestId: string,
+    @Body() body: Record<string, unknown>,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.crm.postMessage(actor!, requestId, body);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
   @Get('vendors/:vendorId/requests')
   async listVendorRequests(
     @Param('vendorId') vendorId: string,

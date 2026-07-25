@@ -9,3 +9,4 @@ node_modules/
 .phase10-backup/
 .phase10-gate-output.json
 owanbe/
+.tools/

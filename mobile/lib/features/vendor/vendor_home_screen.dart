@@ -4,18 +4,33 @@ import 'package:go_router/go_router.dart';
 
 import '../../auth/auth_notifier.dart';
 import '../../eos/eos.dart';
+import '../../features/workspace/widgets/workspace_experience_shell.dart';
+import '../../identity/experience_navigation.dart';
+import '../../identity/workspace_models.dart';
 import 'providers/vendor_providers.dart';
 import 'screens/event_participation_screen.dart';
 import 'screens/orders_bookings_screen.dart';
 import 'screens/service_catalog_screen.dart';
-import 'screens/vendor_onboarding_screen.dart';
 import 'screens/vendor_analytics_screen.dart';
 import 'screens/vendor_dashboard_screen.dart';
 import 'screens/vendor_payouts_screen.dart';
+import 'screens/vendor_profile_edit_sheet.dart';
 import 'screens/vendor_wallet_screen.dart';
 
 class VendorHomeScreen extends ConsumerWidget {
   const VendorHomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return const WorkspaceExperienceShell(
+      workspace: ExperienceWorkspace.vendor,
+      child: _VendorHomeContent(),
+    );
+  }
+}
+
+class _VendorHomeContent extends ConsumerWidget {
+  const _VendorHomeContent();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -24,16 +39,17 @@ class VendorHomeScreen extends ConsumerWidget {
 
     return EosAppShell(
       brandLabel: 'Owambe',
-      brandSubtitle: 'Vendor Portal',
+      brandSubtitle: 'Vendor Workspace',
       destinations: EosRoleDestinations.vendor,
       selectedIndex: tab,
       onSelected: (v) => ref.read(vendorShellTabProvider.notifier).select(v),
       topBar: _VendorTopBar(
         businessName: profile.businessName,
         tier: profile.tier,
+        onEditProfile: () => showVendorProfileEditor(context, ref),
         onSignOut: () {
           ref.read(authSessionProvider.notifier).signOut();
-          context.go('/');
+          context.go(ExperienceNavigation.afterSignOut());
         },
       ),
       body: _bodyForTab(tab),
@@ -52,19 +68,21 @@ class VendorHomeScreen extends ConsumerWidget {
       };
 }
 
-class _VendorTopBar extends StatelessWidget {
+class _VendorTopBar extends ConsumerWidget {
   const _VendorTopBar({
     required this.businessName,
     required this.tier,
+    required this.onEditProfile,
     required this.onSignOut,
   });
 
   final String businessName;
   final String tier;
+  final VoidCallback onEditProfile;
   final VoidCallback onSignOut;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Material(
       color: context.eosColors.surface,
       child: DecoratedBox(
@@ -78,6 +96,12 @@ class _VendorTopBar extends StatelessWidget {
               EosVendorTierChip(tier: tier),
               SizedBox(width: context.eos.spacing.sm),
               Text(businessName, style: context.eosText.titleSmall),
+              IconButton(
+                tooltip: 'Edit Vendor Profile',
+                onPressed: onEditProfile,
+                icon: const Icon(Icons.manage_accounts_outlined),
+              ),
+              const WorkspaceContextActions(),
               IconButton(onPressed: onSignOut, icon: const Icon(Icons.logout)),
             ],
           ),

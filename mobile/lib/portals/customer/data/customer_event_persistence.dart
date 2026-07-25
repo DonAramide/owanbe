@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/persistence_providers.dart';
 import '../../../core/api/vendors_api.dart';
+import '../../../features/vendor/vendor_identity.dart';
 import '../api/customer_events_api.dart';
 import '../data/customer_event_dev_store.dart';
 import '../models/customer_event_models.dart';
@@ -46,7 +47,7 @@ Future<void> inviteVendorToEvent(
 }) async {
   try {
     await ref.read(vendorCrmApiProvider).createRequest(eventId, {
-      'vendorId': vendor.id,
+      'vendorId': VendorIdentity.resolveMarketplaceVendorId(vendor.id),
       'message': message ?? '',
       if (serviceLabel != null) 'serviceLabel': serviceLabel,
       'source': 'marketplace',

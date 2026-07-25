@@ -11,6 +11,7 @@ import '../../../features/super_admin/platform_admin/workflow_studio_screen.dart
 import '../../../features/super_admin/platform_admin/communication_center_screen.dart';
 import '../../../features/super_admin/platform_admin/copilot_workspace_screen.dart';
 import '../../../features/super_admin/platform_admin/integration_hub_screen.dart';
+import '../../../features/super_admin/platform_admin/enterprise_email_infrastructure_screen.dart';
 
 class AuditEvent {
   final String who;
@@ -136,6 +137,7 @@ class _AdminNavigationShellState extends ConsumerState<AdminNavigationShell> {
                 _buildNavItem(7, 'Workflow Studio', Icons.account_tree),
                 _buildNavItem(8, 'Platform Copilot', Icons.psychology),
                 _buildNavItem(9, 'Integration Hub', Icons.hub),
+                _buildNavItem(10, 'Enterprise Email', Icons.mark_email_unread),
               ],
             ),
           ),
@@ -173,7 +175,8 @@ class _AdminNavigationShellState extends ConsumerState<AdminNavigationShell> {
       6 => _buildGovernanceAuditLogsPanel(),
       7 => const WorkflowStudioScreen(),
       8 => const CopilotWorkspaceScreen(),
-      _ => const IntegrationHubScreen(),
+      9 => const IntegrationHubScreen(),
+      _ => const EnterpriseEmailInfrastructureScreen(),
     };
   }
 

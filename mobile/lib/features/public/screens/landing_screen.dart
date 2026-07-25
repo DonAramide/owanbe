@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../eos/eos.dart';
 import '../../../eos/widgets/owambe_logo.dart';
+import '../../../identity/experience_navigation.dart';
 import '../providers/public_providers.dart';
 import '../widgets/public_event_grid.dart';
 import '../widgets/public_shell_mixin.dart';
@@ -136,7 +137,7 @@ class _HeroBanner extends StatelessWidget {
           mainAxisAlignment: center ? MainAxisAlignment.center : MainAxisAlignment.start,
           children: [
             TextButton(
-              onPressed: () => context.push('/auth'),
+              onPressed: () => context.push(ExperienceNavigation.universalAuth()),
               child: Text(
                 'Sign in',
                 style: context.eosText.labelSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),

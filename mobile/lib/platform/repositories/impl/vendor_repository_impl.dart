@@ -3,6 +3,7 @@ import '../../../core/api/vendor_bookings_api.dart';
 import '../../../core/api/vendor_catalog_api.dart';
 import '../../../core/api/vendor_events_api.dart';
 import '../../../features/vendor/models/vendor_models.dart';
+import '../../../features/vendor/vendor_identity.dart';
 import '../i_vendor_repository.dart';
 
 class VendorRepositoryImpl implements IVendorRepository {
@@ -27,8 +28,8 @@ class VendorRepositoryImpl implements IVendorRepository {
   @override
   Future<VendorProfile> getProfile() async {
     if (allowMockPersistenceFallback()) {
-      return const VendorProfile(
-        id: 'vendor_jollof',
+      return VendorProfile(
+        id: VendorIdentity.canonicalDevVendorId,
         businessName: 'Jollof & Co',
         category: 'Catering',
         vendorType: VendorCatalogType.catering,

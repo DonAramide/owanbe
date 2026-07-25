@@ -52,7 +52,7 @@ export class RolesService {
     );
     const meta = metaRows[0];
     if (!meta) {
-      return { roles: [], rolesVersion: -1, userStatus: 'deleted' };
+      return { roles: [], rolesVersion: 0, userStatus: 'pending' };
     }
     const rolesVersion = Number(meta.roles_version);
     const userStatus = meta.user_status as UserLifecycleStatus;

@@ -9,6 +9,7 @@ import '../../core/config/enterprise_brand_config.dart';
 import '../../eos/eos.dart';
 import '../../platform/identity/identity_mfa_provider.dart';
 import '../../platform/identity/identity_mfa_models.dart';
+import '../../router/experience_routes.dart';
 
 enum EnterpriseBootState { none, authenticating, booting, ready }
 
@@ -196,11 +197,11 @@ class _EnterpriseAuthenticationShellState extends ConsumerState<EnterpriseAuthen
 
   void _enterControlTower() {
     final destination = switch (widget.role) {
-      UserRole.admin => '/admin',
-      UserRole.superAdmin => '/super-admin',
-      UserRole.organizer => '/organizer',
+      UserRole.admin => ExperienceRoutes.adminHome,
+      UserRole.superAdmin => ExperienceRoutes.adminHome,
+      UserRole.organizer => '/home',
       UserRole.vendor => '/vendor',
-      _ => '/home',
+      _ => '/attendee',
     };
     context.go(destination);
   }

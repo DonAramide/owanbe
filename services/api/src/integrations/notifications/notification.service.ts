@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { PG_POOL } from '../../database/database.tokens';
 import type { EnvVars } from '../../config/env.schema';
 import { MetricsService } from '../observability/metrics.service';
+import { EmailService } from '../email-infrastructure/email.service';
 
 export type NotificationChannel = 'email' | 'sms' | 'push';
 
@@ -25,6 +26,7 @@ export class NotificationService {
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly config: ConfigService<EnvVars, true>,
     private readonly metrics: MetricsService,
+    private readonly emailService: EmailService,
   ) {}
 
   async send(input: SendNotificationInput): Promise<{ ok: boolean; deliveryId?: string; reason?: string }> {
@@ -37,7 +39,7 @@ export class NotificationService {
         input.channel,
         input.template,
         input.recipient,
-        this.resolveProvider(input.channel),
+        await this.resolveProviderLabel(input.channel),
         JSON.stringify(input.metadata ?? {}),
       ],
     );
@@ -65,9 +67,10 @@ export class NotificationService {
     }
   }
 
-  private resolveProvider(channel: NotificationChannel): string {
+  private async resolveProviderLabel(channel: NotificationChannel): Promise<string> {
     if (channel === 'email') {
-      if (this.config.get('RESEND_API_KEY', { infer: true }).trim()) return 'resend';
+      const active = await this.emailService.resolveActiveProvider();
+      if (active) return `enterprise:${active.provider_type}`;
       if (this.config.get('NOTIFICATION_WEBHOOK_URL', { infer: true }).trim()) return 'webhook';
       return 'log';
     }
@@ -90,24 +93,18 @@ export class NotificationService {
     return { ok: true, externalId: 'log-push' };
   }
 
+  /** Business email — always via Enterprise Email Infrastructure (EmailService). */
   private async sendEmail(input: SendNotificationInput): Promise<{ ok: boolean; externalId?: string; reason?: string }> {
-    const resendKey = this.config.get('RESEND_API_KEY', { infer: true }).trim();
-    const from = this.config.get('NOTIFICATION_FROM_EMAIL', { infer: true }).trim() || 'Owanbe <noreply@owanbe.app>';
-
-    if (resendKey) {
-      const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          from,
-          to: [input.recipient],
-          subject: input.subject ?? input.template,
-          html: input.body,
-        }),
+    if (await this.emailService.hasConfiguredProvider()) {
+      const result = await this.emailService.send({
+        to: input.recipient,
+        subject: input.subject ?? input.template,
+        html: input.body,
+        template: input.template,
+        tenantId: input.tenantId,
+        metadata: input.metadata,
       });
-      const raw = (await res.json().catch(() => ({}))) as { id?: string; message?: string };
-      if (!res.ok) return { ok: false, reason: raw.message ?? `Resend HTTP ${res.status}` };
-      return { ok: true, externalId: raw.id };
+      return { ok: result.ok, externalId: result.externalId, reason: result.reason };
     }
 
     const webhook = this.config.get('NOTIFICATION_WEBHOOK_URL', { infer: true }).trim();
@@ -121,8 +118,11 @@ export class NotificationService {
       return { ok: true, externalId: 'webhook-email' };
     }
 
-    this.logger.log({ to: input.recipient, template: input.template }, 'Email (log-only — configure RESEND_API_KEY)');
-    return { ok: true, externalId: 'log-email' };
+    return {
+      ok: false,
+      reason:
+        'No SMTP provider configured. Configure Super Admin → Enterprise Email (default enabled provider) before sending mail.',
+    };
   }
 
   private async sendSms(input: SendNotificationInput): Promise<{ ok: boolean; externalId?: string; reason?: string }> {

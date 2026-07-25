@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../auth/auth_notifier.dart';
+import '../../../portals/attendee/data/attendee_pass_cache.dart';
+import '../../../portals/attendee/providers/attendee_pass_providers.dart';
 import '../models/attendee_event_models.dart';
 import '../models/public_models.dart';
 import '../providers/public_providers.dart';
@@ -10,25 +12,19 @@ final attendeeTicketsSyncProvider = FutureProvider.autoDispose<List<AttendeeTick
   final session = ref.watch(authSessionProvider);
   if (session == null) return ref.watch(attendeeTicketsProvider);
 
+  final cache = ref.read(attendeePassCacheProvider);
+  final userId = session.userId;
+
   try {
     final api = ref.read(ticketCommerceApiProvider);
     final remote = await api.fetchMyEntitlements(session);
-    return remote
-        .map(
-          (e) => AttendeeTicket(
-            id: e.id,
-            eventId: e.eventId,
-            eventTitle: e.eventTitle,
-            tierName: e.tierName,
-            venue: e.eventVenue,
-            city: e.eventCity,
-            startsAt: e.startsAt,
-            qrPayload: e.qrPayload,
-            purchasedAt: e.issuedAt ?? DateTime.now(),
-          ),
-        )
-        .toList();
+    await cache.write(userId, remote);
+    return remote.map(mapEntitlementToTicket).toList();
   } catch (_) {
+    final cached = cache.read(userId);
+    if (cached.isNotEmpty) {
+      return cached.map(mapEntitlementToTicket).toList();
+    }
     return ref.watch(attendeeTicketsProvider);
   }
 });

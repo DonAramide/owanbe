@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../auth/auth_notifier.dart';
 import '../../../eos/eos.dart';
+import '../../../identity/experience_navigation.dart';
+import '../../../identity/workspace_models.dart';
+import '../../../features/workspace/widgets/workspace_experience_shell.dart';
 import '../../../portals/customer/router/customer_routes.dart';
 import '../../../theme/theme_mode_provider.dart';
 import '../../operations/screens/operations_shell.dart';
@@ -12,6 +15,7 @@ import 'attendee_management_screen.dart';
 import 'event_analytics_screen.dart';
 import 'event_management_screen.dart';
 import 'organizer_dashboard_screen.dart';
+import 'organizer_profile_edit_sheet.dart';
 import 'ticket_management_screen.dart';
 import 'vendor_management_screen.dart';
 
@@ -23,9 +27,11 @@ class OrganizerHomeScreen extends ConsumerWidget {
     final session = ref.watch(authSessionProvider);
     final tab = ref.watch(organizerShellTabProvider);
 
-    return EosAppShell(
+    return WorkspaceExperienceShell(
+      workspace: ExperienceWorkspace.organizer,
+      child: EosAppShell(
       brandLabel: 'Owambe',
-      brandSubtitle: 'Organizer Portal',
+      brandSubtitle: 'Organizer Workspace',
       destinations: EosRoleDestinations.organizer,
       selectedIndex: tab,
       onSelected: (v) => ref.read(organizerShellTabProvider.notifier).select(v),
@@ -33,12 +39,14 @@ class OrganizerHomeScreen extends ConsumerWidget {
         name: session?.displayName ?? 'Organizer',
         onCreateEvent: () => context.push('/organizer/events/new'),
         onBrowseMarketplace: () => context.push(CustomerRoutes.vendors),
+        onEditProfile: () => showOrganizerProfileEditor(context, ref),
         onSignOut: () {
           ref.read(authSessionProvider.notifier).signOut();
-          context.go('/');
+          context.go(ExperienceNavigation.afterSignOut());
         },
       ),
       body: _bodyForTab(tab),
+      ),
     );
   }
 
@@ -59,12 +67,14 @@ class _OrganizerTopBar extends ConsumerWidget {
     required this.name,
     required this.onCreateEvent,
     required this.onBrowseMarketplace,
+    required this.onEditProfile,
     required this.onSignOut,
   });
 
   final String name;
   final VoidCallback onCreateEvent;
   final VoidCallback onBrowseMarketplace;
+  final VoidCallback onEditProfile;
   final VoidCallback onSignOut;
 
   @override
@@ -86,12 +96,6 @@ class _OrganizerTopBar extends ConsumerWidget {
                 label: const Text('Marketplace'),
               ),
               SizedBox(width: context.eos.spacing.sm),
-              OutlinedButton.icon(
-                onPressed: () => context.push('/attendee'),
-                icon: const Icon(Icons.confirmation_number_outlined, size: 18),
-                label: const Text('Attending'),
-              ),
-              SizedBox(width: context.eos.spacing.sm),
               FilledButton.icon(
                 onPressed: onCreateEvent,
                 icon: const Icon(Icons.add, size: 18),
@@ -99,11 +103,16 @@ class _OrganizerTopBar extends ConsumerWidget {
               ),
               SizedBox(width: context.eos.spacing.sm),
               IconButton(
+                tooltip: 'Edit Organizer Profile',
+                onPressed: onEditProfile,
+                icon: const Icon(Icons.manage_accounts_outlined),
+              ),
+              IconButton(
                 tooltip: isDark ? 'Switch to light mode' : 'Switch to dark mode',
                 onPressed: () => ref.read(themeModeProvider.notifier).toggleLightDark(),
                 icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
               ),
-              Text(name, style: context.eosText.titleSmall),
+              const WorkspaceContextActions(),
               IconButton(onPressed: onSignOut, icon: const Icon(Icons.logout)),
             ],
           ),

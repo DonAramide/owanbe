@@ -1,4 +1,4 @@
-const { Client } = require('pg');
+const { Client } = require('../services/api/node_modules/pg');
 
 const DATABASE_URL = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/owanbe';
 

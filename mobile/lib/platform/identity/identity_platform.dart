@@ -24,37 +24,18 @@ class IdentityPlatform extends PlatformModule {
   @override
   Future<void> initialize() async {
     PlatformRegistry.instance.registerModule(this);
-    
-    // Automatically load persisted context if session is active
-    final current = _supabase.auth.currentSession;
-    if (current != null) {
-      final prefs = await _session.loadPreferences();
-      final storedRole = prefs['role'] ?? 'client';
-      final role = UserRole.values.firstWhere(
-        (r) => r.name == storedRole,
-        orElse: () => UserRole.client,
-      );
-      final context = await _repository.fetchUserContext(current, role);
-      
-      final hasAdminRole = context.roles.contains(UserRole.admin) || context.roles.contains(UserRole.superAdmin);
-      final hasCustomerRole = context.roles.contains(UserRole.client) ||
-          context.roles.contains(UserRole.organizer) ||
-          context.roles.contains(UserRole.vendor);
 
-      if (SharedBootstrap.isAdmin) {
-        if (!hasAdminRole) {
-          await signOut();
-          return;
-        }
-      } else {
-        if (!hasCustomerRole) {
-          await signOut();
-          return;
-        }
-      }
-      
-      _currentUserContext = context;
-    }
+    final current = _supabase.auth.currentSession;
+    if (current == null) return;
+
+    final prefs = await _session.loadPreferences();
+    final storedRole = prefs['role'] ?? 'client';
+    final role = UserRole.values.firstWhere(
+      (r) => r.name == storedRole,
+      orElse: () => UserRole.client,
+    );
+    final context = await _repository.fetchUserContext(current, role);
+    _currentUserContext = context;
   }
 
   Future<AuthOutcome> signInWithEmail({
@@ -95,17 +76,11 @@ class IdentityPlatform extends PlatformModule {
 
     UserRole resolvedRole = expectedRole;
     if (!context.roles.contains(resolvedRole)) {
-      if (context.roles.contains(UserRole.client)) {
-        resolvedRole = UserRole.client;
-      } else if (context.roles.contains(UserRole.organizer)) {
-        resolvedRole = UserRole.organizer;
-      } else if (context.roles.contains(UserRole.vendor)) {
-        resolvedRole = UserRole.vendor;
-      } else if (context.roles.contains(UserRole.superAdmin)) {
-        resolvedRole = UserRole.superAdmin;
-      } else if (context.roles.contains(UserRole.admin)) {
-        resolvedRole = UserRole.admin;
-      }
+      await signOut();
+      PlatformEventBus.instance.fire(
+        'AUTH_DENIED: Account not registered for ${expectedRole.name} portal',
+      );
+      return AuthOutcome.unauthorized;
     }
 
     _currentUserContext = context.copyWith(activeRole: resolvedRole);
@@ -119,17 +94,77 @@ class IdentityPlatform extends PlatformModule {
     return AuthOutcome.authenticated;
   }
 
-  Future<AuthOutcome> signInWithGoogle() async {
+  Future<AuthOutcome> signInWithGoogle({UserRole portalRole = UserRole.client}) async {
+    await _session.persistPreferences(
+      email: _currentUserContext?.email ?? '',
+      preferredRole: portalRole,
+      tenantId: _currentUserContext?.activeTenantId,
+    );
+
     final success = await _supabase.auth.signInWithOAuth(
       OAuthProvider.google,
       redirectTo: 'io.supabase.owambe://login-callback',
+      authScreenLaunchMode: LaunchMode.externalApplication,
+      queryParams: const {
+        'prompt': 'select_account',
+        'access_type': 'online',
+      },
     );
-    
+
     if (!success) {
       PlatformEventBus.instance.fire('AUTH_FAILED: Google Sign-in Trigger Failed');
       return AuthOutcome.sessionExpired;
     }
-    
+
+    return AuthOutcome.authenticated;
+  }
+
+  Future<AuthOutcome> completeOAuthSignIn({
+    required UserRole expectedRole,
+    bool portalVerifiedByApi = false,
+  }) async {
+    final session = _supabase.auth.currentSession;
+    if (session == null) {
+      return AuthOutcome.sessionExpired;
+    }
+
+    final context = await _repository.fetchUserContext(session, expectedRole);
+
+    if (!portalVerifiedByApi) {
+      final hasAdminRole = context.roles.contains(UserRole.admin) ||
+          context.roles.contains(UserRole.superAdmin);
+      final hasCustomerRole = context.roles.contains(UserRole.client) ||
+          context.roles.contains(UserRole.organizer) ||
+          context.roles.contains(UserRole.vendor);
+
+      if (SharedBootstrap.isAdmin) {
+        if (!hasAdminRole) {
+          await signOut();
+          PlatformEventBus.instance.fire('AUTH_DENIED: Non-admin login attempt on Admin app');
+          return AuthOutcome.unauthorized;
+        }
+      } else if (expectedRole == UserRole.admin || expectedRole == UserRole.superAdmin) {
+        if (!hasAdminRole) {
+          await signOut();
+          return AuthOutcome.unauthorized;
+        }
+      } else if (!hasCustomerRole || !context.roles.contains(expectedRole)) {
+        await signOut();
+        PlatformEventBus.instance.fire(
+          'AUTH_DENIED: Account not registered for ${expectedRole.name} portal',
+        );
+        return AuthOutcome.unauthorized;
+      }
+    }
+
+    _currentUserContext = context.copyWith(activeRole: expectedRole);
+    await _session.persistPreferences(
+      email: context.email,
+      preferredRole: expectedRole,
+      tenantId: context.activeTenantId,
+    );
+
+    PlatformEventBus.instance.fire('AUTH_SUCCESS: ${userContextJson()}');
     return AuthOutcome.authenticated;
   }
 
@@ -137,7 +172,7 @@ class IdentityPlatform extends PlatformModule {
     final email = _currentUserContext?.email;
     _currentUserContext = null;
     await _session.clearSession();
-    await _supabase.auth.signOut();
+    await _supabase.auth.signOut(scope: SignOutScope.global);
     PlatformEventBus.instance.fire('AUTH_SIGNOUT: Email: $email');
   }
 
@@ -147,14 +182,6 @@ class IdentityPlatform extends PlatformModule {
   }
 
   void switchActiveRole(UserRole role) {
-    if (_currentUserContext != null && _currentUserContext!.roles.contains(role)) {
-      _currentUserContext = _currentUserContext!.copyWith(activeRole: role);
-      _session.persistPreferences(
-        email: _currentUserContext!.email,
-        preferredRole: role,
-        tenantId: _currentUserContext!.activeTenantId,
-      );
-      PlatformEventBus.instance.fire('WORKSPACE_SWITCHED: ${role.name}');
-    }
+    // Strict portal separation (Phase 4): one account, one portal — no role switching.
   }
 }

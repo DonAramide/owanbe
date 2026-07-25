@@ -1,8 +1,10 @@
 import 'package:go_router/go_router.dart';
 
+import '../../../features/workspace/widgets/workspace_experience_shell.dart';
+import '../../../identity/workspace_models.dart';
 import '../screens/customer_create_event_screen.dart';
 import '../screens/customer_guests_screen.dart';
-import '../screens/customer_home_screen.dart';
+import '../../organizer/screens/organizer_home_hub_screen.dart';
 import '../screens/customer_my_events_screen.dart';
 import '../screens/customer_profile_screen.dart';
 import '../shell/customer_shell.dart';
@@ -12,14 +14,17 @@ import 'event_route_registry.dart';
 StatefulShellRoute customerShellRoute() {
   return StatefulShellRoute.indexedStack(
     builder: (context, state, navigationShell) {
-      return CustomerShell(navigationShell: navigationShell);
+      return WorkspaceExperienceShell(
+        workspace: ExperienceWorkspace.organizer,
+        child: CustomerShell(navigationShell: navigationShell),
+      );
     },
     branches: [
       StatefulShellBranch(
         routes: [
           GoRoute(
             path: EventRouteRegistry.home,
-            builder: (context, state) => const CustomerHomeScreen(),
+            builder: (context, state) => const OrganizerHomeHubScreen(),
           ),
         ],
       ),

@@ -3,8 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../eos/eos.dart';
-import '../models/public_models.dart';
-import '../providers/public_providers.dart';
+import '../providers/attendee_events_provider.dart';
 import '../providers/ticket_commerce_providers.dart';
 import '../widgets/public_shell_mixin.dart';
 
@@ -24,27 +23,13 @@ class _PaymentSuccessScreenState extends ConsumerState<PaymentSuccessScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _syncTickets());
   }
 
-  void _syncTickets() {
+  Future<void> _syncTickets() async {
     if (_synced) return;
-    final entitlements = ref.read(checkoutEntitlementsProvider);
-    if (entitlements.isEmpty) return;
-    final tickets = entitlements
-        .map(
-          (e) => AttendeeTicket(
-            id: e.id,
-            eventId: e.eventId,
-            eventTitle: e.eventTitle,
-            tierName: e.tierName,
-            venue: e.eventVenue,
-            city: e.eventCity,
-            startsAt: e.startsAt,
-            qrPayload: e.qrPayload,
-            purchasedAt: DateTime.now(),
-          ),
-        )
-        .toList();
-    ref.read(attendeeTicketsProvider.notifier).addAll(tickets);
     _synced = true;
+    ref.invalidate(attendeeTicketsSyncProvider);
+    try {
+      await ref.read(attendeeTicketsSyncProvider.future);
+    } catch (_) {}
   }
 
   @override
@@ -81,6 +66,10 @@ class _PaymentSuccessScreenState extends ConsumerState<PaymentSuccessScreen> {
                   FilledButton(
                     onPressed: () => context.go('/attendee'),
                     child: const Text('View my tickets'),
+                  ),
+                  TextButton(
+                    onPressed: () => context.go('/attendee/orders'),
+                    child: const Text('Purchase history'),
                   ),
                   TextButton(
                     onPressed: () => context.go('/events'),

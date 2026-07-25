@@ -1,12 +1,13 @@
 import '../../organizer/data/organizer_event_store.dart';
 import '../models/vendor_models.dart';
+import '../vendor_identity.dart';
 
 /// In-memory vendor merchant store — local until full workflow is complete.
 class VendorStore {
   VendorStore._();
   static final VendorStore instance = VendorStore._();
 
-  static const demoVendorId = 'vendor_jollof';
+  static const demoVendorId = VendorIdentity.canonicalDevVendorId;
 
   final VendorProfile profile = const VendorProfile(
     id: demoVendorId,

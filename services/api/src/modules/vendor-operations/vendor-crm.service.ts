@@ -11,6 +11,7 @@ import { PG_POOL } from '../../database/database.tokens';
 import type { CommerceActor } from '../commerce/commerce-auth.service';
 import { EventsAccessService } from '../events/events-access.service';
 import { VendorCalendarService } from './vendor-calendar.service';
+import { NotificationService } from '../../integrations/notifications/notification.service';
 
 export const VENDOR_REQUEST_STAGES = [
   'new',
@@ -40,6 +41,7 @@ export type VendorRequestView = {
   source: string;
   vendorName: string | null;
   eventTitle: string | null;
+  organizerName: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -73,7 +75,57 @@ export class VendorCrmService {
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly access: EventsAccessService,
     private readonly calendar: VendorCalendarService,
+    private readonly notifications: NotificationService,
   ) {}
+
+  private async enqueueInAppNotification(
+    tenantId: string,
+    userId: string,
+    kind: string,
+    title: string,
+    body: string,
+    dedupeKey: string,
+    data: Record<string, unknown>,
+  ) {
+    await this.pool.query(
+      `INSERT INTO notifications (tenant_id, user_id, channel, status, kind, title, body, data, dedupe_key, sent_at, delivered_at)
+       VALUES ($1, $2, 'in_app', 'delivered', $3, $4, $5, $6::jsonb, $7, now(), now())
+       ON CONFLICT (tenant_id, user_id, dedupe_key) DO UPDATE
+         SET title = EXCLUDED.title,
+             body = EXCLUDED.body,
+             data = EXCLUDED.data,
+             status = 'delivered',
+             updated_at = now()`,
+      [tenantId, userId, kind, title, body, JSON.stringify(data), dedupeKey],
+    );
+  }
+
+  private async resolveOrganizerOwnerUserId(tenantId: string, organizerId: string): Promise<string | null> {
+    const { rows } = await this.pool.query<{ owner_user_id: string }>(
+      `SELECT owner_user_id FROM organizers WHERE tenant_id = $1 AND id = $2`,
+      [tenantId, organizerId],
+    );
+    return rows[0]?.owner_user_id ?? null;
+  }
+
+  private async resolveVendorOwnerUserId(tenantId: string, vendorId: string): Promise<string | null> {
+    const { rows } = await this.pool.query<{ owner_user_id: string }>(
+      `SELECT owner_user_id FROM vendors WHERE tenant_id = $1 AND id = $2`,
+      [tenantId, vendorId],
+    );
+    return rows[0]?.owner_user_id ?? null;
+  }
+
+  private async ensureParticipationOnAccept(tenantId: string, vendorId: string, eventId: string) {
+    await this.pool.query(
+      `INSERT INTO vendor_event_participations (
+         tenant_id, vendor_id, event_id, status, booth_label, expected_payout_minor
+       ) VALUES ($1, $2, $3, 'approved', 'Vendor village', 25000000)
+       ON CONFLICT (vendor_id, event_id) DO UPDATE
+         SET status = 'approved', updated_at = now()`,
+      [tenantId, vendorId, eventId],
+    );
+  }
 
   private assertStage(raw: string): VendorRequestStage {
     if (!VENDOR_REQUEST_STAGES.includes(raw as VendorRequestStage)) {
@@ -98,6 +150,7 @@ export class VendorCrmService {
     source: string;
     vendor_name?: string | null;
     event_title?: string | null;
+    organizer_name?: string | null;
     created_at: Date;
     updated_at: Date;
   }): VendorRequestView {
@@ -117,6 +170,7 @@ export class VendorCrmService {
       source: row.source,
       vendorName: row.vendor_name ?? null,
       eventTitle: row.event_title ?? null,
+      organizerName: row.organizer_name ?? null,
       createdAt: row.created_at.toISOString(),
       updatedAt: row.updated_at.toISOString(),
     };
@@ -193,10 +247,11 @@ export class VendorCrmService {
   async listForEvent(actor: CommerceActor, eventKey: string) {
     const event = await this.access.assertOrganizerOwnsEvent(actor.tenantId, actor.userId, eventKey);
     const { rows } = await this.pool.query(
-      `SELECT r.*, v.business_name AS vendor_name, e.title AS event_title
+      `SELECT r.*, v.business_name AS vendor_name, e.title AS event_title, o.display_name AS organizer_name
        FROM vendor_event_requests r
        JOIN vendors v ON v.id = r.vendor_id
        JOIN events e ON e.id = r.event_id
+       JOIN organizers o ON o.id = r.organizer_id
        WHERE r.tenant_id = $1 AND r.event_id = $2
        ORDER BY r.updated_at DESC`,
       [actor.tenantId, event.id],
@@ -211,10 +266,11 @@ export class VendorCrmService {
       throw new ForbiddenException({ code: 'ACCESS_DENIED', message: 'Not vendor owner' });
     }
     const { rows } = await this.pool.query(
-      `SELECT r.*, v.business_name AS vendor_name, e.title AS event_title
+      `SELECT r.*, v.business_name AS vendor_name, e.title AS event_title, o.display_name AS organizer_name
        FROM vendor_event_requests r
        JOIN vendors v ON v.id = r.vendor_id
        JOIN events e ON e.id = r.event_id
+       JOIN organizers o ON o.id = r.organizer_id
        WHERE r.tenant_id = $1 AND r.vendor_id = $2
        ORDER BY r.updated_at DESC`,
       [actor.tenantId, vendorId],
@@ -285,8 +341,30 @@ export class VendorCrmService {
       event.id,
       `Vendor request: ${vendorName[0]?.business_name ?? 'vendor'}`,
       message || 'New marketplace request',
-      { requestId, stage },
+      { requestId, stage, vendorId, eventId: event.id, correlationId: requestId },
     );
+
+    const vendorOwnerId = await this.resolveVendorOwnerUserId(actor.tenantId, vendorId);
+    if (vendorOwnerId) {
+      const eventTitle = event.title ?? 'your event';
+      await this.enqueueInAppNotification(
+        actor.tenantId,
+        vendorOwnerId,
+        'vendor_request_incoming',
+        'Incoming vendor request',
+        `New request for ${eventTitle}${serviceLabel ? ` · ${serviceLabel}` : ''}`,
+        `vendor_request:${requestId}:new`,
+        { requestId, eventId: event.id, vendorId, stage },
+      );
+      await this.notifications.send({
+        tenantId: actor.tenantId,
+        channel: 'push',
+        template: 'vendor_request_incoming',
+        recipient: vendorOwnerId,
+        body: `New vendor request for ${eventTitle}`,
+        metadata: { requestId, eventId: event.id },
+      });
+    }
 
     return this.listForEvent(actor, event.id);
   }
@@ -373,6 +451,10 @@ export class VendorCrmService {
       );
     }
 
+    if (toStage === 'accepted') {
+      await this.ensureParticipationOnAccept(actor.tenantId, row.vendor_id, row.event_id);
+    }
+
     await this.writeHistory(
       actor.tenantId,
       requestId,
@@ -388,8 +470,38 @@ export class VendorCrmService {
       requestId,
       fromStage,
       toStage,
+      vendorId: row.vendor_id,
+      correlationId: requestId,
     });
 
+    const organizerOwnerId = await this.resolveOrganizerOwnerUserId(actor.tenantId, row.organizer_id);
+    const vendorOwnerId = await this.resolveVendorOwnerUserId(actor.tenantId, row.vendor_id);
+    const notifyUserId = actorType === 'vendor' ? organizerOwnerId : vendorOwnerId;
+    if (notifyUserId) {
+      const title = actorType === 'vendor' ? 'Vendor responded' : 'Organizer updated request';
+      const bodyText = `${feedHeadline}${body.note ? ` — ${String(body.note)}` : ''}`;
+      await this.enqueueInAppNotification(
+        actor.tenantId,
+        notifyUserId,
+        'vendor_request_update',
+        title,
+        bodyText,
+        `vendor_request:${requestId}:${toStage}:${actorType}`,
+        { requestId, fromStage, toStage, eventId: row.event_id, vendorId: row.vendor_id },
+      );
+      await this.notifications.send({
+        tenantId: actor.tenantId,
+        channel: 'push',
+        template: 'vendor_request_update',
+        recipient: notifyUserId,
+        body: bodyText,
+        metadata: { requestId, toStage },
+      });
+    }
+
+    if (actorType === 'vendor') {
+      return this.listForVendor(actor, row.vendor_id);
+    }
     const event = await this.access.resolveEventRow(actor.tenantId, row.event_id);
     return this.listForEvent(actor, event.id);
   }
@@ -418,6 +530,124 @@ export class VendorCrmService {
         `UPDATE vendor_event_requests SET ${sets.join(', ')} WHERE tenant_id = $1 AND id = $2`,
         params,
       );
+    }
+    const event = await this.access.resolveEventRow(actor.tenantId, row.event_id);
+    return this.listForEvent(actor, event.id);
+  }
+
+  async counterOffer(actor: CommerceActor, requestId: string, body: Record<string, unknown>) {
+    const row = await this.loadRequest(actor.tenantId, requestId);
+    const vendorId = await this.access.resolveVendorId(actor.tenantId, actor.userId);
+    if (vendorId !== row.vendor_id) {
+      throw new ForbiddenException({ code: 'ACCESS_DENIED', message: 'Not vendor owner' });
+    }
+    const amountMinor = body.amountMinor;
+    if (amountMinor == null) {
+      throw new BadRequestException({ code: 'AMOUNT_REQUIRED', message: 'amountMinor required' });
+    }
+    const message = String(body.message ?? body.note ?? '');
+    let negotiationId = row.negotiation_id;
+    if (!negotiationId) {
+      const { rows: negRows } = await this.pool.query<{ id: string }>(
+        `INSERT INTO vendor_negotiations (tenant_id, event_id, vendor_id, organizer_id, service_label, status, vendor_request_id)
+         VALUES ($1, $2, $3, $4, $5, 'pending', $6)
+         RETURNING id`,
+        [actor.tenantId, row.event_id, row.vendor_id, row.organizer_id, row.service_label, requestId],
+      );
+      negotiationId = negRows[0]!.id;
+      await this.pool.query(
+        `UPDATE vendor_event_requests SET negotiation_id = $3, updated_at = now() WHERE tenant_id = $1 AND id = $2`,
+        [actor.tenantId, requestId, negotiationId],
+      );
+    }
+    await this.pool.query(
+      `INSERT INTO vendor_negotiation_offers
+         (negotiation_id, actor_type, actor_user_id, amount_minor, message, status)
+       VALUES ($1, 'vendor', $2, $3::bigint, $4, 'pending')`,
+      [negotiationId, actor.userId, String(amountMinor), message],
+    );
+    const fromStage = row.stage as VendorRequestStage;
+    if (fromStage !== 'negotiating') {
+      await this.pool.query(
+        `UPDATE vendor_event_requests SET stage = 'negotiating', updated_at = now() WHERE tenant_id = $1 AND id = $2`,
+        [actor.tenantId, requestId],
+      );
+      await this.writeHistory(actor.tenantId, requestId, fromStage, 'negotiating', 'vendor', actor.userId, message);
+    } else {
+      await this.writeHistory(actor.tenantId, requestId, fromStage, fromStage, 'vendor', actor.userId, message || 'Counter offer');
+    }
+    const label = row.service_label ?? 'Vendor';
+    await this.writeFeed(
+      actor.tenantId,
+      row.event_id,
+      `${label}: counter offer`,
+      message || `Counter quote: ${amountMinor}`,
+      { requestId, negotiationId, amountMinor, correlationId: requestId },
+    );
+    const organizerOwnerId = await this.resolveOrganizerOwnerUserId(actor.tenantId, row.organizer_id);
+    if (organizerOwnerId) {
+      await this.enqueueInAppNotification(
+        actor.tenantId,
+        organizerOwnerId,
+        'vendor_request_counter',
+        'Vendor counter quote',
+        message || `New counter quote for ${label}`,
+        `vendor_request:${requestId}:counter:${Date.now()}`,
+        { requestId, negotiationId, amountMinor },
+      );
+    }
+    return this.listForVendor(actor, row.vendor_id);
+  }
+
+  async postMessage(actor: CommerceActor, requestId: string, body: Record<string, unknown>) {
+    const row = await this.loadRequest(actor.tenantId, requestId);
+    const message = String(body.message ?? '').trim();
+    if (!message) throw new BadRequestException({ code: 'MESSAGE_REQUIRED', message: 'message required' });
+
+    let actorType: 'organizer' | 'vendor' = 'organizer';
+    try {
+      await this.access.assertOrganizerOwnsEvent(actor.tenantId, actor.userId, row.event_id);
+    } catch {
+      const vendorId = await this.access.resolveVendorId(actor.tenantId, actor.userId);
+      if (vendorId !== row.vendor_id) throw new ForbiddenException({ code: 'ACCESS_DENIED' });
+      actorType = 'vendor';
+    }
+
+    await this.writeHistory(
+      actor.tenantId,
+      requestId,
+      row.stage,
+      row.stage,
+      actorType,
+      actor.userId,
+      message,
+    );
+    await this.writeFeed(
+      actor.tenantId,
+      row.event_id,
+      `${actorType === 'vendor' ? 'Vendor' : 'Organizer'} message`,
+      message,
+      { requestId, actorType, correlationId: requestId },
+    );
+
+    const recipientId =
+      actorType === 'vendor'
+        ? await this.resolveOrganizerOwnerUserId(actor.tenantId, row.organizer_id)
+        : await this.resolveVendorOwnerUserId(actor.tenantId, row.vendor_id);
+    if (recipientId) {
+      await this.enqueueInAppNotification(
+        actor.tenantId,
+        recipientId,
+        'vendor_request_message',
+        'New vendor request message',
+        message,
+        `vendor_request:${requestId}:msg:${Date.now()}`,
+        { requestId, actorType },
+      );
+    }
+
+    if (actorType === 'vendor') {
+      return this.listForVendor(actor, row.vendor_id);
     }
     const event = await this.access.resolveEventRow(actor.tenantId, row.event_id);
     return this.listForEvent(actor, event.id);

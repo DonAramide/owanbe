@@ -212,9 +212,18 @@ class OrganizerEvent {
               priceMinor: t.priceMinor,
               currency: t.currency,
               remaining: t.remaining,
+              salesStartAt: t.salesWindowStart,
+              salesEndAt: t.salesWindowEnd,
             ),
           )
           .toList(),
+      venueType: venueType.name,
+      tags: tags,
+      venueLatitude: venueLatitude,
+      venueLongitude: venueLongitude,
+      ticketsSold: ticketsSold,
+      venueAddress: venueAddress.isNotEmpty ? venueAddress : null,
+      celebrantImageUrl: celebrantImageUrl,
     );
   }
 }

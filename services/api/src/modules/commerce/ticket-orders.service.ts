@@ -23,6 +23,8 @@ export interface TicketOrderResult {
     subtotalMinor: string;
     platformFeeMinor: string;
     totalMinor: string;
+    createdAt?: string;
+    eventTitle?: string;
     lines: Array<{
       id: string;
       tierId: string;
@@ -209,10 +211,15 @@ export class TicketOrdersService {
       subtotal_minor: string;
       platform_fee_minor: string;
       total_minor: string;
+      created_at: Date;
+      event_title: string | null;
     }>(
-      `SELECT id, event_id, organizer_id, status::text, currency,
-              subtotal_minor::text, platform_fee_minor::text, total_minor::text
-       FROM ticket_orders WHERE id = $1 AND tenant_id = $2`,
+      `SELECT o.id, o.event_id, o.organizer_id, o.status::text, o.currency,
+              o.subtotal_minor::text, o.platform_fee_minor::text, o.total_minor::text,
+              o.created_at, e.title AS event_title
+       FROM ticket_orders o
+       LEFT JOIN events e ON e.id = o.event_id
+       WHERE o.id = $1 AND o.tenant_id = $2`,
       [orderId, tenantId],
     );
     const o = order.rows[0];
@@ -241,6 +248,8 @@ export class TicketOrdersService {
         subtotalMinor: o.subtotal_minor,
         platformFeeMinor: o.platform_fee_minor,
         totalMinor: o.total_minor,
+        createdAt: o.created_at.toISOString(),
+        eventTitle: o.event_title ?? undefined,
         lines: lines.rows.map((l) => ({
           id: l.id,
           tierId: l.tier_id,
@@ -250,6 +259,50 @@ export class TicketOrdersService {
           lineSubtotalMinor: l.line_subtotal_minor,
         })),
       },
+    };
+  }
+
+  async getOrderForBuyer(tenantId: string, userId: string, orderId: string): Promise<TicketOrderResult> {
+    const owned = await this.pool.query<{ id: string }>(
+      `SELECT id FROM ticket_orders
+       WHERE id = $1 AND tenant_id = $2 AND buyer_user_id = $3`,
+      [orderId, tenantId, userId],
+    );
+    if (!owned.rows[0]) {
+      throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Ticket order not found' });
+    }
+    return this.getOrderById(tenantId, orderId);
+  }
+
+  async listOrdersForBuyer(tenantId: string, userId: string) {
+    const { rows } = await this.pool.query<{
+      id: string;
+      event_id: string;
+      status: string;
+      currency: string;
+      total_minor: string;
+      created_at: Date;
+      event_title: string | null;
+    }>(
+      `SELECT o.id, o.event_id, o.status::text, o.currency, o.total_minor::text, o.created_at,
+              e.title AS event_title
+       FROM ticket_orders o
+       LEFT JOIN events e ON e.id = o.event_id
+       WHERE o.tenant_id = $1 AND o.buyer_user_id = $2
+       ORDER BY o.created_at DESC
+       LIMIT 100`,
+      [tenantId, userId],
+    );
+    return {
+      items: rows.map((r) => ({
+        id: r.id,
+        eventId: r.event_id,
+        eventTitle: r.event_title ?? 'Event',
+        status: r.status,
+        currency: r.currency,
+        totalMinor: r.total_minor,
+        createdAt: r.created_at.toISOString(),
+      })),
     };
   }
 

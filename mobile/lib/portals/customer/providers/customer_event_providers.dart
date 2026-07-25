@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/auth_notifier.dart';
 import '../../../auth/user_role.dart';
 import '../../../core/api/persistence_providers.dart';
+import '../../../identity/experience_navigation.dart';
+import '../../../identity/workspace_providers.dart';
+import '../../../router/portal_routes.dart';
 import '../api/customer_events_api.dart';
 import '../data/customer_event_dev_store.dart';
 import '../models/customer_event_models.dart';
@@ -18,13 +21,14 @@ void bumpCustomerEventRevision(WidgetRef ref) {
 final customerEventsProvider = FutureProvider.autoDispose<List<CustomerEvent>>((ref) async {
   ref.watch(customerEventRevisionProvider);
   final session = ref.watch(authSessionProvider);
-  // Attendees (client role) do not own events — skip the organizer endpoint
-  // entirely so we never get a 403 that propagates to the UI.
-  if (session == null || session.role == UserRole.client) return const [];
+  if (session == null || !ref.watch(isOrganizerWorkspaceProvider)) {
+    return const [];
+  }
   try {
     return await ref.read(customerEventsApiProvider).listEvents(session: session);
   } catch (_) {
     if (!allowMockPersistenceFallback()) rethrow;
+    if (!ref.read(isOrganizerWorkspaceProvider)) rethrow;
     return CustomerEventDevStore.instance.all;
   }
 });
@@ -36,6 +40,10 @@ final customerEventProvider = FutureProvider.autoDispose.family<CustomerEvent?, 
     return await ref.read(customerEventsApiProvider).getEvent(id, session: session);
   } catch (_) {
     if (!allowMockPersistenceFallback()) rethrow;
+    final session = ref.read(authSessionProvider);
+    if (session == null || !ref.read(isOrganizerWorkspaceProvider)) {
+      rethrow;
+    }
     return CustomerEventDevStore.instance.byId(id);
   }
 });

@@ -44,6 +44,7 @@ class IdentitySession {
 
   Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_emailKey);
     await prefs.remove(_activeRoleKey);
     await prefs.remove(_activeTenantKey);
   }

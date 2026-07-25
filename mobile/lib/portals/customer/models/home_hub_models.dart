@@ -17,6 +17,33 @@ class CustomerHomeSnapshot {
   final List<MarketplaceVendor> vendors;
 }
 
+/// Organizer portal home — planning and vendor discovery only.
+class OrganizerHomeSnapshot {
+  const OrganizerHomeSnapshot({
+    required this.activeEvents,
+    required this.nearestEvent,
+    required this.vendors,
+  });
+
+  final List<CustomerEventSummary> activeEvents;
+  final CustomerEventSummary? nearestEvent;
+  final List<MarketplaceVendor> vendors;
+}
+
+/// Attendee portal home — invitations and tickets only.
+class AttendeeHomeSnapshot {
+  const AttendeeHomeSnapshot({
+    required this.invitations,
+  });
+
+  final List<CustomerInvitationCard> invitations;
+
+  CustomerInvitationCard? get nearestInvitation {
+    if (invitations.isEmpty) return null;
+    return invitations.first;
+  }
+}
+
 class CustomerInvitationCard {
   const CustomerInvitationCard({
     required this.id,

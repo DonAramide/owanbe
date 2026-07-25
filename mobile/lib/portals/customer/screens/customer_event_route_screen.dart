@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../features/public/screens/event_detail_screen.dart';
+import '../../../navigation/enterprise_back_handler.dart';
 import '../providers/customer_event_command_providers.dart';
 import '../workspace/event_workspace.dart';
 import '../workspace/widgets/event_loading_skeleton.dart';
@@ -16,14 +17,16 @@ class CustomerEventRouteScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final owned = ref.watch(customerEventOwnershipProvider(eventId));
 
-    return owned.when(
-      loading: () => const Scaffold(
-        body: EventLoadingSkeleton(),
+    return WorkspaceBackScope(
+      child: owned.when(
+        loading: () => const Scaffold(
+          body: EventLoadingSkeleton(),
+        ),
+        error: (_, _) => EventDetailScreen(eventId: eventId),
+        data: (isOwned) => isOwned
+            ? EventWorkspace(eventId: eventId)
+            : EventDetailScreen(eventId: eventId),
       ),
-      error: (_, _) => EventDetailScreen(eventId: eventId),
-      data: (isOwned) => isOwned
-          ? EventWorkspace(eventId: eventId)
-          : EventDetailScreen(eventId: eventId),
     );
   }
 }

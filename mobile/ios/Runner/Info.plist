@@ -47,5 +47,17 @@
 	<true/>
 	<key>NSContactsUsageDescription</key>
 	<string>Owambe uses your contacts to invite guests and share celebration invitations.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.owambe.owambe</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>owambe</string>
+				<string>io.supabase.owambe</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

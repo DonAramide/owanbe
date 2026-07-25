@@ -35,10 +35,20 @@ export interface EventView {
   venueLatitude: number | null;
   venueLongitude: number | null;
   googlePlaceId: string | null;
+  categorySlug: string | null;
+  celebrantImageUrl: string | null;
   ticketTiers?: Array<Record<string, unknown>>;
   ticketsSold?: number;
   revenueMinor?: string;
   attendeeCount?: number;
+  /** Phase 3 detail content (event metadata; optional). */
+  galleryMedia?: Array<{ url: string; type?: string; label?: string }>;
+  speakers?: Array<{ name: string; title?: string; bio?: string; imageUrl?: string }>;
+  sponsors?: Array<{ name: string; tier?: string; logoUrl?: string; websiteUrl?: string }>;
+  faqs?: Array<{ question: string; answer: string }>;
+  organizerName?: string | null;
+  organizerContactEmail?: string | null;
+  organizerContactPhone?: string | null;
 }
 
 @Injectable()
@@ -92,6 +102,15 @@ export class EventsService {
       venueLatitude: m.venueLatitude != null ? Number(m.venueLatitude) : null,
       venueLongitude: m.venueLongitude != null ? Number(m.venueLongitude) : null,
       googlePlaceId: m.googlePlaceId != null ? String(m.googlePlaceId) : null,
+      categorySlug: m.categorySlug != null ? String(m.categorySlug) : null,
+      celebrantImageUrl: m.celebrantImageUrl != null ? String(m.celebrantImageUrl) : null,
+      galleryMedia: Array.isArray(m.galleryMedia) ? (m.galleryMedia as Array<{ url: string; type?: string; label?: string }>) : [],
+      speakers: Array.isArray(m.speakers) ? (m.speakers as Array<{ name: string; title?: string; bio?: string; imageUrl?: string }>) : [],
+      sponsors: Array.isArray(m.sponsors) ? (m.sponsors as Array<{ name: string; tier?: string; logoUrl?: string; websiteUrl?: string }>) : [],
+      faqs: Array.isArray(m.faqs) ? (m.faqs as Array<{ question: string; answer: string }>) : [],
+      organizerName: m.organizerName != null ? String(m.organizerName) : null,
+      organizerContactEmail: m.organizerContactEmail != null ? String(m.organizerContactEmail) : null,
+      organizerContactPhone: m.organizerContactPhone != null ? String(m.organizerContactPhone) : null,
     };
   }
 
@@ -129,6 +148,13 @@ export class EventsService {
     }
     for (const item of items) {
       item.ticketTiers = await this.loadTiersForEvent(tenantId, item.id);
+      // Lightweight popularity signal for discovery trending (replaceable by analytics engine).
+      item.ticketsSold = (item.ticketTiers ?? []).reduce((sum: number, t) => {
+        const capacity = Number(t.capacity ?? 0);
+        const remaining = Number(t.remaining ?? 0);
+        const sold = Math.max(0, capacity - remaining);
+        return sum + sold;
+      }, 0);
     }
     return { items };
   }
@@ -266,6 +292,8 @@ export class EventsService {
       'venueName', 'venueAddress', 'venueLatitude', 'venueLongitude', 'googlePlaceId',
       'budgetAllocation', 'selectedTemplateSlug', 'preferredVendorIds',
       'requiredServices', 'venueDeferred', 'state', 'lga', 'celebrantImageUrl',
+      'galleryMedia', 'speakers', 'sponsors', 'faqs',
+      'organizerName', 'organizerContactEmail', 'organizerContactPhone',
     ];
     for (const k of keys) {
       if (body[k] !== undefined) out[k] = body[k];
@@ -320,6 +348,10 @@ export class EventsService {
       visibility: (t.metadata?.visibility as string) ?? 'publicListing',
       salesStartAt: t.metadata?.salesStartAt ?? null,
       salesEndAt: t.metadata?.salesEndAt ?? null,
+      benefits: Array.isArray(t.metadata?.benefits) ? t.metadata.benefits : [],
+      accessLevel: t.metadata?.accessLevel != null ? String(t.metadata.accessLevel) : null,
+      perks: Array.isArray(t.metadata?.perks) ? t.metadata.perks : [],
+      restrictions: Array.isArray(t.metadata?.restrictions) ? t.metadata.restrictions : [],
     }));
   }
 
@@ -331,6 +363,10 @@ export class EventsService {
       visibility: t.visibility ?? 'publicListing',
       salesStartAt: t.salesStartAt ?? null,
       salesEndAt: t.salesEndAt ?? null,
+      benefits: t.benefits ?? [],
+      accessLevel: t.accessLevel ?? null,
+      perks: t.perks ?? [],
+      restrictions: t.restrictions ?? [],
     };
     await this.pool.query(
       `INSERT INTO event_ticket_tiers (

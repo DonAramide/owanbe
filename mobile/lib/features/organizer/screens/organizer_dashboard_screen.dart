@@ -7,6 +7,7 @@ import '../../../portals/customer/router/customer_routes.dart';
 import '../models/organizer_models.dart';
 import '../providers/organizer_providers.dart';
 import '../widgets/organizer_shared.dart';
+import 'organizer_profile_edit_sheet.dart';
 
 class OrganizerDashboardScreen extends ConsumerWidget {
   const OrganizerDashboardScreen({super.key});
@@ -22,9 +23,9 @@ class OrganizerDashboardScreen extends ConsumerWidget {
       subtitle: 'Command center for events, vendors, and attendees',
       actions: [
         OutlinedButton.icon(
-          onPressed: () => context.push('/attendee'),
-          icon: const Icon(Icons.confirmation_number_outlined, size: 18),
-          label: const Text('Events I\'m attending'),
+          onPressed: () => showOrganizerProfileEditor(context, ref),
+          icon: const Icon(Icons.manage_accounts_outlined, size: 18),
+          label: const Text('Edit Organizer Profile'),
         ),
         OutlinedButton.icon(
           onPressed: () => context.push(CustomerRoutes.vendors),

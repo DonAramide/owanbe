@@ -29,10 +29,24 @@ export class HealthDetailService {
       detail: quaserUrl || 'QUASER_ROUTER_BASE_URL unset',
     };
 
-    const notif =
-      this.config.get('RESEND_API_KEY', { infer: true }).trim() ||
-      this.config.get('NOTIFICATION_WEBHOOK_URL', { infer: true }).trim();
-    checks.notifications = { status: notif ? 'configured' : 'log_only' };
+    let emailInfra = false;
+    try {
+      const { rows } = await this.pool.query<{ n: string }>(
+        `SELECT COUNT(*)::text AS n FROM email_providers WHERE enabled = true`,
+      );
+      emailInfra = Number(rows[0]?.n ?? 0) > 0;
+    } catch {
+      emailInfra = false;
+    }
+    const webhook = this.config.get('NOTIFICATION_WEBHOOK_URL', { infer: true }).trim();
+    checks.notifications = {
+      status: emailInfra ? 'enterprise_email' : webhook ? 'webhook' : 'log_only',
+      detail: emailInfra
+        ? 'Enterprise Email Infrastructure provider(s) enabled'
+        : webhook
+          ? 'NOTIFICATION_WEBHOOK_URL fallback'
+          : 'Configure Super Admin → Enterprise Email Infrastructure',
+    };
 
     const storage =
       this.config.get('SUPABASE_URL', { infer: true }).trim() &&

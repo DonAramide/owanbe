@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../auth/auth_notifier.dart';
 import '../../../eos/eos.dart';
+import '../../../features/workspace/widgets/workspace_experience_shell.dart';
+import '../../../identity/experience_navigation.dart';
 import '../navigation/event_navigator.dart';
 import '../../../eos/widgets/owambe_logo.dart';
 import 'customer_nav_destinations.dart';
@@ -18,7 +20,7 @@ class CustomerShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
 
   static const brandLabel = 'Owambe';
-  static const brandSubtitle = 'Plan. Invite. Celebrate.';
+  static const brandSubtitle = 'Organizer Workspace';
 
   void _onDestinationSelected(int index) {
     navigationShell.goBranch(
@@ -98,6 +100,7 @@ class _CustomerTopBar extends ConsumerWidget {
                 icon: const Icon(Icons.explore_outlined),
                 onPressed: () => context.eventNav.openDiscover(),
               ),
+              const WorkspaceContextActions(),
               GestureDetector(
                 onTap: () => context.eventNav.goProfile(),
                 child: Tooltip(

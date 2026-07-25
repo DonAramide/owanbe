@@ -137,6 +137,35 @@ export class TicketRefundService {
     return { id: rows[0]!.id, status: 'requested', platformFeeReversalMinor: feeReversal.toString() };
   }
 
+  async listForBuyerOrder(actor: CommerceActor, ticketOrderId: string) {
+    const owned = await this.pool.query<{ id: string }>(
+      `SELECT id FROM ticket_orders
+       WHERE id = $1 AND tenant_id = $2 AND buyer_user_id = $3`,
+      [ticketOrderId, actor.tenantId, actor.userId],
+    );
+    if (!owned.rows[0]) {
+      throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Ticket order not found' });
+    }
+    const { rows } = await this.pool.query(
+      `SELECT id, status::text, amount_minor::text, currency, reason, created_at, updated_at
+       FROM ticket_refund_cases
+       WHERE tenant_id = $1 AND ticket_order_id = $2 AND requested_by_user_id = $3
+       ORDER BY created_at DESC`,
+      [actor.tenantId, ticketOrderId, actor.userId],
+    );
+    return {
+      items: rows.map((r) => ({
+        id: r.id,
+        status: r.status,
+        amountMinor: r.amount_minor,
+        currency: r.currency,
+        reason: r.reason,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+      })),
+    };
+  }
+
   async adminAction(tenantId: string, caseId: string, action: TicketRefundAction, note?: string) {
     const row = await this.getCase(tenantId, caseId);
     const nextStatus = this.nextStatus(row.status, action);

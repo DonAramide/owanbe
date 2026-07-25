@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../eos/eos.dart';
-import '../navigation/event_navigator.dart';
+import '../../../../identity/experience_navigation.dart';
+import '../../../navigation/enterprise_back_handler.dart';
 import '../providers/customer_event_providers.dart';
 import 'widgets/event_module_busy_indicator.dart';
 
@@ -76,22 +76,17 @@ class EventModuleScaffold extends ConsumerWidget {
       ...?actions,
     ];
 
-    return Scaffold(
-      key: scaffoldKey,
-      endDrawer: endDrawer,
-      floatingActionButton: floatingActionButton,
-      appBar: AppBar(
+    return WorkspaceBackScope(
+      child: Scaffold(
+        key: scaffoldKey,
+        endDrawer: endDrawer,
+        floatingActionButton: floatingActionButton,
+        appBar: AppBar(
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_outlined),
-          tooltip: 'Back to workspace',
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.eventNav.backToOverview(eventId);
-            }
-          },
+          tooltip: 'Back',
+          onPressed: () => ExperienceNavigation.navigateBack(context),
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -121,6 +116,7 @@ class EventModuleScaffold extends ConsumerWidget {
             if (footer != null) footer!,
           ],
         ),
+      ),
       ),
     );
   }

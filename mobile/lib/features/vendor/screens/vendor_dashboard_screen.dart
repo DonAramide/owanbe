@@ -7,6 +7,9 @@ import '../../../eos/eos.dart';
 import '../models/vendor_models.dart';
 import '../providers/vendor_providers.dart';
 import '../providers/vendor_intelligence_engine.dart';
+import '../providers/vendor_inbox_integration.dart';
+import '../../../portals/customer/models/vendor_crm_models.dart';
+import '../../../portals/customer/providers/vendor_crm_providers.dart';
 import '../widgets/vendor_shared.dart';
 import '../../../platform/procurement/procurement_models.dart';
 import '../../../platform/procurement/procurement_engine.dart';
@@ -33,6 +36,9 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
         });
       }
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      refreshVendorCrm(ref);
+    });
   }
 
   @override
@@ -51,6 +57,19 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final intel = ref.watch(vendorIntelligenceProvider);
+    final inboxAsync = ref.watch(vendorInboxSnapshotProvider);
+    final liveSnapshot = inboxAsync.valueOrNull;
+    final useLiveInbox = liveSnapshot != null;
+    final negotiations = useLiveInbox ? vendorInboxNegotiations(liveSnapshot) : intel.negotiations;
+    final notifications = useLiveInbox ? vendorInboxNotifications(liveSnapshot) : intel.notifications;
+    final insights = useLiveInbox ? vendorInboxInsights(liveSnapshot) : intel.insights;
+    final liveRequests = useLiveInbox ? liveSnapshot.items : null;
+    final mergedIntel = intel.copyWith(
+      negotiations: negotiations,
+      notifications: notifications,
+      insights: insights,
+    );
+
     final profile = ref.watch(vendorProfileProvider);
     final tabController = ref.read(vendorShellTabProvider.notifier);
 
@@ -87,11 +106,11 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
             const SizedBox(height: 20),
 
             // AI Insights Banner Section (BI)
-            _buildBInsights(intel.insights),
+            _buildBInsights(mergedIntel.insights),
             const SizedBox(height: 20),
 
             // 1. Executive Metrics Ribbon
-            _buildExecutiveRibbon(intel, tabController),
+            _buildExecutiveRibbon(mergedIntel, tabController),
             const SizedBox(height: 24),
 
             // 2. Today's Operations Center
@@ -111,15 +130,15 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // 3. Negotiation Center
-                          _buildNegotiationCenter(intel.negotiations),
+                          _buildNegotiationCenter(mergedIntel.negotiations, liveRequests: liveRequests),
                           const SizedBox(height: 24),
 
                           // 4. Contract Command Center
-                          _buildContractCommandCenter(intel.contracts, tabController),
+                          _buildContractCommandCenter(mergedIntel.contracts, tabController),
                           const SizedBox(height: 24),
 
                           // 5. Escrow & Finance Milestone visualization
-                          _buildEscrowMilestoneVisualizer(intel),
+                          _buildEscrowMilestoneVisualizer(mergedIntel),
                           const SizedBox(height: 24),
 
                           // 6. Deliverables & Inventory panel
@@ -139,15 +158,15 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
                             const SizedBox(height: 24),
 
                             // 8. CRM segmentation
-                            _buildCrmSegmentation(intel.crmClients),
+                            _buildCrmSegmentation(mergedIntel.crmClients),
                             const SizedBox(height: 24),
 
                             // 9. Team Operations assignment checks
-                            _buildTeamOperations(intel.team, tabController),
+                            _buildTeamOperations(mergedIntel.team, tabController),
                             const SizedBox(height: 24),
 
                             // 10. Unified Notifications Center
-                            _buildNotificationsCenter(intel.notifications, tabController),
+                            _buildNotificationsCenter(mergedIntel.notifications, tabController),
                           ],
                         ),
                       ),
@@ -166,11 +185,11 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
                       const SizedBox(height: 24),
                       _buildConversationsHub(tabController),
                       const SizedBox(height: 24),
-                      _buildCrmSegmentation(intel.crmClients),
+                      _buildCrmSegmentation(mergedIntel.crmClients),
                       const SizedBox(height: 24),
-                      _buildTeamOperations(intel.team, tabController),
+                      _buildTeamOperations(mergedIntel.team, tabController),
                       const SizedBox(height: 24),
-                      _buildNotificationsCenter(intel.notifications, tabController),
+                      _buildNotificationsCenter(mergedIntel.notifications, tabController),
                     ],
                   );
                 }
@@ -581,7 +600,15 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
   }
 
   // Negotiation Center
-  Widget _buildNegotiationCenter(List<NegotiationItem> items) {
+  Widget _buildNegotiationCenter(List<NegotiationItem> items, {List<VendorRequest>? liveRequests}) {
+    VendorRequest? requestFor(String id) {
+      if (liveRequests == null) return null;
+      for (final r in liveRequests) {
+        if (r.id == id) return r;
+      }
+      return null;
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -659,17 +686,37 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
                       children: [
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: () {
+                            onPressed: () async {
+                              final request = requestFor(n.id);
+                              if (request != null) {
+                                await vendorAcceptRequest(ref, request);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Accepted ${request.eventTitle ?? 'event'}')),
+                                  );
+                                }
+                                return;
+                              }
                               _showVendorSignatureDialog(context, n);
                             },
                             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                            child: const Text('Accept Quote', style: TextStyle(color: Colors.white, fontSize: 12)),
+                            child: const Text('Accept', style: TextStyle(color: Colors.white, fontSize: 12)),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: OutlinedButton(
-                            onPressed: () {
+                            onPressed: () async {
+                              final request = requestFor(n.id);
+                              if (request != null) {
+                                await vendorDeclineRequest(ref, request);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Request declined')),
+                                  );
+                                }
+                                return;
+                              }
                               ref.read(vendorIntelligenceProvider.notifier).rejectNegotiation(n.id);
                             },
                             style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.redAccent)),
@@ -678,15 +725,29 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
                         ),
                         const SizedBox(width: 8),
                         IconButton(
-                          onPressed: () => _openDirectChat(context, n.clientName),
+                          onPressed: () {
+                            final request = requestFor(n.id);
+                            if (request != null) {
+                              _openRequestMessageSheet(context, request);
+                              return;
+                            }
+                            _openDirectChat(context, n.clientName);
+                          },
                           icon: const Icon(Icons.chat_outlined, color: EosColors.champagne),
-                          tooltip: 'Chat with Client',
+                          tooltip: 'Message organizer',
                         ),
                         const SizedBox(width: 8),
                         IconButton(
-                          onPressed: () => _triggerVoipCall(context, n.clientName),
-                          icon: const Icon(Icons.phone_in_talk, color: Colors.greenAccent),
-                          tooltip: 'VoIP Call with Client',
+                          onPressed: () {
+                            final request = requestFor(n.id);
+                            if (request != null) {
+                              _openCounterQuoteDialog(context, request);
+                              return;
+                            }
+                            _triggerVoipCall(context, n.clientName);
+                          },
+                          icon: const Icon(Icons.price_change_outlined, color: EosColors.champagne),
+                          tooltip: 'Counter quote',
                         ),
                       ],
                     ),
@@ -695,6 +756,119 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  void _openCounterQuoteDialog(BuildContext context, VendorRequest request) {
+    final amountController = TextEditingController();
+    final messageController = TextEditingController(text: request.message);
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: EosColors.plumDark,
+        title: const Text('Counter quote', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: 'Amount (minor units)',
+                labelStyle: TextStyle(color: Colors.white70),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: messageController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: 'Message',
+                labelStyle: TextStyle(color: Colors.white70),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              final amount = int.tryParse(amountController.text.trim());
+              if (amount == null) return;
+              Navigator.pop(ctx);
+              await vendorCounterRequest(
+                ref,
+                request,
+                amountMinor: amount,
+                message: messageController.text.trim(),
+              );
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Counter quote sent')));
+              }
+            },
+            child: const Text('Send counter'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openRequestMessageSheet(BuildContext context, VendorRequest request) {
+    final controller = TextEditingController();
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF161129),
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Message ${request.organizerName ?? 'organizer'}',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+            if (request.message.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(request.message, style: const TextStyle(color: Colors.white60, fontSize: 12)),
+            ],
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                hintText: 'Write a message…',
+                hintStyle: TextStyle(color: Colors.white38),
+              ),
+              maxLines: 4,
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () async {
+                  final text = controller.text.trim();
+                  if (text.isEmpty) return;
+                  Navigator.pop(ctx);
+                  await vendorMessageOrganizer(ref, request, message: text);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Message sent')));
+                  }
+                },
+                child: const Text('Send'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

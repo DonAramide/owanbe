@@ -14,8 +14,9 @@ class ProgramApi {
   String get _tenantId => OwambeApiAuth.resolveTenantId();
 
   Future<ProgramSnapshot> fetch(String eventId) async {
+    // Organizer workspace uses /manage so draft/planning events resolve (matches seating).
     final res = await _http.get(
-      Uri.parse('$_base/events/$eventId/program'),
+      Uri.parse('$_base/events/$eventId/program/manage'),
       headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);

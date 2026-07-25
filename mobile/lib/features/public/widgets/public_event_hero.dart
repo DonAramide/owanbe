@@ -57,6 +57,11 @@ class PublicEventHero extends StatelessWidget {
               backgroundColor: Colors.white24,
               labelStyle: context.eosText.labelSmall?.copyWith(color: Colors.white),
             ),
+            Chip(
+              label: Text(event.venueType[0].toUpperCase() + event.venueType.substring(1)),
+              backgroundColor: Colors.white24,
+              labelStyle: context.eosText.labelSmall?.copyWith(color: Colors.white),
+            ),
           ],
         ),
         SizedBox(height: context.eos.spacing.md),

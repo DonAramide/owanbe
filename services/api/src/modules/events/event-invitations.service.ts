@@ -335,4 +335,98 @@ export class EventInvitationsService {
   async rsvpByToken(tenantId: string, token: string, status: 'confirmed' | 'declined') {
     return this.rsvpWithToken(tenantId, token, status);
   }
+
+  /** Attendee inbox: guest rows matching the signed-in user's email. */
+  async listForAttendee(actor: CommerceActor) {
+    const email = await this.resolveActorEmail(actor);
+    if (!email) {
+      return { items: [] as Array<Record<string, unknown>> };
+    }
+    const { rows } = await this.pool.query<{
+      guest_id: string;
+      event_id: string;
+      name: string;
+      email: string | null;
+      rsvp_status: string;
+      title: string;
+      city: string | null;
+      venue: string | null;
+      starts_at: Date;
+      ends_at: Date | null;
+    }>(
+      `SELECT g.id AS guest_id, g.event_id, g.name, g.email, g.rsvp_status::text,
+              e.title, e.metadata->>'city' AS city, e.metadata->>'venue' AS venue,
+              e.starts_at, e.ends_at
+       FROM event_guests g
+       INNER JOIN events e ON e.id = g.event_id
+       WHERE g.tenant_id = $1 AND lower(g.email) = $2
+       ORDER BY e.starts_at ASC
+       LIMIT 100`,
+      [actor.tenantId, email],
+    );
+    return {
+      items: rows.map((r) => ({
+        id: r.guest_id,
+        guestId: r.guest_id,
+        eventId: r.event_id,
+        guestName: r.name,
+        email: r.email,
+        rsvpStatus: r.rsvp_status,
+        eventTitle: r.title,
+        eventCity: r.city ?? '',
+        eventVenue: r.venue ?? '',
+        startsAt: r.starts_at.toISOString(),
+        endsAt: r.ends_at?.toISOString() ?? null,
+        kind: 'rsvp',
+      })),
+    };
+  }
+
+  /** Authenticated RSVP — email ownership replaces invitation token. */
+  async rsvpForAttendee(
+    actor: CommerceActor,
+    guestId: string,
+    status: 'confirmed' | 'declined',
+  ): Promise<{ ok: true; rsvpStatus: string }> {
+    if (!['confirmed', 'declined'].includes(status)) {
+      throw new BadRequestException({
+        code: 'INVALID_RSVP',
+        message: 'RSVP status must be confirmed or declined',
+      });
+    }
+    const email = await this.resolveActorEmail(actor);
+    if (!email) {
+      throw new BadRequestException({
+        code: 'EMAIL_REQUIRED',
+        message: 'Account email required to respond to invitations',
+      });
+    }
+    const { rows } = await this.pool.query<{ id: string }>(
+      `SELECT id FROM event_guests
+       WHERE id = $1 AND tenant_id = $2 AND lower(email) = $3`,
+      [guestId, actor.tenantId, email],
+    );
+    if (!rows[0]) {
+      throw new NotFoundException({ code: 'INVITATION_NOT_FOUND', message: 'Invitation not found' });
+    }
+    await this.pool.query(
+      `UPDATE event_guests SET rsvp_status = $3::event_guest_rsvp_status, updated_at = now()
+       WHERE tenant_id = $1 AND id = $2`,
+      [actor.tenantId, guestId, status],
+    );
+    this.metrics.inc('rsvp_total', { status });
+    return { ok: true, rsvpStatus: status };
+  }
+
+  private async resolveActorEmail(actor: CommerceActor): Promise<string | null> {
+    if (actor.email && actor.email.includes('@')) {
+      return actor.email.trim().toLowerCase();
+    }
+    const { rows } = await this.pool.query<{ email: string }>(
+      `SELECT email FROM users WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+      [actor.userId, actor.tenantId],
+    );
+    const email = rows[0]?.email?.trim().toLowerCase();
+    return email && email.includes('@') ? email : null;
+  }
 }

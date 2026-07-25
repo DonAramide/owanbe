@@ -58,7 +58,8 @@ class AuthErrorBanner extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('• ', style: theme.textTheme.bodySmall),
+                    // ASCII dash — avoid U+2022 which triggers Flutter Web Noto Sans Symbols CDN fetches.
+                    Text('- ', style: theme.textTheme.bodySmall),
                     Expanded(child: Text(step, style: theme.textTheme.bodySmall?.copyWith(height: 1.4))),
                   ],
                 ),

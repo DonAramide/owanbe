@@ -493,7 +493,7 @@ class _GovernanceTabState extends ConsumerState<_GovernanceTab> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildMetricTile('Risk Level', 'LOW', Icons.gshield, Colors.blueAccent),
+              child: _buildMetricTile('Risk Level', 'LOW', Icons.shield_outlined, Colors.blueAccent),
             ),
             const SizedBox(width: 12),
             Expanded(

@@ -2,13 +2,14 @@ import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
 import { CommerceModule } from '../commerce/commerce.module';
 import { EventsModule } from '../events/events.module';
+import { AttendeeEventServicesService } from './attendee-event-services.service';
 import { RentalsController } from './rentals.controller';
 import { RentalsService } from './rentals.service';
 
 @Module({
   imports: [DatabaseModule, CommerceModule, EventsModule],
   controllers: [RentalsController],
-  providers: [RentalsService],
-  exports: [RentalsService],
+  providers: [RentalsService, AttendeeEventServicesService],
+  exports: [RentalsService, AttendeeEventServicesService],
 })
 export class RentalsModule {}

@@ -4,7 +4,9 @@
  */
 const jwt = require('../../services/api/node_modules/jsonwebtoken');
 
-const JWT_SECRET = process.env.SUPABASE_JWT_SECRET || 'dev-jwt-secret-16chars';
+function jwtSecret() {
+  return process.env.SUPABASE_JWT_SECRET || 'dev-jwt-secret-16chars';
+}
 
 function signDevJwt(params) {
   const {
@@ -20,13 +22,14 @@ function signDevJwt(params) {
     email,
     app_metadata: { tenant_id: tenantId, roles },
   };
+  const secret = jwtSecret();
   if (expired) {
-    return jwt.sign(payload, JWT_SECRET, {
+    return jwt.sign(payload, secret, {
       algorithm: 'HS256',
       expiresIn: '-10s',
     });
   }
-  return jwt.sign(payload, JWT_SECRET, { algorithm: 'HS256', expiresIn });
+  return jwt.sign(payload, secret, { algorithm: 'HS256', expiresIn });
 }
 
 function signInvalidJwt() {
@@ -36,4 +39,4 @@ function signInvalidJwt() {
   });
 }
 
-module.exports = { signDevJwt, signInvalidJwt, JWT_SECRET };
+module.exports = { signDevJwt, signInvalidJwt, jwtSecret };

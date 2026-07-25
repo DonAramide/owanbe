@@ -234,4 +234,50 @@ export class EventOperationsService {
       })),
     };
   }
+
+  /**
+   * Attendee-safe live updates — program / schedule / venue / alert feed items only.
+   * Does not require organizer ownership (Phase 7).
+   */
+  async listLiveUpdatesForAttendees(tenantId: string, eventKey: string) {
+    const event = await this.access.resolveEventRow(tenantId, eventKey, true);
+    const { rows } = await this.pool.query<{
+      id: string;
+      feed_type: string;
+      headline: string;
+      detail: string;
+      created_at: Date;
+    }>(
+      `SELECT id, feed_type, headline, detail, created_at
+       FROM event_feed_items
+       WHERE tenant_id = $1 AND event_id = $2
+         AND (
+           feed_type LIKE 'program_%'
+           OR feed_type IN (
+             'announcement', 'schedule_change', 'venue_change', 'speaker_update',
+             'emergency', 'alert', 'live_alert', 'general'
+           )
+         )
+       ORDER BY created_at DESC
+       LIMIT 80`,
+      [tenantId, event.id],
+    );
+    return {
+      items: rows.map((r) => ({
+        id: r.id,
+        type: r.feed_type,
+        headline: r.headline,
+        detail: r.detail,
+        timestamp: r.created_at.toISOString(),
+        severity: this.severityForFeedType(r.feed_type),
+      })),
+    };
+  }
+
+  private severityForFeedType(type: string): 'info' | 'warning' | 'critical' {
+    const t = type.toLowerCase();
+    if (t.includes('emergency') || t === 'critical') return 'critical';
+    if (t.includes('alert') || t.includes('delayed') || t.includes('change')) return 'warning';
+    return 'info';
+  }
 }

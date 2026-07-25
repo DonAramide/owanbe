@@ -11,6 +11,7 @@ class VendorRequest {
     this.scheduledEnd,
     this.vendorName,
     this.eventTitle,
+    this.organizerName,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -26,6 +27,7 @@ class VendorRequest {
   final DateTime? scheduledEnd;
   final String? vendorName;
   final String? eventTitle;
+  final String? organizerName;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -41,6 +43,7 @@ class VendorRequest {
         scheduledEnd: json['scheduledEnd'] != null ? DateTime.parse(json['scheduledEnd'] as String).toLocal() : null,
         vendorName: json['vendorName'] as String?,
         eventTitle: json['eventTitle'] as String?,
+        organizerName: json['organizerName'] as String?,
         createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
         updatedAt: DateTime.parse(json['updatedAt'] as String).toLocal(),
       );

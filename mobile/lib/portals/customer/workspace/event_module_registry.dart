@@ -6,11 +6,11 @@ import '../navigation/event_navigator.dart';
 
 /// Event OS module categories for workspace layout (Phase 42.3).
 enum EventModuleCategory {
-  planning('Planning', 'Guests, budget, vendors, and invitations'),
-  operations('Operations', 'Program, seating, rentals, and day-of'),
-  celebration('Celebration', 'Website, wall, and guest experiences'),
-  business('Business', 'Finance, tickets, and analytics'),
-  administration('Administration', 'Event configuration');
+  planning('Planning', 'Vendors, guests, invitations, and AI planning'),
+  operations('Operations', 'Seating, program, live ops, and rentals'),
+  experience('Experience', 'Website and celebration wall'),
+  commerce('Commerce', 'Budget, finance, and tickets'),
+  administration('Administration', 'Analytics and configuration');
 
   const EventModuleCategory(this.title, this.subtitle);
 
@@ -67,6 +67,19 @@ class EventModuleDefinition {
   final void Function(BuildContext context, String eventId) onOpen;
 }
 
+/// Desktop section grouping for [EventDesktop].
+class EventDesktopSection {
+  const EventDesktopSection({
+    required this.title,
+    required this.subtitle,
+    required this.modules,
+  });
+
+  final String title;
+  final String subtitle;
+  final List<EventModuleDefinition> modules;
+}
+
 /// Central registry for Event Workspace modules — single source of truth.
 abstract final class EventModuleRegistry {
   static void _comingSoon(BuildContext context, String label) {
@@ -105,14 +118,14 @@ abstract final class EventModuleRegistry {
       title: 'Budget',
       subtitle: 'Allocations, spend, and balance',
       icon: Icons.account_balance_wallet_outlined,
-      category: EventModuleCategory.planning,
+      category: EventModuleCategory.commerce,
       visible: (e) => e.isPrivateCelebration,
       onOpen: (c, id) => c.eventNav.openBudget(id),
     ),
     EventModuleDefinition(
       id: EventModuleId.vendors,
-      title: 'Vendor pipeline',
-      subtitle: 'Requests through day-of arrival',
+      title: 'Vendors',
+      subtitle: 'Requests, quotes, and hires',
       icon: Icons.handshake_outlined,
       category: EventModuleCategory.planning,
       visible: (_) => true,
@@ -130,7 +143,7 @@ abstract final class EventModuleRegistry {
       category: EventModuleCategory.planning,
       visible: (_) => true,
       supportsQuickAction: true,
-      onOpen: (c, id) => c.eventNav.openMarketplace(),
+      onOpen: (c, id) => c.eventNav.openMarketplace(eventId: id),
     ),
     EventModuleDefinition(
       id: EventModuleId.aiPlanner,
@@ -170,8 +183,8 @@ abstract final class EventModuleRegistry {
     ),
     EventModuleDefinition(
       id: EventModuleId.asoEbi,
-      title: 'Aso-Ebi',
-      subtitle: 'Attire packages and fabrics',
+      title: 'Attire',
+      subtitle: 'Aso-Ebi packages and fabrics',
       icon: Icons.checkroom_outlined,
       category: EventModuleCategory.operations,
       visible: (_) => true,
@@ -179,8 +192,8 @@ abstract final class EventModuleRegistry {
     ),
     EventModuleDefinition(
       id: EventModuleId.eventDay,
-      title: 'Event day',
-      subtitle: 'Live operations hub',
+      title: 'Live Operations',
+      subtitle: 'Day-of command hub',
       icon: Icons.celebration_outlined,
       category: EventModuleCategory.operations,
       visible: (_) => true,
@@ -192,16 +205,16 @@ abstract final class EventModuleRegistry {
       title: 'Website',
       subtitle: 'Celebration microsite',
       icon: Icons.language_outlined,
-      category: EventModuleCategory.celebration,
+      category: EventModuleCategory.experience,
       visible: (_) => true,
       onOpen: (c, id) => c.eventNav.openWebsite(id),
     ),
     EventModuleDefinition(
       id: EventModuleId.celebrationWall,
-      title: 'Celebration wall',
+      title: 'Event Wall',
       subtitle: 'Messages and live display',
       icon: Icons.forum_outlined,
-      category: EventModuleCategory.celebration,
+      category: EventModuleCategory.experience,
       visible: (_) => true,
       onOpen: (c, id) => c.eventNav.openWall(id),
     ),
@@ -210,7 +223,7 @@ abstract final class EventModuleRegistry {
       title: 'Gallery',
       subtitle: 'Photos and highlights',
       icon: Icons.photo_library_outlined,
-      category: EventModuleCategory.celebration,
+      category: EventModuleCategory.experience,
       visible: (_) => false,
       onOpen: (c, _) => _comingSoon(c, 'Gallery'),
     ),
@@ -219,7 +232,7 @@ abstract final class EventModuleRegistry {
       title: 'Memories',
       subtitle: 'Guest contributions archive',
       icon: Icons.collections_bookmark_outlined,
-      category: EventModuleCategory.celebration,
+      category: EventModuleCategory.experience,
       visible: (_) => false,
       onOpen: (c, _) => _comingSoon(c, 'Memories'),
     ),
@@ -228,25 +241,25 @@ abstract final class EventModuleRegistry {
       title: 'Finance',
       subtitle: 'Wallet, releases, and settlements',
       icon: Icons.payments_outlined,
-      category: EventModuleCategory.business,
+      category: EventModuleCategory.commerce,
       visible: (e) => e.isPrivateCelebration,
       onOpen: (c, id) => c.eventNav.openBudget(id),
     ),
     EventModuleDefinition(
       id: EventModuleId.tickets,
       title: 'Tickets',
-      subtitle: 'Sales and tiers',
+      subtitle: 'Tier management and sales',
       icon: Icons.confirmation_number_outlined,
-      category: EventModuleCategory.business,
+      category: EventModuleCategory.commerce,
       visible: (e) => e.isPublicTicketed,
-      onOpen: (c, id) => c.eventNav.openTickets(id),
+      onOpen: (c, id) => c.eventNav.openTicketsManage(id),
     ),
     EventModuleDefinition(
       id: EventModuleId.analytics,
       title: 'Analytics',
       subtitle: 'Performance and trends',
       icon: Icons.insights_outlined,
-      category: EventModuleCategory.business,
+      category: EventModuleCategory.commerce,
       visible: (_) => false,
       onOpen: (c, _) {},
     ),
@@ -286,6 +299,42 @@ abstract final class EventModuleRegistry {
     return visibleModules(event, snapshot).where((m) => m.supportsQuickAction).toList();
   }
 
+  /// Modules eligible for the Event Desktop launcher (Phase 1).
+  ///
+  /// Excludes hidden / no-op modules (analytics, settings, gallery, memories).
+  static const _desktopExcludedIds = <EventModuleId>{
+    EventModuleId.analytics,
+    EventModuleId.settings,
+    EventModuleId.gallery,
+    EventModuleId.memories,
+  };
+
+  static List<EventDesktopSection> desktopSections(
+    CustomerEvent event,
+    EventCommandCenterSnapshot snapshot,
+  ) {
+    final visible = visibleModules(event, snapshot)
+        .where((m) => !_desktopExcludedIds.contains(m.id))
+        .toList();
+
+    EventDesktopSection section(EventModuleCategory cat) {
+      final modules = visible.where((m) => m.category == cat).toList();
+      return EventDesktopSection(
+        title: cat.title,
+        subtitle: cat.subtitle,
+        modules: modules,
+      );
+    }
+
+    return [
+      section(EventModuleCategory.planning),
+      section(EventModuleCategory.commerce),
+      section(EventModuleCategory.operations),
+      section(EventModuleCategory.experience),
+      section(EventModuleCategory.administration),
+    ].where((s) => s.modules.isNotEmpty).toList();
+  }
+
   /// Maps legacy Organizer workspace tab keys to module opens.
   static void openLegacyTab(BuildContext context, String eventId, String tabKey) {
     final nav = context.eventNav;
@@ -293,13 +342,13 @@ abstract final class EventModuleRegistry {
       case 'overview':
         return;
       case 'tickets':
-        nav.openTickets(eventId);
+        nav.openTicketsManage(eventId);
       case 'attendees':
         nav.openGuests(eventId);
       case 'vendors':
         nav.openVendorPipeline(eventId);
       case 'marketplace':
-        nav.openMarketplace();
+        nav.openMarketplace(eventId: eventId);
       case 'finance':
         nav.openBudget(eventId);
       case 'operations':

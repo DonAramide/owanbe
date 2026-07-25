@@ -1,14 +1,73 @@
+import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/api/events_api.dart';
+import '../../../core/api/media_api.dart';
 import '../../../core/api/persistence_providers.dart';
 import '../../../core/api/vendors_api.dart';
+import '../../../features/vendor/vendor_identity.dart';
 import '../../../portals/customer/providers/vendor_crm_providers.dart';
 import '../../../shared/models/event_access_mode.dart';
 import '../models/organizer_models.dart';
 import '../providers/organizer_providers.dart';
 import '../data/organizer_event_store.dart';
 
-Future<OrganizerEvent> createEventFromV2Draft(WidgetRef ref, EventWizardV2Draft draft) async {
+enum EventCreationStage { upload, create }
+
+class EventCreationException implements Exception {
+  const EventCreationException({required this.stage, required this.message, this.cause});
+  final EventCreationStage stage;
+  final String message;
+  final Object? cause;
+
+  @override
+  String toString() => message;
+}
+
+String _userFacingError(Object error, String fallback) {
+  if (error is MediaApiException) return error.message;
+  if (error is EventsApiException) return error.message;
+  if (error is EventCreationException) return error.message;
+  return fallback;
+}
+
+Future<String> _uploadCelebrantImage(WidgetRef ref, Uint8List bytes) async {
+  final media = ref.read(mediaApiProvider);
+  final presign = await media.presignUpload(
+    filename: 'celebrant.jpg',
+    contentType: 'image/jpeg',
+    purpose: 'celebrant_image',
+  );
+  if (presign.uploadUrl.isEmpty || presign.publicUrl.isEmpty) {
+    throw MediaApiException(code: 'INVALID_PRESIGN', message: 'Upload could not be prepared');
+  }
+  await media.uploadBytes(
+    uploadUrl: presign.uploadUrl,
+    bytes: bytes,
+    contentType: 'image/jpeg',
+  );
+  return presign.publicUrl;
+}
+
+Future<OrganizerEvent> createEventFromV2Draft(
+  WidgetRef ref,
+  EventWizardV2Draft draft, {
+  Uint8List? celebrantImageBytes,
+}) async {
+  String? celebrantImageUrl;
+  if (celebrantImageBytes != null) {
+    try {
+      celebrantImageUrl = await _uploadCelebrantImage(ref, celebrantImageBytes);
+    } catch (e) {
+      throw EventCreationException(
+        stage: EventCreationStage.upload,
+        message: _userFacingError(e, 'Could not upload celebrant photo. Check your connection and try again.'),
+        cause: e,
+      );
+    }
+  }
+
   final body = <String, dynamic>{
     'title': draft.title,
     'tagline': draft.tagline,
@@ -32,7 +91,7 @@ Future<OrganizerEvent> createEventFromV2Draft(WidgetRef ref, EventWizardV2Draft 
     'venueDeferred': draft.venueDeferred,
     if (draft.state.isNotEmpty) 'state': draft.state,
     if (draft.lga.isNotEmpty) 'lga': draft.lga,
-    if (draft.celebrantImageUrl != null) 'celebrantImageUrl': draft.celebrantImageUrl,
+    if (celebrantImageUrl != null) 'celebrantImageUrl': celebrantImageUrl,
   };
   if (draft.eventAccessMode == EventAccessMode.publicTicketed && draft.ticketTiers.isNotEmpty) {
     body['ticketTiers'] = draft.ticketTiers
@@ -49,37 +108,44 @@ Future<OrganizerEvent> createEventFromV2Draft(WidgetRef ref, EventWizardV2Draft 
             })
         .toList();
   }
+
   try {
     final event = await ref.read(eventsApiProvider).createEvent(body);
     bumpOrganizerRevision(ref);
     return event;
   } catch (e) {
-    if (!allowMockPersistenceFallback()) rethrow;
-    final legacy = EventWizardDraft(
-      title: draft.title,
-      tagline: draft.tagline,
-      city: draft.city,
-      venue: draft.venueName,
-      category: draft.categoryLabel,
-      tags: draft.tags,
-      startsAt: draft.startsAt,
-      endsAt: draft.endsAt,
-      ticketTiers: draft.ticketTiers,
+    if (allowOfflineMockPersistence()) {
+      final legacy = EventWizardDraft(
+        title: draft.title,
+        tagline: draft.tagline,
+        city: draft.city,
+        venue: draft.venueName,
+        category: draft.categoryLabel,
+        tags: draft.tags,
+        startsAt: draft.startsAt,
+        endsAt: draft.endsAt,
+        ticketTiers: draft.ticketTiers,
+      );
+      final event = OrganizerEventStore.instance.createDraft(legacy).copyWith(
+            eventAccessMode: draft.eventAccessMode,
+            budgetMinor: draft.budgetMinor,
+            expectedGuests: draft.expectedGuests,
+            categorySlug: draft.categorySlug,
+            venueName: draft.venueName,
+            venueAddress: draft.venueAddress,
+            venueLatitude: draft.venueLatitude,
+            venueLongitude: draft.venueLongitude,
+            googlePlaceId: draft.googlePlaceId,
+            celebrantImageUrl: celebrantImageUrl,
+          );
+      bumpOrganizerRevision(ref);
+      return event;
+    }
+    throw EventCreationException(
+      stage: EventCreationStage.create,
+      message: _userFacingError(e, 'Could not create event. Please try again.'),
+      cause: e,
     );
-    final event = OrganizerEventStore.instance.createDraft(legacy).copyWith(
-          eventAccessMode: draft.eventAccessMode,
-          budgetMinor: draft.budgetMinor,
-          expectedGuests: draft.expectedGuests,
-          categorySlug: draft.categorySlug,
-          venueName: draft.venueName,
-          venueAddress: draft.venueAddress,
-          venueLatitude: draft.venueLatitude,
-          venueLongitude: draft.venueLongitude,
-          googlePlaceId: draft.googlePlaceId,
-          celebrantImageUrl: draft.celebrantImageUrl,
-        );
-    bumpOrganizerRevision(ref);
-    return event;
   }
 }
 
@@ -115,7 +181,13 @@ Future<OrganizerEvent> createEventFromDraft(WidgetRef ref, EventWizardDraft draf
     bumpOrganizerRevision(ref);
     return event;
   } catch (e) {
-    if (!allowMockPersistenceFallback()) rethrow;
+    if (!allowOfflineMockPersistence()) {
+      throw EventCreationException(
+        stage: EventCreationStage.create,
+        message: _userFacingError(e, 'Could not create event. Please try again.'),
+        cause: e,
+      );
+    }
     final event = OrganizerEventStore.instance.createDraft(draft);
     bumpOrganizerRevision(ref);
     return event;
@@ -226,7 +298,7 @@ Future<void> inviteVendor(
 }) async {
   try {
     await ref.read(vendorCrmApiProvider).createRequest(eventId, {
-      'vendorId': vendor.id,
+      'vendorId': VendorIdentity.resolveMarketplaceVendorId(vendor.id),
       'message': message ?? '',
       if (serviceLabel != null) 'serviceLabel': serviceLabel,
       'source': 'marketplace',

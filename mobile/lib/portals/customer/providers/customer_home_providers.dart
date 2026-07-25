@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/auth_notifier.dart';
 import '../../../core/api/persistence_providers.dart';
 import '../../../core/api/vendors_api.dart';
+import '../../../features/vendor/vendor_identity.dart';
 import '../../../features/public/providers/public_providers.dart';
 import '../../../features/public/providers/ticket_commerce_providers.dart';
 import '../models/customer_event_models.dart';
@@ -74,7 +75,7 @@ List<MarketplaceVendor> _mockVendors() => const [
       MarketplaceVendor(id: 'v9', businessName: 'Chilled & Co Drinks', city: 'Lagos', ratingAverage: 4.7, slug: 'drinks', priceFromMinor: 35000000),
       MarketplaceVendor(id: 'v10', businessName: 'Graceful Ushers NG', city: 'Lagos', ratingAverage: 4.6, slug: 'ushers', priceFromMinor: 5000000),
       MarketplaceVendor(id: 'v11', businessName: 'Afro Fusion Live Band', city: 'Abuja', ratingAverage: 4.8, slug: 'live-band', priceFromMinor: 45000000),
-      MarketplaceVendor(id: 'v12', businessName: 'Jollof & Co', city: 'Lagos', ratingAverage: 4.9, slug: 'catering', priceFromMinor: 95000000),
+      MarketplaceVendor(id: VendorIdentity.canonicalDevVendorId, businessName: 'Jollof & Co', city: 'Lagos', ratingAverage: 4.9, slug: 'catering', priceFromMinor: 95000000),
     ];
 
 final customerMarketplaceVendorsProvider = FutureProvider.autoDispose<List<MarketplaceVendor>>((ref) async {
@@ -124,4 +125,34 @@ final customerHomeSnapshotProvider = FutureProvider.autoDispose<CustomerHomeSnap
     invitations: invitations,
     vendors: vendors,
   );
+});
+
+final organizerHomeSnapshotProvider = FutureProvider.autoDispose<OrganizerHomeSnapshot>((ref) async {
+  ref.watch(customerHomeRefreshProvider);
+
+  final eventsResult = await ref.watch(customerOwnedEventsProvider.future);
+  final vendors = await ref.watch(customerMarketplaceVendorsProvider.future);
+
+  final now = DateTime.now();
+  final active = eventsResult
+      .where(
+        (e) =>
+            e.status != CustomerEventStatus.completed &&
+            e.status != CustomerEventStatus.cancelled,
+      )
+      .map(CustomerEventSummary.fromEvent)
+      .toList()
+    ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
+
+  return OrganizerHomeSnapshot(
+    activeEvents: active,
+    nearestEvent: _pickNearestEvent(active, now),
+    vendors: vendors,
+  );
+});
+
+final attendeeHomeSnapshotProvider = FutureProvider.autoDispose<AttendeeHomeSnapshot>((ref) async {
+  ref.watch(customerHomeRefreshProvider);
+  final invitations = await ref.watch(customerTicketInvitationsProvider.future);
+  return AttendeeHomeSnapshot(invitations: invitations);
 });

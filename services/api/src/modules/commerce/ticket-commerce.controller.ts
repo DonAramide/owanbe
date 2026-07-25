@@ -42,12 +42,17 @@ export class TicketCommerceController {
     return this.orders.createOrder(eventId, dto, actor!, idempotencyKey);
   }
 
+  @Get('me/ticket-orders')
+  async myTicketOrders(@CommerceActorParam() actor: CommerceActor) {
+    return this.orders.listOrdersForBuyer(actor!.tenantId, actor!.userId);
+  }
+
   @Get('ticket-orders/:orderId')
   async getTicketOrder(
     @Param('orderId') orderId: string,
     @CommerceActorParam() actor: CommerceActor,
   ) {
-    return this.orders.getOrderById(actor!.tenantId, orderId);
+    return this.orders.getOrderForBuyer(actor!.tenantId, actor!.userId, orderId);
   }
 
   @Throttle({ strict: { limit: 30, ttl: 60_000 } })
@@ -65,6 +70,14 @@ export class TicketCommerceController {
   async myEntitlements(@CommerceActorParam() actor: CommerceActor) {
     const items = await this.entitlements.listForUser(actor!.tenantId, actor!.userId);
     return { items };
+  }
+
+  @Get('me/ticket-entitlements/:entitlementId')
+  async myEntitlement(
+    @Param('entitlementId') entitlementId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.entitlements.getForUser(actor!.tenantId, actor!.userId, entitlementId);
   }
 
   @Post('ticket-entitlements/:entitlementId/resend')

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../eos/eos.dart';
+import '../../../../profile/widgets/profile_network_avatar.dart';
 import '../../models/home_hub_models.dart';
 
 /// Welcome hero with greeting, avatar, and nearest-event countdown.
@@ -8,10 +9,14 @@ class HomeWelcomeHero extends StatelessWidget {
   const HomeWelcomeHero({
     super.key,
     required this.displayName,
+    this.avatarUrl,
+    this.onAvatarTap,
     this.nearestEvent,
   });
 
   final String displayName;
+  final String? avatarUrl;
+  final VoidCallback? onAvatarTap;
   final CustomerEventSummary? nearestEvent;
 
   @override
@@ -21,6 +26,14 @@ class HomeWelcomeHero extends StatelessWidget {
         ? 'there'
         : displayName.trim().split(RegExp(r'\s+')).first;
     final countdown = nearestEvent != null ? formatCountdown(nearestEvent!.startsAt, now) : null;
+
+    final avatar = ProfileNetworkAvatar(
+      name: firstName,
+      avatarUrl: avatarUrl,
+      radius: 28,
+      backgroundColor: EosColors.champagne,
+      foregroundColor: EosColors.plumDark,
+    );
 
     return Container(
       padding: EdgeInsets.all(context.eos.spacing.lg),
@@ -36,17 +49,17 @@ class HomeWelcomeHero extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 28,
-            backgroundColor: EosColors.champagne,
-            child: Text(
-              firstName.isNotEmpty ? firstName[0].toUpperCase() : 'O',
-              style: context.eosText.titleLarge?.copyWith(
-                color: EosColors.plumDark,
-                fontWeight: FontWeight.w800,
+          if (onAvatarTap != null)
+            Tooltip(
+              message: 'View profile',
+              child: InkWell(
+                onTap: onAvatarTap,
+                customBorder: const CircleBorder(),
+                child: avatar,
               ),
-            ),
-          ),
+            )
+          else
+            avatar,
           SizedBox(width: context.eos.spacing.md),
           Expanded(
             child: Column(

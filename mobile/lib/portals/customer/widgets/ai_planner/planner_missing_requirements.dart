@@ -73,7 +73,7 @@ class PlannerMissingRequirements extends StatelessWidget {
   void _navigate(BuildContext context, String route) {
     switch (route) {
       case 'vendors':
-        context.eventNav.openMarketplace();
+        context.eventNav.openMarketplace(eventId: eventId);
       case 'guests':
         context.eventNav.openGuests(eventId);
       case 'budget':

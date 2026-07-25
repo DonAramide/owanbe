@@ -3,11 +3,15 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import jwksRsa from 'jwks-rsa';
+import type { Request } from 'express';
 import type { JwtUser } from '../common/types/jwt-user';
 import type { EnvVars } from '../config/env.schema';
 import { extractJwtRoleHints, extractTenantId } from './jwt-payload.util';
 
 type JwtPayload = Record<string, unknown> & { sub?: string; email?: string };
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function decodeJwtHeader(token: string): { alg?: string; kid?: string } {
   const [headerB64] = token.split('.');
@@ -34,6 +38,7 @@ export class SupabaseJwtStrategy extends PassportStrategy(Strategy, 'supabase-jw
 
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      passReqToCallback: true,
       ignoreExpiration: false,
       secretOrKeyProvider: (
         _request: unknown,
@@ -57,18 +62,26 @@ export class SupabaseJwtStrategy extends PassportStrategy(Strategy, 'supabase-jw
     });
   }
 
-  validate(payload: JwtPayload): JwtUser {
+  validate(req: Request, payload: JwtPayload): JwtUser {
     const sub = payload.sub;
     if (!sub || typeof sub !== 'string') {
       throw new UnauthorizedException({ code: 'INVALID_TOKEN', message: 'Missing sub' });
     }
     const tenantPath = this.config.get('JWT_TENANT_CLAIM_PATH', { infer: true });
     const rolesPath = this.config.get('JWT_ROLES_CLAIM_PATH', { infer: true });
-    const tenantId = extractTenantId(payload, tenantPath);
+    let tenantId = extractTenantId(payload, tenantPath);
+    if (!tenantId) {
+      const headerRaw = req.headers['x-tenant-id'];
+      const header =
+        typeof headerRaw === 'string' && headerRaw.trim() ? headerRaw.trim() : undefined;
+      if (header && UUID_RE.test(header)) {
+        tenantId = header;
+      }
+    }
     if (!tenantId) {
       throw new UnauthorizedException({
         code: 'INVALID_TOKEN',
-        message: 'Missing tenant_id in JWT (configure app_metadata.tenant_id)',
+        message: 'Missing tenant_id in JWT (configure app_metadata.tenant_id or X-Tenant-Id)',
       });
     }
     const jwtRoleHints = extractJwtRoleHints(payload, rolesPath);

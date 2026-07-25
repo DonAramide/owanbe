@@ -1,19 +1,21 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/bootstrap/app_boot_state.dart';
+import '../../../core/bootstrap/app_bootstrap.dart';
 import '../../../eos/eos.dart';
 
-class SplashScreen extends StatefulWidget {
+/// Presentation-only splash — listens to [appBootstrapProvider] and navigates.
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
@@ -21,26 +23,24 @@ class _SplashScreenState extends State<SplashScreen> {
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
     ]);
-    Timer(const Duration(seconds: 6), () async {
-      if (!mounted) return;
-      final prefs = await SharedPreferences.getInstance();
-      final showWalkthrough = prefs.getBool('show_walkthrough') ?? true;
-      if (!mounted) return;
-      if (showWalkthrough) {
-        context.go('/walkthrough');
-      } else {
-        context.go('/home');
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(appBootstrapProvider, (previous, next) {
+      if (!next.canNavigate || next.destination == null) return;
+      if (!context.mounted) return;
+      context.go(next.destination!);
+    });
+
+    final boot = ref.watch(appBootstrapProvider);
+    // Navigate if already ready/error when this frame builds (listen only fires on changes).
+    if (boot.canNavigate && boot.destination != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) context.go(boot.destination!);
+      });
+    }
+
     return Scaffold(
       backgroundColor: EosColors.plumDark,
       body: Stack(

@@ -4,51 +4,55 @@ import '../../../../eos/eos.dart';
 import '../../models/command_center_models.dart';
 import '../event_module_registry.dart';
 
-/// Registry-driven module sections for [EventWorkspace].
+/// Registry-driven module sections for [EventDesktop].
 class EventWorkspaceModuleSections extends StatelessWidget {
   const EventWorkspaceModuleSections({
     super.key,
     required this.eventId,
     required this.snapshot,
-  });
+    List<EventDesktopSection>? sections,
+  })  : _sections = sections;
 
   final String eventId;
   final EventCommandCenterSnapshot snapshot;
+  final List<EventDesktopSection>? _sections;
 
   @override
   Widget build(BuildContext context) {
-    final grouped = EventModuleRegistry.groupedModules(snapshot.event, snapshot);
+    final sections = _sections ??
+        EventModuleRegistry.desktopSections(snapshot.event, snapshot);
     final columns = EosResponsive.columnsFor(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final category in EventModuleCategory.values) ...[
-          if ((grouped[category] ?? []).isNotEmpty)
-            EosSection(
-              title: category.title,
-              subtitle: category.subtitle,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final tileWidth = (constraints.maxWidth - (columns - 1) * context.eos.spacing.sm) / columns;
-                  return Wrap(
-                    spacing: context.eos.spacing.sm,
-                    runSpacing: context.eos.spacing.sm,
-                    children: [
-                      for (final module in grouped[category]!)
-                        SizedBox(
-                          width: columns == 1 ? double.infinity : tileWidth,
-                          child: _ModuleTile(
-                            module: module,
-                            badge: module.badgeCount?.call(snapshot),
-                            onTap: () => module.onOpen(context, eventId),
-                          ),
+        for (final section in sections) ...[
+          EosSection(
+            title: section.title,
+            subtitle: section.subtitle,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final tileWidth =
+                    (constraints.maxWidth - (columns - 1) * context.eos.spacing.sm) / columns;
+                return Wrap(
+                  spacing: context.eos.spacing.sm,
+                  runSpacing: context.eos.spacing.sm,
+                  children: [
+                    for (final module in section.modules)
+                      SizedBox(
+                        width: columns == 1 ? double.infinity : tileWidth,
+                        child: _ModuleTile(
+                          module: module,
+                          badge: module.badgeCount?.call(snapshot),
+                          onTap: () => module.onOpen(context, eventId),
                         ),
-                    ],
-                  );
-                },
-              ),
+                      ),
+                  ],
+                );
+              },
             ),
+          ),
+          SizedBox(height: context.eos.spacing.lg),
         ],
       ],
     );

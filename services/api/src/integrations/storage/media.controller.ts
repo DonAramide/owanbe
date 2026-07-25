@@ -1,6 +1,19 @@
-import { Body, Controller, Get, Post, Put, Req, UseGuards, Param, Headers } from '@nestjs/common';
-import type { Request } from 'express';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Put,
+  Req,
+  Res,
+  UseGuards,
+  Param,
+  Headers,
+  StreamableFile,
+} from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { Public } from '../../common/decorators/public.decorator';
+import { SkipTenant } from '../../common/decorators/skip-tenant.decorator';
 import { TenantId } from '../../common/decorators/tenant-id.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { JwtUser } from '../../common/types/jwt-user';
@@ -48,6 +61,41 @@ export class MediaController {
     });
   }
 
+  /**
+   * Public GET for NetworkImage / <img> — must skip tenant header because
+   * browser image loads cannot send X-Tenant-Id.
+   */
+  @Public()
+  @SkipTenant()
+  @Get('object/:encodedKey')
+  async getObject(
+    @Param('encodedKey') encodedKey: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const file = await this.storage.readObject(encodedKey);
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return new StreamableFile(file.body);
+  }
+
+  /**
+   * Back-compat GET for avatar URLs previously saved as `/v1/media/upload/...`
+   */
+  @Public()
+  @SkipTenant()
+  @Get('upload/:encodedKey')
+  async getUploadAlias(
+    @Param('encodedKey') encodedKey: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const file = await this.storage.readObject(encodedKey);
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return new StreamableFile(file.body);
+  }
+
+  @Public()
+  @SkipTenant()
   @Get('status')
   status() {
     return { provider: this.storage.isSupabaseConfigured() ? 'supabase' : 'local_fallback' };

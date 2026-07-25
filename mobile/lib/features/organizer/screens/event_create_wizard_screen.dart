@@ -405,8 +405,26 @@ class _EventCreateWizardScreenState extends ConsumerState<EventCreateWizardScree
       endsAt: _ends,
       ticketTiers: _tiers,
     );
-    final event = await createEventFromDraft(ref, draft);
-    ref.read(selectedOrganizerEventIdProvider.notifier).state = event.id;
-    if (mounted) context.go('/organizer/events/${event.id}');
+    try {
+      final event = await createEventFromDraft(ref, draft);
+      ref.read(selectedOrganizerEventIdProvider.notifier).state = event.id;
+      if (mounted) context.go('/organizer/events/${event.id}');
+    } on EventCreationException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Create failed: ${e.message}'),
+          action: SnackBarAction(label: 'Retry', onPressed: _save),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not create event: $e'),
+          action: SnackBarAction(label: 'Retry', onPressed: _save),
+        ),
+      );
+    }
   }
 }

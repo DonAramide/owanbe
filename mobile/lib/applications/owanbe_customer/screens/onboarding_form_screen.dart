@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../eos/eos.dart';
+import '../../../identity/experience_navigation.dart';
+import '../../../identity/workspace_models.dart';
 import '../../../platform/identity/identity_models.dart';
 
 import '../../../features/organizer/wizard_v2/models/nigeria_locations.dart';
@@ -42,10 +44,6 @@ class _OnboardingFormScreenState extends State<OnboardingFormScreen> {
   
   // Organizer specific
   final _orgName = TextEditingController();
-  
-  // Vendor specific
-  final _bizName = TextEditingController();
-  final _category = TextEditingController();
 
   String _selectedGender = 'Male';
   bool _busy = false;
@@ -57,8 +55,6 @@ class _OnboardingFormScreenState extends State<OnboardingFormScreen> {
     _dob.dispose();
     _landmark.dispose();
     _orgName.dispose();
-    _bizName.dispose();
-    _category.dispose();
     super.dispose();
   }
 
@@ -97,9 +93,12 @@ class _OnboardingFormScreenState extends State<OnboardingFormScreen> {
     setState(() => _busy = false);
     
     if (mounted) {
-      context.go(widget.role == UserRole.organizer
-          ? '/organizer'
-          : (widget.role == UserRole.vendor ? '/vendor' : '/home'));
+      context.go(switch (widget.role) {
+        UserRole.organizer => ExperienceNavigation.workspaceHome(ExperienceWorkspace.organizer),
+        UserRole.client => ExperienceNavigation.workspaceHome(ExperienceWorkspace.attendee),
+        UserRole.vendor => ExperienceNavigation.workspaceOnboarding(ExperienceWorkspace.vendor),
+        _ => ExperienceNavigation.hub(),
+      });
     }
   }
 
@@ -166,22 +165,6 @@ class _OnboardingFormScreenState extends State<OnboardingFormScreen> {
                     label: 'Organization Name',
                     hint: 'E.g. Zenith Events',
                     validator: (v) => v == null || v.isEmpty ? 'Organization name is required' : null,
-                  ),
-                  const SizedBox(height: 16),
-                ],
-                if (widget.role == UserRole.vendor) ...[
-                  EosTextField(
-                    controller: _bizName,
-                    label: 'Business Name',
-                    hint: 'E.g. Spice Palace Catering',
-                    validator: (v) => v == null || v.isEmpty ? 'Business name is required' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  EosTextField(
-                    controller: _category,
-                    label: 'Vendor Category',
-                    hint: 'E.g. Catering, Decor, Sound',
-                    validator: (v) => v == null || v.isEmpty ? 'Category is required' : null,
                   ),
                   const SizedBox(height: 16),
                 ],

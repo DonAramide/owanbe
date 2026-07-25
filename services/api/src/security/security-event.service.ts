@@ -23,16 +23,33 @@ export class SecurityEventService {
     actorUserId?: string;
     details?: Record<string, unknown>;
   }): Promise<void> {
-    await this.pool.query(
-      `INSERT INTO platform_security_events (tenant_id, event_type, severity, actor_user_id, details)
-       VALUES ($1::uuid, $2, $3, $4::uuid, $5::jsonb)`,
-      [
-        params.tenantId ?? null,
-        params.eventType,
-        params.severity ?? 'warning',
-        params.actorUserId ?? null,
-        JSON.stringify(params.details ?? {}),
-      ],
-    );
+    const values = [
+      params.tenantId ?? null,
+      params.eventType,
+      params.severity ?? 'warning',
+      params.actorUserId ?? null,
+      JSON.stringify(params.details ?? {}),
+    ];
+    try {
+      await this.pool.query(
+        `INSERT INTO platform_security_events (tenant_id, event_type, severity, actor_user_id, details)
+         VALUES ($1::uuid, $2, $3, $4::uuid, $5::jsonb)`,
+        values,
+      );
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code;
+      if (code !== '23503' || !params.actorUserId) throw err;
+      // User not provisioned in Postgres yet — log without actor FK.
+      await this.pool.query(
+        `INSERT INTO platform_security_events (tenant_id, event_type, severity, actor_user_id, details)
+         VALUES ($1::uuid, $2, $3, NULL, $4::jsonb)`,
+        [
+          params.tenantId ?? null,
+          params.eventType,
+          params.severity ?? 'warning',
+          JSON.stringify({ ...params.details, actorUserId: params.actorUserId }),
+        ],
+      );
+    }
   }
 }

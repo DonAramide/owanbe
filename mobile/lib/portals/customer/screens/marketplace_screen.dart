@@ -16,7 +16,20 @@ import '../widgets/section_header.dart';
 
 /// Premium vendor marketplace at `/vendors`.
 class MarketplaceScreen extends ConsumerWidget {
-  const MarketplaceScreen({super.key});
+  const MarketplaceScreen({super.key, this.eventId});
+
+  /// When set, vendor requests and back navigation are scoped to this event.
+  final String? eventId;
+
+  void _handleBack(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+    } else if (eventId != null && eventId!.isNotEmpty) {
+      context.eventNav.backToOverview(eventId!);
+    } else {
+      context.eventNav.goHome();
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -31,13 +44,7 @@ class MarketplaceScreen extends ConsumerWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.eventNav.goHome();
-            }
-          },
+          onPressed: () => _handleBack(context),
         ),
         title: const Text('Vendor marketplace'),
       ),
@@ -69,7 +76,7 @@ class MarketplaceScreen extends ConsumerWidget {
                 ),
                 SizedBox(height: context.eos.spacing.md),
                 OutlinedButton.icon(
-                  onPressed: () => context.eventNav.openRentalsMarketplace(),
+                  onPressed: () => context.eventNav.openRentalsMarketplace(eventId: eventId),
                   icon: const Icon(Icons.inventory_2_outlined),
                   label: const Text('Browse rentals'),
                 ),
@@ -121,7 +128,10 @@ class MarketplaceScreen extends ConsumerWidget {
                                 coverColorEnd: buildVendorProfile(vendor).coverColorEnd,
                                 priceLabel: buildVendorProfile(vendor).priceLabel,
                                 guestCount: guestCount,
-                                onTap: () => context.eventNav.openVendorDetail(vendor.id),
+                                onTap: () => context.eventNav.openVendorDetail(
+                                  vendor.id,
+                                  eventId: eventId,
+                                ),
                               ),
                             ),
                         ],

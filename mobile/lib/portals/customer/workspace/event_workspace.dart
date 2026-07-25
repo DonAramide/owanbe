@@ -8,6 +8,7 @@ import '../../../eos/layout/workspace/workspace_definition.dart';
 import '../../../eos/layout/workspace/workspace_shell.dart';
 import '../../../eos/layout/workspace/workspace_widgets.dart';
 import '../providers/customer_event_command_providers.dart';
+import 'widgets/event_desktop.dart';
 import 'widgets/event_error_view.dart';
 import 'widgets/event_loading_skeleton.dart';
 
@@ -27,7 +28,7 @@ class _EventWorkspaceState extends ConsumerState<EventWorkspace> {
     super.initState();
     _eventWorkspaceDefinition = WorkspaceDefinition(
       entityType: WorkspaceEntityType.event,
-      title: 'Event 360 Workspace',
+      title: 'Event Command Center',
       icon: Icons.event,
       metrics: const [
         WorkspaceMetricDefinition(
@@ -55,7 +56,7 @@ class _EventWorkspaceState extends ConsumerState<EventWorkspace> {
       tabs: [
         WorkspaceTabDefinition(
           label: 'Overview',
-          builder: (context, id) => _OverviewTabBridge(eventId: id),
+          builder: (context, id) => _EventDesktopBridge(eventId: id),
         ),
         WorkspaceTabDefinition(
           label: 'Tickets & Commerce',
@@ -159,10 +160,10 @@ class _EventWorkspaceState extends ConsumerState<EventWorkspace> {
   }
 }
 
-// ==================== EVENT TAB BRIDGES ====================
+// ==================== EVENT DESKTOP (Phase 1) ====================
 
-class _OverviewTabBridge extends ConsumerWidget {
-  const _OverviewTabBridge({required this.eventId});
+class _EventDesktopBridge extends ConsumerWidget {
+  const _EventDesktopBridge({required this.eventId});
   final String eventId;
 
   @override
@@ -171,47 +172,13 @@ class _OverviewTabBridge extends ConsumerWidget {
 
     return snapshot.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Text('Error: $e'),
-      data: (data) {
-        final event = data.event;
-        return ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            WorkspaceRelationshipGraph(currentType: WorkspaceEntityType.event, entityId: eventId),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: EosKpiCard(
-                    title: 'Capacity Target',
-                    value: '${event.totalCapacity > 0 ? event.totalCapacity : event.expectedGuests}',
-                    subtitle: 'Expected attendance limit',
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: EosKpiCard(
-                    title: 'Tickets Sold',
-                    value: '${event.ticketsSold}',
-                    subtitle: 'Registered ticket passes',
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: EosKpiCard(
-                    title: 'Revenue Collected',
-                    value: formatRevenue(event.revenueMinor),
-                    subtitle: 'Direct sales total',
-                  ),
-                ),
-              ],
-            ),
-          ],
-        );
-      },
+      error: (e, _) => Center(child: Text('$e')),
+      data: (data) => EventDesktop(eventId: eventId, snapshot: data),
     );
   }
 }
+
+// ==================== LEGACY TAB BRIDGES (monitoring — secondary tabs) ====================
 
 class _CommerceTabBridge extends ConsumerWidget {
   const _CommerceTabBridge({required this.eventId});

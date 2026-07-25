@@ -16,6 +16,9 @@ class EosTextField extends StatelessWidget {
     this.suffixIcon,
     this.maxLines = 1,
     this.enabled = true,
+    this.autofillHints,
+    this.enableSuggestions = true,
+    this.autocorrect = true,
   });
 
   final TextEditingController? controller;
@@ -29,6 +32,9 @@ class EosTextField extends StatelessWidget {
   final Widget? suffixIcon;
   final int maxLines;
   final bool enabled;
+  final Iterable<String>? autofillHints;
+  final bool enableSuggestions;
+  final bool autocorrect;
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +46,9 @@ class EosTextField extends StatelessWidget {
       validator: validator,
       maxLines: maxLines,
       enabled: enabled,
+      autofillHints: autofillHints,
+      enableSuggestions: enableSuggestions,
+      autocorrect: autocorrect,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,

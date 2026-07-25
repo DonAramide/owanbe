@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +8,7 @@ import '../../../core/utils/currency_input.dart';
 import '../../../core/utils/money.dart';
 import '../../../eos/eos.dart';
 import '../../../shared/models/event_access_mode.dart';
+import '../../../portals/customer/closing/event_closing_actions.dart';
 import '../data/organizer_persistence.dart';
 import '../models/organizer_models.dart';
 import '../providers/event_config_providers.dart';
@@ -57,6 +56,33 @@ class _EventCreateWizardV2ScreenState extends ConsumerState<EventCreateWizardV2S
   String _lastAutoCategorySlug = '';
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _applyDuplicateSeed());
+  }
+
+  void _applyDuplicateSeed() {
+    final seed = ref.read(eventDuplicateSeedProvider);
+    if (seed == null) return;
+    _title.text = seed.title;
+    _tagline.text = seed.tagline;
+    _city.text = seed.city;
+    _venue.text = seed.venueName;
+    _address.text = seed.venueAddress;
+    _guests.text = '${seed.expectedGuests}';
+    _budget.text = nairaInputFromMinor(seed.budgetMinor);
+    _starts = seed.startsAt;
+    _venueDeferred = seed.venueDeferred;
+    _state = seed.state;
+    _lga = seed.lga;
+    _requiredServices
+      ..clear()
+      ..addAll(seed.requiredServices);
+    if (mounted) setState(() {});
+    clearDuplicateSeed(ref);
+  }
+
+  @override
   void dispose() {
     _title.dispose();
     _tagline.dispose();
@@ -71,12 +97,6 @@ class _EventCreateWizardV2ScreenState extends ConsumerState<EventCreateWizardV2S
   int get _guestCount => int.tryParse(_guests.text.replaceAll(',', '')) ?? 0;
 
   int get _budgetMinor => parseNairaInputToMinor(_budget.text);
-
-  String? get _celebrantImageUrl {
-    if (_celebrantImageBytes == null) return null;
-    final b64 = base64Encode(_celebrantImageBytes!);
-    return 'data:image/jpeg;base64,$b64';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -486,13 +506,33 @@ class _EventCreateWizardV2ScreenState extends ConsumerState<EventCreateWizardV2S
       venueDeferred: _venueDeferred,
       state: _state,
       lga: _lga,
-      celebrantImageUrl: _celebrantImageUrl,
     );
     try {
-      final event = await createEventFromV2Draft(ref, draft);
+      final event = await createEventFromV2Draft(
+        ref,
+        draft,
+        celebrantImageBytes: _celebrantImageBytes,
+      );
       ref.read(selectedOrganizerEventIdProvider.notifier).state = event.id;
       if (!mounted) return;
       context.go('/events/${event.id}');
+    } on EventCreationException catch (e) {
+      if (!mounted) return;
+      final label = e.stage == EventCreationStage.upload ? 'Upload failed' : 'Create failed';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$label: ${e.message}'),
+          action: SnackBarAction(label: 'Retry', onPressed: _save),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not create event: $e'),
+          action: SnackBarAction(label: 'Retry', onPressed: _save),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }

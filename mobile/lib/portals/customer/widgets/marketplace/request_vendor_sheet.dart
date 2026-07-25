@@ -7,15 +7,20 @@ import '../../../../core/api/vendors_api.dart';
 import '../../../../eos/eos.dart';
 import '../../workspace/widgets/event_friendly_errors.dart';
 import '../../data/customer_event_persistence.dart';
+import '../../providers/customer_event_providers.dart';
 import '../../providers/customer_home_providers.dart';
 
 class RequestVendorSheet extends ConsumerStatefulWidget {
   const RequestVendorSheet({
     super.key,
     required this.vendor,
+    this.lockedEventId,
   });
 
   final MarketplaceVendor vendor;
+
+  /// When set (Event Desktop marketplace), the request is bound to this event — no picker.
+  final String? lockedEventId;
 
   @override
   ConsumerState<RequestVendorSheet> createState() => _RequestVendorSheetState();
@@ -25,6 +30,15 @@ class _RequestVendorSheetState extends ConsumerState<RequestVendorSheet> {
   String? _eventId;
   final _messageController = TextEditingController();
   var _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final locked = widget.lockedEventId;
+    if (locked != null && locked.isNotEmpty) {
+      _eventId = locked;
+    }
+  }
 
   @override
   void dispose() {
@@ -58,6 +72,8 @@ class _RequestVendorSheetState extends ConsumerState<RequestVendorSheet> {
   @override
   Widget build(BuildContext context) {
     final events = ref.watch(customerOwnedEventsProvider);
+    final lockedEventId = widget.lockedEventId;
+    final isEventLocked = lockedEventId != null && lockedEventId.isNotEmpty;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -77,39 +93,42 @@ class _RequestVendorSheetState extends ConsumerState<RequestVendorSheet> {
             style: context.eosText.bodySmall,
           ),
           SizedBox(height: context.eos.spacing.md),
-          events.when(
-            data: (owned) {
-              if (owned.isEmpty) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Create an event first to request vendors.', style: context.eosText.bodyMedium),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        context.push('/events/create');
-                      },
-                      icon: const Icon(Icons.add),
-                      label: const Text('Create an Event'),
-                    ),
+          if (isEventLocked)
+            _LockedEventBanner(eventId: lockedEventId)
+          else
+            events.when(
+              data: (owned) {
+                if (owned.isEmpty) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Create an event first to request vendors.', style: context.eosText.bodyMedium),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          context.push('/events/create');
+                        },
+                        icon: const Icon(Icons.add),
+                        label: const Text('Create an Event'),
+                      ),
+                    ],
+                  );
+                }
+                _eventId ??= owned.first.id;
+                return EosSelectField<String>(
+                  label: 'Celebration event',
+                  value: _eventId,
+                  items: [
+                    for (final e in owned)
+                      DropdownMenuItem(value: e.id, child: Text(e.title)),
                   ],
+                  onChanged: (v) => setState(() => _eventId = v),
                 );
-              }
-              _eventId ??= owned.first.id;
-              return EosSelectField<String>(
-                label: 'Celebration event',
-                value: _eventId,
-                items: [
-                  for (final e in owned)
-                    DropdownMenuItem(value: e.id, child: Text(e.title)),
-                ],
-                onChanged: (v) => setState(() => _eventId = v),
-              );
-            },
-            loading: () => const LinearProgressIndicator(),
-            error: (_, _) => Text(EventFriendlyErrors.genericMessage),
-          ),
+              },
+              loading: () => const LinearProgressIndicator(),
+              error: (_, _) => Text(EventFriendlyErrors.genericMessage),
+            ),
           SizedBox(height: context.eos.spacing.sm),
           TextField(
             controller: _messageController,
@@ -123,6 +142,42 @@ class _RequestVendorSheetState extends ConsumerState<RequestVendorSheet> {
           FilledButton(
             onPressed: _submitting || _eventId == null ? null : _submit,
             child: Text(_submitting ? 'Sending…' : 'Send request'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LockedEventBanner extends ConsumerWidget {
+  const _LockedEventBanner({required this.eventId});
+
+  final String eventId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final title = ref.watch(
+      customerEventProvider(eventId).select((async) => async.valueOrNull?.title),
+    );
+
+    return EosSurfaceCard(
+      child: Row(
+        children: [
+          Icon(Icons.event_outlined, color: context.eosColors.primary, size: 20),
+          SizedBox(width: context.eos.spacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Request for this celebration', style: context.eosText.labelSmall),
+                Text(
+                  title ?? 'Your event',
+                  style: context.eosText.titleSmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ],
       ),

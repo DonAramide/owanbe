@@ -31,6 +31,9 @@
 
   <title>owambe</title>
   <link rel="manifest" href="manifest.json">
+  <!-- Warm TLS to Auth + avoid cold-start Failed to fetch on first sign-in. -->
+  <link rel="preconnect" href="https://iozdkiwcwblydsomxhxa.supabase.co" crossorigin>
+  <link rel="dns-prefetch" href="https://iozdkiwcwblydsomxhxa.supabase.co">
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

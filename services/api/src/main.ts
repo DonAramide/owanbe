@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import { SanitizeInputPipe } from './common/pipes/sanitize-input.pipe';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { raw } from 'express';
 import { AppModule } from './app.module';
 import { OwanbeExceptionFilter } from './common/filters/owanbe-exception.filter';
 import { IntegrationsModeService } from './integrations/integrations-mode.service';
@@ -13,6 +14,9 @@ async function bootstrap() {
     bufferLogs: true,
     rawBody: true,
   });
+  // Binary media uploads — separate from JSON event-create payloads (100 KB cap below).
+  app.use('/v1/media/upload', raw({ type: () => true, limit: '10mb' }));
+  app.useBodyParser('json', { limit: '100kb' });
   app.get(IntegrationsModeService).requireProductionConfig();
   app.enableCors({
     origin: process.env.NODE_ENV === 'production'
