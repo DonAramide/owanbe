@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../../eos/eos.dart';
 import '../models/marketplace_filters.dart';
 import '../models/marketplace_models.dart';
+import '../models/vendor_crm_models.dart';
 import '../providers/marketplace_providers.dart';
+import '../providers/vendor_crm_providers.dart';
 import '../navigation/event_navigator.dart';
 import '../workspace/widgets/event_friendly_errors.dart';
 import '../workspace/widgets/event_loading_skeleton.dart';
@@ -15,29 +17,63 @@ import '../widgets/marketplace/premium_vendor_card.dart';
 import '../widgets/section_header.dart';
 
 /// Premium vendor marketplace at `/vendors`.
-class MarketplaceScreen extends ConsumerWidget {
-  const MarketplaceScreen({super.key, this.eventId});
+class MarketplaceScreen extends ConsumerStatefulWidget {
+  const MarketplaceScreen({
+    super.key,
+    this.eventId,
+    this.initialCategory,
+  });
 
   /// When set, vendor requests and back navigation are scoped to this event.
   final String? eventId;
 
+  /// Service category from planning task (e.g. Catering, DJ, Photographer).
+  final String? initialCategory;
+
+  @override
+  ConsumerState<MarketplaceScreen> createState() => _MarketplaceScreenState();
+}
+
+class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
+  @override
+  void initState() {
+    super.initState();
+    final category = widget.initialCategory?.trim();
+    if (category != null && category.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final current = ref.read(marketplaceFiltersProvider);
+        ref.read(marketplaceFiltersProvider.notifier).state = current.copyWith(
+          serviceCategory: category,
+        );
+      });
+    }
+  }
+
   void _handleBack(BuildContext context) {
     if (context.canPop()) {
       context.pop();
-    } else if (eventId != null && eventId!.isNotEmpty) {
-      context.eventNav.backToOverview(eventId!);
+    } else if (widget.eventId != null && widget.eventId!.isNotEmpty) {
+      context.eventNav.backToOverview(widget.eventId!);
     } else {
       context.eventNav.goHome();
     }
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    final eventId = widget.eventId;
     final vendors = ref.watch(marketplaceVendorsProvider);
-    final filtered = ref.watch(marketplaceFilteredVendorsProvider);
+    final discover = ref.watch(marketplaceDiscoverVendorsProvider(eventId));
     final categories = ref.watch(marketplaceCategoriesProvider);
     final cities = ref.watch(marketplaceCitiesProvider);
     final guestCount = ref.watch(marketplaceExpectedGuestsProvider);
+    final filters = ref.watch(marketplaceFiltersProvider);
+    final booked = eventId != null && eventId.isNotEmpty
+        ? ref.watch(eventBookedVendorRequestsProvider(eventId))
+        : const <VendorRequest>[];
+
+    final categoryTitle = filters.serviceCategory != 'All' ? filters.serviceCategory : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -46,7 +82,9 @@ class MarketplaceScreen extends ConsumerWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => _handleBack(context),
         ),
-        title: const Text('Vendor marketplace'),
+        title: Text(
+          categoryTitle != null ? '$categoryTitle marketplace' : 'Vendor marketplace',
+        ),
       ),
       body: vendors.when(
         loading: () => const EventLoadingSkeleton(variant: EventLoadingVariant.list),
@@ -65,14 +103,22 @@ class MarketplaceScreen extends ConsumerWidget {
           return RefreshIndicator(
             onRefresh: () async {
               ref.invalidate(marketplaceVendorsProvider);
+              if (eventId != null) {
+                refreshVendorCrm(ref);
+                ref.invalidate(eventVendorCrmProvider(eventId));
+              }
               await ref.read(marketplaceVendorsProvider.future);
             },
             child: ListView(
               padding: EdgeInsets.all(context.eos.spacing.lg),
               children: [
-                const SectionHeader(
-                  title: 'Find your dream team',
-                  subtitle: 'Search by service, name, city, price, or rating.',
+                SectionHeader(
+                  title: categoryTitle != null
+                      ? 'Find $categoryTitle vendors'
+                      : 'Find your dream team',
+                  subtitle: categoryTitle != null
+                      ? 'Only vendors matching $categoryTitle. Booked vendors are listed separately.'
+                      : 'Search by service, name, city, price, or rating.',
                 ),
                 SizedBox(height: context.eos.spacing.md),
                 OutlinedButton.icon(
@@ -96,16 +142,43 @@ class MarketplaceScreen extends ConsumerWidget {
                   onChanged: (v) =>
                       ref.read(marketplaceExpectedGuestsProvider.notifier).state = v.round(),
                 ),
+                if (booked.isNotEmpty) ...[
+                  SizedBox(height: context.eos.spacing.lg),
+                  const SectionHeader(
+                    title: 'My Booked Vendors',
+                    subtitle: 'Already requested or booked for this event — not shown in discovery.',
+                  ),
+                  SizedBox(height: context.eos.spacing.sm),
+                  for (final req in booked)
+                    Card(
+                      margin: EdgeInsets.only(bottom: context.eos.spacing.sm),
+                      child: ListTile(
+                        title: Text(req.vendorName ?? 'Vendor'),
+                        subtitle: Text(
+                          [
+                            if (req.serviceLabel != null && req.serviceLabel!.isNotEmpty) req.serviceLabel!,
+                            vendorCrmStageLabels[req.stage] ?? req.stage,
+                          ].join(' · '),
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: eventId == null
+                            ? null
+                            : () => context.eventNav.openVendorPipeline(eventId),
+                      ),
+                    ),
+                ],
                 SizedBox(height: context.eos.spacing.lg),
                 Text(
-                  '${filtered.length} vendor${filtered.length == 1 ? '' : 's'}',
+                  '${discover.length} available vendor${discover.length == 1 ? '' : 's'}',
                   style: context.eosText.labelLarge,
                 ),
                 SizedBox(height: context.eos.spacing.sm),
-                if (filtered.isEmpty)
-                  const EmptyStateCard(
+                if (discover.isEmpty)
+                  EmptyStateCard(
                     title: 'No vendors found',
-                    message: 'Try another service, city, or filter.',
+                    message: categoryTitle != null
+                        ? 'No available $categoryTitle vendors match your filters.'
+                        : 'Try another service, city, or filter.',
                     icon: Icons.storefront_outlined,
                   )
                 else
@@ -119,7 +192,7 @@ class MarketplaceScreen extends ConsumerWidget {
                         spacing: context.eos.spacing.md,
                         runSpacing: context.eos.spacing.md,
                         children: [
-                          for (final vendor in filtered)
+                          for (final vendor in discover)
                             SizedBox(
                               width: width,
                               child: PremiumVendorCard(
@@ -131,6 +204,9 @@ class MarketplaceScreen extends ConsumerWidget {
                                 onTap: () => context.eventNav.openVendorDetail(
                                   vendor.id,
                                   eventId: eventId,
+                                  service: filters.serviceCategory == 'All'
+                                      ? null
+                                      : filters.serviceCategory,
                                 ),
                               ),
                             ),

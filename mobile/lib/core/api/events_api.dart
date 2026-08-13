@@ -131,8 +131,20 @@ class EventsApi {
     if (res.statusCode >= 400) _throw(res);
   }
 
-  Future<List<OrganizerEvent>> listOrganizerEvents({AuthSession? session}) async {
-    final res = await _http.get(_u('organizers/me/events'), headers: await _headers(session: session));
+  Future<List<OrganizerEvent>> listOrganizerEvents({
+    AuthSession? session,
+    String? q,
+    String? status,
+    String? sort,
+  }) async {
+    final query = <String, String>{};
+    if (q != null && q.isNotEmpty) query['q'] = q;
+    if (status != null && status.isNotEmpty) query['status'] = status;
+    if (sort != null && sort.isNotEmpty) query['sort'] = sort;
+    final res = await _http.get(
+      _u('organizers/me/events', query.isEmpty ? null : query),
+      headers: await _headers(session: session),
+    );
     if (res.statusCode >= 400) _throw(res);
     final body = jsonDecode(res.body) as Map<String, dynamic>;
     return (body['items'] as List<dynamic>)
@@ -165,6 +177,15 @@ class EventsApi {
     );
     if (res.statusCode >= 400) _throw(res);
     return mapOrganizerEvent(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  /// Soft-discards a draft event (status → cancelled). Hidden from normal organizer lists.
+  Future<void> discardEvent(String eventId, {AuthSession? session}) async {
+    final res = await _http.post(
+      _u('events/$eventId/discard'),
+      headers: await _headers(session: session),
+    );
+    if (res.statusCode >= 400) _throw(res);
   }
 
   Future<OrganizerEvent> publishEvent(String eventId, {AuthSession? session}) async {
@@ -217,6 +238,49 @@ class EventsApi {
     if (res.statusCode >= 400) _throw(res);
   }
 
+  Future<void> archiveTier(String dbTierId, {AuthSession? session}) async {
+    final res = await _http.post(_u('tiers/$dbTierId/archive'), headers: await _headers(session: session));
+    if (res.statusCode >= 400) _throw(res);
+  }
+
+  Future<void> unarchiveTier(String dbTierId, {AuthSession? session}) async {
+    final res = await _http.post(_u('tiers/$dbTierId/unarchive'), headers: await _headers(session: session));
+    if (res.statusCode >= 400) _throw(res);
+  }
+
+  Future<OrganizerTicketTier> duplicateTier(String dbTierId, {AuthSession? session}) async {
+    final res = await _http.post(_u('tiers/$dbTierId/duplicate'), headers: await _headers(session: session));
+    if (res.statusCode >= 400) _throw(res);
+    final created = jsonDecode(res.body) as Map<String, dynamic>;
+    // Reload manage list is caller's job; return a stub with new ids.
+    return OrganizerTicketTier(
+      id: (created['externalTierId'] ?? '').toString(),
+      dbTierId: created['id']?.toString(),
+      name: 'Copy',
+      description: '',
+      priceMinor: 0,
+      currency: 'NGN',
+      capacity: 0,
+      remaining: 0,
+    );
+  }
+
+  Future<void> reorderTiers(String eventId, List<String> orderedExternalIds, {AuthSession? session}) async {
+    final res = await _http.post(
+      _u('events/$eventId/tiers/reorder'),
+      headers: await _headers(session: session),
+      body: jsonEncode({'orderedExternalIds': orderedExternalIds}),
+    );
+    if (res.statusCode >= 400) _throw(res);
+  }
+
+  Future<List<Map<String, dynamic>>> fetchTierSales(String eventId, {AuthSession? session}) async {
+    final res = await _http.get(_u('events/$eventId/tiers/sales'), headers: await _headers(session: session));
+    if (res.statusCode >= 400) _throw(res);
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return (body['items'] as List<dynamic>? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
   Future<Map<String, dynamic>> fetchDashboard({AuthSession? session}) async {
     final res = await _http.get(_u('organizers/me/dashboard'), headers: await _headers(session: session));
     if (res.statusCode >= 400) _throw(res);
@@ -248,6 +312,7 @@ TicketTierType mapTierType(String raw) => switch (raw) {
       'group' => TicketTierType.group,
       'corporate' => TicketTierType.corporate,
       'table' => TicketTierType.table,
+      'complimentary' => TicketTierType.complimentary,
       _ => TicketTierType.regular,
     };
 
@@ -270,12 +335,50 @@ OrganizerTicketTier mapOrganizerTier(Map<String, dynamic> json, {String? dbTierI
     salesWindowStart: _parseDate(json['salesStartAt'] ?? meta['salesStartAt']),
     salesWindowEnd: _parseDate(json['salesEndAt'] ?? meta['salesEndAt']),
     salesPaused: json['salesPaused'] == true,
+    archived: json['archived'] == true || meta['archived'] == true,
+    unlimitedCapacity: json['unlimitedCapacity'] == true || meta['unlimitedCapacity'] == true,
+    minQuantity: (json['minQuantity'] as num?)?.toInt() ?? (meta['minQuantity'] as num?)?.toInt() ?? 1,
+    maxQuantity: (json['maxQuantity'] as num?)?.toInt() ?? (meta['maxQuantity'] as num?)?.toInt(),
+    maxPerUser: (json['maxPerUser'] as num?)?.toInt() ?? (meta['maxPerUser'] as num?)?.toInt(),
+    sortOrder: (json['sortOrder'] as num?)?.toInt() ?? (meta['sortOrder'] as num?)?.toInt() ?? 0,
   );
 }
 
 OrganizerEvent mapOrganizerEvent(Map<String, dynamic> json) {
   final tiers = (json['ticketTiers'] as List<dynamic>? ?? [])
       .map((e) => mapOrganizerTier(e as Map<String, dynamic>))
+      .toList();
+  final attendees = (json['attendees'] as List<dynamic>? ?? [])
+      .whereType<Map>()
+      .map((e) {
+        final m = Map<String, dynamic>.from(e);
+        final purchasedAt = m['purchasedAt'] != null ? _parseDate(m['purchasedAt']) : null;
+        final tierName = (m['tierName'] ?? 'Ticket').toString();
+        final amount = int.tryParse((m['amountMinor'] ?? '0').toString()) ?? 0;
+        return OrganizerAttendee(
+          id: (m['id'] ?? '').toString(),
+          name: (m['name'] ?? 'Attendee').toString(),
+          email: (m['email'] ?? '').toString(),
+          tierName: tierName,
+          ticketId: (m['ticketId'] ?? m['ticket_code'] ?? '').toString(),
+          checkedIn: m['checkedIn'] == true || (m['entitlementStatus'] ?? m['status']) == 'checked_in',
+          purchasedAt: purchasedAt,
+          purchases: purchasedAt == null
+              ? const []
+              : [
+                  AttendeePurchase(
+                    item: tierName,
+                    amountMinor: amount,
+                    purchasedAt: purchasedAt,
+                  ),
+                ],
+          timeline: [
+            if (purchasedAt != null) AttendeeTimelineEvent(label: 'Purchased', at: purchasedAt),
+            if (m['checkedIn'] == true || (m['entitlementStatus'] ?? m['status']) == 'checked_in')
+              AttendeeTimelineEvent(label: 'Checked in', at: purchasedAt ?? DateTime.now()),
+          ],
+        );
+      })
       .toList();
   return OrganizerEvent(
     id: eventPublicId(json),
@@ -299,7 +402,7 @@ OrganizerEvent mapOrganizerEvent(Map<String, dynamic> json) {
     coverGradientEnd: (json['coverGradientEnd'] as num?)?.toInt() ?? 0xFFD4A853,
     ticketTiers: tiers,
     vendors: const [],
-    attendees: const [],
+    attendees: attendees,
     isFeatured: json['isFeatured'] == true,
     createdAt: _parseDate(json['createdAt']),
     publishedAt: _parseDate(json['publishedAt']),
@@ -313,6 +416,21 @@ OrganizerEvent mapOrganizerEvent(Map<String, dynamic> json) {
     venueLongitude: (json['venueLongitude'] as num?)?.toDouble(),
     googlePlaceId: json['googlePlaceId']?.toString(),
     celebrantImageUrl: json['celebrantImageUrl']?.toString(),
+    language: (json['language'] ?? 'en').toString(),
+    ageRestrictionMin: (json['ageRestrictionMin'] as num?)?.toInt() ?? 0,
+    listingVisibility: (json['listingVisibility'] ?? 'invite_only').toString(),
+    registrationEnabled: json['registrationEnabled'] != false,
+    checkInEnabled: json['checkInEnabled'] != false,
+    themeColor: (json['themeColor'] ?? '#4B2C6F').toString(),
+    requiredServices: (json['requiredServices'] as List<dynamic>? ?? []).map((e) => e.toString()).toList(),
+    venueDeferred: json['venueDeferred'] == true,
+    state: (json['state'] ?? '').toString(),
+    lga: (json['lga'] ?? '').toString(),
+    selectedTemplateSlug: (json['selectedTemplateSlug'] ?? '').toString(),
+    reportedTicketsSold: (json['ticketsSold'] as num?)?.toInt() ?? (json['attendeeCount'] as num?)?.toInt(),
+    reportedRevenueMinor: int.tryParse((json['revenueMinor'] ?? '').toString()),
+    reportedOrdersCount: (json['ordersCount'] as num?)?.toInt(),
+    reportedBuyersCount: (json['buyersCount'] as num?)?.toInt(),
   );
 }
 

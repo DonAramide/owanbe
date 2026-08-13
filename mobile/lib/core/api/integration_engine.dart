@@ -1,4 +1,7 @@
-import 'dart:convert';
+// DEPRECATED (Phase 24): Mock Integration Hub engine.
+// Use `integrations_api.dart` + Nest `/super-admin/integrations/*` instead.
+// Kept only so historical references compile; do not wire new UI to this file.
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -100,7 +103,7 @@ class PlatformPluginManifest {
   });
 }
 
-// --- SUB-SERVICES ---
+// --- SUB-SERVICES (mock — unused by Hub UI after Phase 24) ---
 
 class ApiGateway {
   final List<ApiKeyCredential> _credentials = [];
@@ -247,12 +250,10 @@ class IntegrationMonitoringEngine {
   }
 }
 
-// --- CENTRAL PLATFORM OS ENGINE ---
-
+/// @deprecated Use IntegrationsApi / integrationRegistryProvider (Phase 24).
 class IntegrationEngine extends ChangeNotifier {
   final List<PlatformIntegration> _integrations = [];
 
-  // Sub-services
   final ApiGateway gateway = ApiGateway();
   final EventBus eventBus = EventBus();
   final WebhookEngine webhooks = WebhookEngine();
@@ -270,10 +271,10 @@ class IntegrationEngine extends ChangeNotifier {
 
   void _seedDefaultIntegrations() {
     _integrations.addAll([
-      PlatformIntegration(key: 'stripe', label: 'Stripe Payments Gateway', category: 'payment', status: 'active', circuitBreaker: 'closed', metrics: {'latency': 142, 'health': 99.8}),
-      PlatformIntegration(key: 'paystack', label: 'Paystack API Broker', category: 'payment', status: 'active', circuitBreaker: 'closed', metrics: {'latency': 95, 'health': 100.0}),
-      PlatformIntegration(key: 'salesforce', label: 'Salesforce CRM Connector', category: 'crm', status: 'active', circuitBreaker: 'closed', metrics: {'latency': 280, 'health': 98.2}),
-      PlatformIntegration(key: 'twilio', label: 'Twilio SMS & Messaging', category: 'messaging', status: 'active', circuitBreaker: 'closed', metrics: {'latency': 122, 'health': 99.2}),
+      PlatformIntegration(key: 'stripe', label: 'Stripe Payments Gateway', category: 'payment', status: 'offline', circuitBreaker: 'open', metrics: const {}),
+      PlatformIntegration(key: 'paystack', label: 'Paystack API Broker', category: 'payment', status: 'offline', circuitBreaker: 'open', metrics: const {}),
+      PlatformIntegration(key: 'salesforce', label: 'Salesforce CRM Connector', category: 'crm', status: 'offline', circuitBreaker: 'open', metrics: const {}),
+      PlatformIntegration(key: 'twilio', label: 'Twilio SMS & Messaging', category: 'messaging', status: 'degraded', circuitBreaker: 'closed', metrics: const {}),
     ]);
   }
 
@@ -287,19 +288,17 @@ class IntegrationEngine extends ChangeNotifier {
         circuitBreaker: newBreaker,
         status: newStatus,
       );
-      
-      // Publish event to Event Bus
       eventBus.publish('IntegrationStateChanged', {
         'integrationKey': key,
         'previousBreakerState': prev.circuitBreaker,
         'currentBreakerState': newBreaker,
       });
-
       notifyListeners();
     }
   }
 }
 
+@Deprecated('Use integrationsApiProvider / integrationRegistryProvider')
 final integrationEngineProvider = ChangeNotifierProvider<IntegrationEngine>((ref) {
   return IntegrationEngine();
 });

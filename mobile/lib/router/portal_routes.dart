@@ -19,7 +19,7 @@ abstract final class PortalRoutes {
 
   static String homeFor(UserRole role) => switch (role) {
         UserRole.client => '/attendee',
-        UserRole.organizer => '/home',
+        UserRole.organizer => '/organizer',
         UserRole.vendor => '/vendor',
         UserRole.admin => '/admin',
         UserRole.superAdmin => '/super-admin',

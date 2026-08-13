@@ -7,7 +7,8 @@ export class SuperAdminSecurityService {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
   async getSecurityCenter() {
-    const [events, auditSecurity] = await Promise.all([
+    // Phase 29 — richer ops center; keep endpoint stable for Flutter.
+    const [events, auditSecurity, mfaEvents] = await Promise.all([
       this.pool.query<{
         id: string;
         tenant_id: string | null;
@@ -22,15 +23,21 @@ export class SuperAdminSecurityService {
          FROM platform_security_events se
          LEFT JOIN tenants t ON t.id = se.tenant_id
          ORDER BY se.created_at DESC
-         LIMIT 100`,
+         LIMIT 150`,
       ),
       this.pool.query<{ action: string; count: string }>(
         `SELECT action, COUNT(*)::text AS count
          FROM audit_log
          WHERE action LIKE '%suspend%' OR action LIKE '%permission%' OR action LIKE '%finance%'
+            OR action LIKE 'identity.%'
          GROUP BY action
          ORDER BY count DESC
-         LIMIT 20`,
+         LIMIT 30`,
+      ),
+      this.pool.query<{ n: string }>(
+        `SELECT COUNT(*)::text AS n FROM platform_security_events
+         WHERE event_type IN ('mfa_enrolled', 'mfa_verified', 'mfa_disabled', 'mfa_recovery')
+           AND created_at >= now() - interval '30 days'`,
       ),
     ]);
     const byType = {
@@ -40,6 +47,8 @@ export class SuperAdminSecurityService {
       financeExceptions: events.rows.filter((e) => e.event_type === 'finance_exception').length,
       rateLimitViolations: events.rows.filter((e) => e.event_type === 'rate_limit_violation').length,
       sessionAbuse: events.rows.filter((e) => e.event_type === 'session_abuse').length,
+      mfaActivity: parseInt(mfaEvents.rows[0]?.n ?? '0', 10),
+      accountLifecycle: events.rows.filter((e) => e.event_type === 'account_lifecycle').length,
     };
     return {
       summary: byType,

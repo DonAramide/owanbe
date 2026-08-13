@@ -153,8 +153,14 @@ class _PlanningCenterBody extends StatelessWidget {
 
   CustomerEvent get event => snapshot.event;
 
-  void _open(BuildContext context, PlanningModuleLink link) {
-    openPlanningModuleLink(context, eventId, link, event: event);
+  void _open(BuildContext context, PlanningModuleLink link, {String? marketplaceCategory}) {
+    openPlanningModuleLink(
+      context,
+      eventId,
+      link,
+      event: event,
+      marketplaceCategory: marketplaceCategory,
+    );
   }
 
   @override
@@ -175,7 +181,11 @@ class _PlanningCenterBody extends StatelessWidget {
         if (nextActionLabel != null && nextActionLink != null) ...[
           SizedBox(height: context.eos.spacing.sm),
           FilledButton.icon(
-            onPressed: () => _open(context, nextActionLink!),
+            onPressed: () => _open(
+              context,
+              nextActionLink!,
+              marketplaceCategory: marketplaceCategoryForChecklistLabel(nextActionLabel!),
+            ),
             icon: const Icon(Icons.play_arrow_outlined, size: 18),
             label: Text('Do next: $nextActionLabel'),
           ),
@@ -221,13 +231,25 @@ class _PlanningCenterBody extends StatelessWidget {
             _ChecklistTile(
               label: item.label,
               done: item.done,
-              onTap: item.moduleLink == null ? null : () => _open(context, item.moduleLink!),
+              onTap: item.moduleLink == null
+                  ? null
+                  : () => _open(
+                        context,
+                        item.moduleLink!,
+                        marketplaceCategory: item.marketplaceCategory,
+                      ),
             ),
           for (final item in completedChecklist)
             _ChecklistTile(
               label: item.label,
               done: true,
-              onTap: item.moduleLink == null ? null : () => _open(context, item.moduleLink!),
+              onTap: item.moduleLink == null
+                  ? null
+                  : () => _open(
+                        context,
+                        item.moduleLink!,
+                        marketplaceCategory: item.marketplaceCategory,
+                      ),
             ),
         ],
         if (timeline.isNotEmpty) ...[

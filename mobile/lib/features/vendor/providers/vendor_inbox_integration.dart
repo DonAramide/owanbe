@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/utils/platform_message_guard.dart';
 import '../../../portals/customer/models/vendor_crm_models.dart';
 import '../../../portals/customer/providers/vendor_crm_providers.dart';
+import 'vendor_event_workspace_nav.dart';
 import 'vendor_intelligence_engine.dart';
 import 'vendor_providers.dart';
 
@@ -36,13 +38,14 @@ List<VendorRequest> vendorInboxCompletedJobs(VendorCrmSnapshot snapshot) {
 
 NegotiationItem vendorRequestToNegotiation(VendorRequest request) {
   final pendingVendor = request.stage == 'new' || request.stage == 'negotiating';
+  final quote = request.vendorPayoutMinor ?? 0;
   return NegotiationItem(
     id: request.id,
     clientName: request.organizerName ?? 'Organizer',
     eventName: request.eventTitle ?? 'Event',
     serviceType: request.serviceLabel ?? 'Vendor service',
-    originalQuoteMinor: 0,
-    counterQuoteMinor: 0,
+    originalQuoteMinor: quote,
+    counterQuoteMinor: quote,
     status: pendingVendor ? 'pending_vendor' : 'accepted',
     lastUpdated: request.updatedAt,
   );
@@ -58,7 +61,7 @@ List<String> vendorInboxNotifications(VendorCrmSnapshot snapshot) {
     final event = r.eventTitle ?? 'Event';
     final label = switch (r.stage) {
       'new' => 'Incoming request: $event',
-      'negotiating' => 'Negotiation active: $event',
+      'negotiating' => 'Pending request: $event',
       'accepted' => 'Accepted job: $event',
       'declined' => 'Declined: $event',
       'completed' => 'Completed: $event',
@@ -121,7 +124,30 @@ Future<void> vendorMessageOrganizer(
   VendorRequest request, {
   required String message,
 }) async {
+  final blocked = PlatformMessageGuard.blockReason(message);
+  if (blocked != null) {
+    throw StateError(blocked);
+  }
   await ref.read(vendorCrmApiProvider).postMessage(request.id, message: message);
   refreshVendorCrm(ref);
   bumpVendorRevision(ref);
 }
+
+/// Resolve the shared Vendor Request conversation for an event (event↔vendor unique).
+VendorRequest? vendorRequestForEvent(
+  VendorCrmSnapshot snapshot,
+  String eventId, {
+  String? eventUuid,
+}) {
+  return findVendorRequestForEventKey(
+    snapshot.items,
+    eventKey: eventId,
+    eventUuid: eventUuid,
+  );
+}
+
+final vendorRequestForEventProvider =
+    FutureProvider.autoDispose.family<VendorRequest?, String>((ref, eventId) async {
+  final snap = await ref.watch(vendorInboxSnapshotProvider.future);
+  return vendorRequestForEvent(snap, eventId);
+});

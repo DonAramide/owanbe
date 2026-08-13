@@ -4,14 +4,28 @@ import {
   Injectable,
   Inject,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { PG_POOL } from '../../database/database.tokens';
 import type { CommerceActor } from '../commerce/commerce-auth.service';
 import { EventsAccessService } from '../events/events-access.service';
+import { VendorServicesService } from '../vendors/vendor-services.service';
 import { VendorCalendarService } from './vendor-calendar.service';
 import { NotificationService } from '../../integrations/notifications/notification.service';
+import { DomainEventsService } from '../domain-events/domain-events.service';
+import { DOMAIN_EVENTS } from '../domain-events/domain-event.types';
+import { detectPlatformBypass } from './vendor-message-guard';
+import {
+  EventVendorFundsService,
+  VendorPricingRulesService,
+} from './vendor-pricing-funds.service';
+import {
+  customerPriceFromVendorPayout,
+  normalizeServiceKey,
+  vendorPayoutFromCustomerPrice,
+} from './vendor-pricing.util';
 
 export const VENDOR_REQUEST_STAGES = [
   'new',
@@ -32,6 +46,13 @@ export type VendorRequestView = {
   organizerId: string;
   stage: VendorRequestStage;
   serviceLabel: string | null;
+  serviceKey: string;
+  /** First-class vendor_services.id when linked (additive; nullable). */
+  vendorServiceId: string | null;
+  /** Human-facing vendor service code (VS-000001). */
+  serviceCode: string | null;
+  /** Unread conversation messages for the current viewer (participant-scoped). */
+  unreadCount: number;
   message: string;
   negotiationId: string | null;
   scheduledAt: string | null;
@@ -44,6 +65,34 @@ export type VendorRequestView = {
   organizerName: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Derived from pipeline stage — not a separate contract store */
+  contractStatus: 'draft' | 'pending' | 'accepted' | 'rejected' | 'completed';
+  assignmentStatus: 'unassigned' | 'assigned' | 'in_progress' | 'done' | 'closed';
+  latestOfferMinor: string | null;
+  /**
+   * Party-scoped commercial fields.
+   * Organizer sees servicePriceMinor (organizer-facing).
+   * Vendor sees vendorPayoutMinor only — never organizer price or markup.
+   */
+  servicePriceMinor?: string | null;
+  vendorPayoutMinor?: string | null;
+  /** Markup bps snapshotted at request creation (organizer/internal; omitted for vendor audience). */
+  pricingMarkupBps?: number | null;
+  fundingStatus: string;
+  /** Escrow status — prefers funded allocations, else derived from stage. */
+  escrowStatus: 'unfunded' | 'pending' | 'funded' | 'released' | 'cancelled' | 'held';
+  /** events.external_ref — bridges Event Ops evt_* keys to CRM UUID eventId. */
+  eventExternalRef?: string | null;
+  /** Resolved from events row + metadata via eventId (not duplicated into the request). */
+  eventStartsAt?: string | null;
+  eventEndsAt?: string | null;
+  eventType?: string | null;
+  eventLocation?: string | null;
+  expectedAttendees?: number | null;
+  eventDescription?: string | null;
+  requiredServices?: string[] | null;
+  venueName?: string | null;
+  venueAddress?: string | null;
 };
 
 export type VendorPipelineStats = {
@@ -76,6 +125,10 @@ export class VendorCrmService {
     private readonly access: EventsAccessService,
     private readonly calendar: VendorCalendarService,
     private readonly notifications: NotificationService,
+    private readonly domainEvents: DomainEventsService,
+    private readonly pricingRules: VendorPricingRulesService,
+    private readonly eventFunds: EventVendorFundsService,
+    @Optional() private readonly vendorServices?: VendorServicesService,
   ) {}
 
   private async enqueueInAppNotification(
@@ -134,33 +187,173 @@ export class VendorCrmService {
     return raw as VendorRequestStage;
   }
 
-  private rowToView(row: {
-    id: string;
-    event_id: string;
-    vendor_id: string;
-    organizer_id: string;
-    stage: string;
-    service_label: string | null;
-    message: string;
-    negotiation_id: string | null;
-    scheduled_at: Date | null;
-    scheduled_end: Date | null;
-    arrived_at: Date | null;
-    completed_at: Date | null;
-    source: string;
-    vendor_name?: string | null;
-    event_title?: string | null;
-    organizer_name?: string | null;
-    created_at: Date;
-    updated_at: Date;
-  }): VendorRequestView {
+  private deriveContractStatus(stage: VendorRequestStage): VendorRequestView['contractStatus'] {
+    switch (stage) {
+      case 'new':
+        return 'draft';
+      case 'negotiating':
+        return 'pending';
+      case 'accepted':
+      case 'scheduled':
+      case 'arrived':
+        return 'accepted';
+      case 'declined':
+      case 'cancelled':
+        return 'rejected';
+      case 'completed':
+        return 'completed';
+    }
+  }
+
+  private deriveAssignmentStatus(stage: VendorRequestStage): VendorRequestView['assignmentStatus'] {
+    switch (stage) {
+      case 'new':
+      case 'negotiating':
+        return 'unassigned';
+      case 'accepted':
+        return 'assigned';
+      case 'scheduled':
+      case 'arrived':
+        return 'in_progress';
+      case 'completed':
+        return 'done';
+      case 'declined':
+      case 'cancelled':
+        return 'closed';
+    }
+  }
+
+  private deriveEscrowStatus(
+    stage: VendorRequestStage,
+    fundingStatus?: string | null,
+  ): VendorRequestView['escrowStatus'] {
+    if (fundingStatus === 'funded') return 'funded';
+    if (fundingStatus === 'released') return 'released';
+    if (fundingStatus === 'held') return 'held';
+    if (fundingStatus === 'reserved') return 'pending';
+    switch (stage) {
+      case 'new':
+      case 'negotiating':
+        return 'unfunded';
+      case 'accepted':
+        return 'pending';
+      case 'scheduled':
+      case 'arrived':
+        return 'funded';
+      case 'completed':
+        return 'released';
+      case 'declined':
+      case 'cancelled':
+        return 'cancelled';
+    }
+  }
+
+  private eventContextFromJoin(row: {
+    event_starts_at?: Date | null;
+    event_ends_at?: Date | null;
+    event_metadata?: Record<string, unknown> | null;
+  }): Pick<
+    VendorRequestView,
+    | 'eventStartsAt'
+    | 'eventEndsAt'
+    | 'eventType'
+    | 'eventLocation'
+    | 'expectedAttendees'
+    | 'eventDescription'
+    | 'requiredServices'
+    | 'venueName'
+    | 'venueAddress'
+  > {
+    const meta =
+      row.event_metadata && typeof row.event_metadata === 'object' ? row.event_metadata : {};
+    const venueName = String(meta.venueName ?? meta.venue ?? '').trim() || null;
+    const venueAddress = String(meta.venueAddress ?? '').trim() || null;
+    const city = String(meta.city ?? '').trim();
+    const state = String(meta.state ?? '').trim();
+    const locationParts = [venueName, city || state].filter(Boolean);
+    const expectedRaw = meta.expectedGuests;
+    const expectedAttendees =
+      typeof expectedRaw === 'number'
+        ? expectedRaw
+        : expectedRaw != null && String(expectedRaw).trim() !== ''
+          ? Number(expectedRaw)
+          : null;
+    const required = meta.requiredServices;
     return {
+      eventStartsAt: row.event_starts_at?.toISOString?.() ?? null,
+      eventEndsAt: row.event_ends_at?.toISOString?.() ?? null,
+      eventType: String(meta.category ?? meta.categorySlug ?? '').trim() || null,
+      eventLocation: locationParts.length ? locationParts.join(', ') : city || state || null,
+      expectedAttendees:
+        expectedAttendees != null && Number.isFinite(expectedAttendees)
+          ? expectedAttendees
+          : null,
+      eventDescription: String(meta.description ?? '').trim() || null,
+      requiredServices: Array.isArray(required)
+        ? required.map((s) => String(s)).filter(Boolean)
+        : null,
+      venueName,
+      venueAddress,
+    };
+  }
+
+  private rowToView(
+    row: {
+      id: string;
+      event_id: string;
+      vendor_id: string;
+      organizer_id: string;
+      stage: string;
+      service_label: string | null;
+      service_key?: string | null;
+      vendor_service_id?: string | null;
+      service_code?: string | null;
+      unread_count?: number | string | null;
+      message: string;
+      negotiation_id: string | null;
+      scheduled_at: Date | null;
+      scheduled_end: Date | null;
+      arrived_at: Date | null;
+      completed_at: Date | null;
+      source: string;
+      vendor_name?: string | null;
+      event_title?: string | null;
+      organizer_name?: string | null;
+      latest_offer_minor?: string | null;
+      customer_price_minor?: string | null;
+      vendor_payout_minor?: string | null;
+      pricing_markup_bps?: number | null;
+      funding_status?: string | null;
+      event_external_ref?: string | null;
+      event_starts_at?: Date | null;
+      event_ends_at?: Date | null;
+      event_metadata?: Record<string, unknown> | null;
+      created_at: Date;
+      updated_at: Date;
+    },
+    audience: 'organizer' | 'vendor' | 'neutral' = 'neutral',
+  ): VendorRequestView {
+    const stage = row.stage as VendorRequestStage;
+    const customer = row.customer_price_minor ?? null;
+    const payout = row.vendor_payout_minor ?? null;
+    const offer = row.latest_offer_minor ?? customer ?? payout ?? null;
+    const fundingStatus = row.funding_status ?? 'unfunded';
+    const markupBps =
+      row.pricing_markup_bps == null || row.pricing_markup_bps === ('' as unknown)
+        ? null
+        : Number(row.pricing_markup_bps);
+    const eventCtx = this.eventContextFromJoin(row);
+    const base: VendorRequestView = {
       id: row.id,
       eventId: row.event_id,
       vendorId: row.vendor_id,
       organizerId: row.organizer_id,
-      stage: row.stage as VendorRequestStage,
+      stage,
       serviceLabel: row.service_label,
+      serviceKey: row.service_key ?? normalizeServiceKey(row.service_label),
+      vendorServiceId: row.vendor_service_id ?? null,
+      serviceCode: row.service_code ?? null,
+      unreadCount: Number(row.unread_count ?? 0),
       message: row.message,
       negotiationId: row.negotiation_id,
       scheduledAt: row.scheduled_at?.toISOString() ?? null,
@@ -173,7 +366,31 @@ export class VendorCrmService {
       organizerName: row.organizer_name ?? null,
       createdAt: row.created_at.toISOString(),
       updatedAt: row.updated_at.toISOString(),
+      contractStatus: this.deriveContractStatus(stage),
+      assignmentStatus: this.deriveAssignmentStatus(stage),
+      latestOfferMinor: offer,
+      fundingStatus,
+      escrowStatus: this.deriveEscrowStatus(stage, fundingStatus),
+      eventExternalRef: row.event_external_ref ?? null,
+      pricingMarkupBps: markupBps,
+      ...eventCtx,
     };
+    if (audience === 'organizer') {
+      return {
+        ...base,
+        servicePriceMinor: customer ?? offer,
+        vendorPayoutMinor: undefined,
+      };
+    }
+    if (audience === 'vendor') {
+      return {
+        ...base,
+        vendorPayoutMinor: payout ?? offer,
+        servicePriceMinor: undefined,
+        pricingMarkupBps: undefined,
+      };
+    }
+    return base;
   }
 
   private async loadRequest(tenantId: string, requestId: string) {
@@ -245,19 +462,48 @@ export class VendorCrmService {
   }
 
   async listForEvent(actor: CommerceActor, eventKey: string) {
-    const event = await this.access.assertOrganizerOwnsEvent(actor.tenantId, actor.userId, eventKey);
+    const event = await this.access.assertEventCapability(
+      actor.tenantId,
+      actor.userId,
+      eventKey,
+      'vendors.read',
+    );
     const { rows } = await this.pool.query(
-      `SELECT r.*, v.business_name AS vendor_name, e.title AS event_title, o.display_name AS organizer_name
+      `SELECT r.*, v.business_name AS vendor_name, e.title AS event_title, e.external_ref AS event_external_ref,
+              e.starts_at AS event_starts_at, e.ends_at AS event_ends_at, e.metadata AS event_metadata,
+              o.display_name AS organizer_name,
+              vs.service_code AS service_code,
+              (
+                SELECT o2.amount_minor::text
+                FROM vendor_negotiation_offers o2
+                WHERE o2.negotiation_id = r.negotiation_id
+                ORDER BY o2.created_at DESC
+                LIMIT 1
+              ) AS latest_offer_minor,
+              (
+                SELECT COUNT(*)::int
+                FROM vendor_request_stage_history h
+                WHERE h.request_id = r.id
+                  AND h.from_stage IS NOT DISTINCT FROM h.to_stage
+                  AND h.note IS NOT NULL AND length(trim(h.note)) > 0
+                  AND h.actor_user_id IS DISTINCT FROM $3
+                  AND h.created_at > COALESCE(
+                    (SELECT last_read_at FROM vendor_request_conversation_reads
+                     WHERE request_id = r.id AND user_id = $3),
+                    'epoch'::timestamptz
+                  )
+              ) AS unread_count
        FROM vendor_event_requests r
        JOIN vendors v ON v.id = r.vendor_id
        JOIN events e ON e.id = r.event_id
        JOIN organizers o ON o.id = r.organizer_id
+       LEFT JOIN vendor_services vs ON vs.id = r.vendor_service_id
        WHERE r.tenant_id = $1 AND r.event_id = $2
        ORDER BY r.updated_at DESC`,
-      [actor.tenantId, event.id],
+      [actor.tenantId, event.id, actor.userId],
     );
-    const items = rows.map((r) => this.rowToView(r));
-    return { items, stats: this.buildStats(items) };
+    const items = rows.map((r) => this.rowToView(r, 'organizer'));
+    return { items, stats: this.buildStats(items), insights: this.buildInsights(items) };
   }
 
   async listForVendor(actor: CommerceActor, vendorId: string) {
@@ -266,70 +512,340 @@ export class VendorCrmService {
       throw new ForbiddenException({ code: 'ACCESS_DENIED', message: 'Not vendor owner' });
     }
     const { rows } = await this.pool.query(
-      `SELECT r.*, v.business_name AS vendor_name, e.title AS event_title, o.display_name AS organizer_name
+      `SELECT r.*, v.business_name AS vendor_name, e.title AS event_title, e.external_ref AS event_external_ref,
+              e.starts_at AS event_starts_at, e.ends_at AS event_ends_at, e.metadata AS event_metadata,
+              o.display_name AS organizer_name,
+              vs.service_code AS service_code,
+              (
+                SELECT o2.amount_minor::text
+                FROM vendor_negotiation_offers o2
+                WHERE o2.negotiation_id = r.negotiation_id
+                ORDER BY o2.created_at DESC
+                LIMIT 1
+              ) AS latest_offer_minor,
+              (
+                SELECT COUNT(*)::int
+                FROM vendor_request_stage_history h
+                WHERE h.request_id = r.id
+                  AND h.from_stage IS NOT DISTINCT FROM h.to_stage
+                  AND h.note IS NOT NULL AND length(trim(h.note)) > 0
+                  AND h.actor_user_id IS DISTINCT FROM $3
+                  AND h.created_at > COALESCE(
+                    (SELECT last_read_at FROM vendor_request_conversation_reads
+                     WHERE request_id = r.id AND user_id = $3),
+                    'epoch'::timestamptz
+                  )
+              ) AS unread_count
        FROM vendor_event_requests r
        JOIN vendors v ON v.id = r.vendor_id
        JOIN events e ON e.id = r.event_id
        JOIN organizers o ON o.id = r.organizer_id
+       LEFT JOIN vendor_services vs ON vs.id = r.vendor_service_id
        WHERE r.tenant_id = $1 AND r.vendor_id = $2
        ORDER BY r.updated_at DESC`,
-      [actor.tenantId, vendorId],
+      [actor.tenantId, vendorId, actor.userId],
     );
-    const items = rows.map((r) => this.rowToView(r));
-    return { items, stats: this.buildStats(items) };
+    const items = rows.map((r) => this.rowToView(r, 'vendor'));
+    return { items, stats: this.buildStats(items), insights: this.buildInsights(items) };
+  }
+
+  private buildInsights(items: VendorRequestView[]) {
+    const active = items.filter((i) =>
+      ['accepted', 'scheduled', 'arrived', 'completed'].includes(i.stage),
+    );
+    const completed = items.filter((i) => i.stage === 'completed');
+    const spend = active.reduce((sum, i) => sum + BigInt(i.latestOfferMinor ?? '0'), 0n);
+    const completionPct =
+      active.length === 0 ? 0 : Math.round((completed.length / active.length) * 1000) / 10;
+    return {
+      attachedVendors: items.filter((i) => !['declined', 'cancelled'].includes(i.stage)).length,
+      vendorSpendMinor: spend.toString(),
+      completedCount: completed.length,
+      completionPct,
+      negotiatingCount: items.filter((i) => i.stage === 'negotiating').length,
+    };
+  }
+
+  async getTimeline(actor: CommerceActor, requestId: string) {
+    const row = await this.loadRequest(actor.tenantId, requestId);
+    let audience: 'organizer' | 'vendor' = 'organizer';
+    try {
+      await this.access.assertOrganizerOwnsEvent(actor.tenantId, actor.userId, row.event_id);
+    } catch {
+      const vendorId = await this.access.resolveVendorId(actor.tenantId, actor.userId);
+      if (vendorId !== row.vendor_id) {
+        throw new ForbiddenException({ code: 'ACCESS_DENIED', message: 'Not party to request' });
+      }
+      audience = 'vendor';
+    }
+
+    const { rows: history } = await this.pool.query<{
+      id: string;
+      from_stage: string | null;
+      to_stage: string;
+      actor_type: string;
+      note: string | null;
+      created_at: Date;
+    }>(
+      `SELECT id, from_stage, to_stage, actor_type, note, created_at
+       FROM vendor_request_stage_history
+       WHERE tenant_id = $1 AND request_id = $2
+       ORDER BY created_at ASC`,
+      [actor.tenantId, requestId],
+    );
+
+    let offers: Array<{
+      id: string;
+      actorType: string;
+      amountMinor: string;
+      message: string | null;
+      status: string;
+      createdAt: string;
+    }> = [];
+    if (row.negotiation_id) {
+      const { rows: offerRows } = await this.pool.query<{
+        id: string;
+        actor_type: string;
+        amount_minor: string;
+        message: string | null;
+        status: string;
+        created_at: Date;
+      }>(
+        `SELECT id, actor_type, amount_minor::text, message, status::text, created_at
+         FROM vendor_negotiation_offers
+         WHERE negotiation_id = $1
+         ORDER BY created_at ASC`,
+        [row.negotiation_id],
+      );
+      offers = offerRows.map((o) => ({
+        id: o.id,
+        actorType: o.actor_type,
+        // Party-scoped amount label lives on the client; never include margin.
+        amountMinor: o.amount_minor,
+        message: o.message,
+        status: o.status,
+        createdAt: o.created_at.toISOString(),
+      }));
+    }
+
+    const { rows: named } = await this.pool.query<{
+      vendor_name: string | null;
+      event_title: string | null;
+      organizer_name: string | null;
+      event_external_ref: string | null;
+      event_starts_at: Date | null;
+      event_ends_at: Date | null;
+      event_metadata: Record<string, unknown> | null;
+    }>(
+      `SELECT v.business_name AS vendor_name, e.title AS event_title, e.external_ref AS event_external_ref,
+              e.starts_at AS event_starts_at, e.ends_at AS event_ends_at, e.metadata AS event_metadata,
+              o.display_name AS organizer_name,
+              vs.service_code AS service_code
+       FROM vendor_event_requests r
+       JOIN vendors v ON v.id = r.vendor_id
+       JOIN events e ON e.id = r.event_id
+       JOIN organizers o ON o.id = r.organizer_id
+       LEFT JOIN vendor_services vs ON vs.id = r.vendor_service_id
+       WHERE r.id = $1`,
+      [requestId],
+    );
+
+    const view = this.rowToView(
+      {
+        ...row,
+        vendor_name: named[0]?.vendor_name,
+        event_title: named[0]?.event_title,
+        organizer_name: named[0]?.organizer_name,
+        event_external_ref: named[0]?.event_external_ref,
+        event_starts_at: named[0]?.event_starts_at,
+        event_ends_at: named[0]?.event_ends_at,
+        event_metadata: named[0]?.event_metadata,
+        service_code: (named[0] as { service_code?: string | null } | undefined)?.service_code,
+        latest_offer_minor: offers.length ? offers[offers.length - 1]!.amountMinor : null,
+      },
+      audience,
+    );
+
+    await this.pool.query(
+      `INSERT INTO vendor_request_conversation_reads (tenant_id, request_id, user_id, last_read_at)
+       VALUES ($1, $2, $3, now())
+       ON CONFLICT (request_id, user_id) DO UPDATE SET
+         last_read_at = now(),
+         updated_at = now()`,
+      [actor.tenantId, requestId, actor.userId],
+    );
+
+    return {
+      request: { ...view, unreadCount: 0 },
+      history: history.map((h) => ({
+        id: h.id,
+        fromStage: h.from_stage,
+        toStage: h.to_stage,
+        actorType: h.actor_type,
+        note: h.note,
+        createdAt: h.created_at.toISOString(),
+      })),
+      offers,
+      contractStatus: view.contractStatus,
+      assignmentStatus: view.assignmentStatus,
+      escrowStatus: view.escrowStatus,
+    };
   }
 
   async createRequest(actor: CommerceActor, eventKey: string, body: Record<string, unknown>) {
-    const event = await this.access.assertOrganizerOwnsEvent(actor.tenantId, actor.userId, eventKey);
+    const event = await this.access.assertEventCapability(
+      actor.tenantId,
+      actor.userId,
+      eventKey,
+      'vendors.read',
+    );
     const organizerId = await this.access.resolveOrganizerId(actor.tenantId, actor.userId);
     const vendorId = String(body.vendorId ?? '').trim();
     if (!vendorId) throw new BadRequestException({ code: 'VENDOR_REQUIRED', message: 'vendorId required' });
+    const uuidRe =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(vendorId)) {
+      throw new BadRequestException({
+        code: 'VENDOR_ID_INVALID',
+        message: 'vendorId must be a vendors.id UUID (canonical Vendor Identity)',
+      });
+    }
 
-    const { rows: vendorRows } = await this.pool.query(`SELECT id FROM vendors WHERE tenant_id = $1 AND id = $2`, [
-      actor.tenantId,
-      vendorId,
-    ]);
+    const { rows: vendorRows } = await this.pool.query(
+      `SELECT id FROM vendors WHERE tenant_id = $1 AND id = $2 AND owner_user_id IS NOT NULL`,
+      [actor.tenantId, vendorId],
+    );
     if (!vendorRows.length) throw new NotFoundException({ code: 'VENDOR_NOT_FOUND', message: 'Vendor not found' });
 
     const message = String(body.message ?? '');
-    const serviceLabel = body.serviceLabel ? String(body.serviceLabel) : null;
+    let serviceLabel = body.serviceLabel ? String(body.serviceLabel) : null;
+    let serviceKey = normalizeServiceKey(
+      body.serviceKey ? String(body.serviceKey) : serviceLabel,
+    );
+    let vendorServiceId: string | null = body.vendorServiceId
+      ? String(body.vendorServiceId).trim()
+      : null;
+    if (vendorServiceId) {
+      const { rows: vsRows } = await this.pool.query<{
+        id: string;
+        service_key: string;
+        service_name: string;
+      }>(
+        `SELECT id, service_key, service_name FROM vendor_services
+         WHERE tenant_id = $1 AND vendor_id = $2 AND id = $3`,
+        [actor.tenantId, vendorId, vendorServiceId],
+      );
+      if (!vsRows.length) {
+        throw new BadRequestException({
+          code: 'VENDOR_SERVICE_INVALID',
+          message: 'vendorServiceId does not belong to this vendor',
+        });
+      }
+      serviceKey = vsRows[0]!.service_key;
+      if (!serviceLabel) serviceLabel = vsRows[0]!.service_name;
+    } else if (this.vendorServices) {
+      vendorServiceId = await this.vendorServices.ensureForBooking(
+        actor.tenantId,
+        vendorId,
+        serviceKey,
+        serviceLabel,
+      );
+    }
     let stage: VendorRequestStage = 'new';
-    let negotiationId: string | null = null;
+
+    // Resolve listed commercial snapshot (vendor base → markup → organizer price).
+    let snapshotCustomer: bigint | null = null;
+    let snapshotPayout: bigint | null = null;
+    let snapshotMargin: bigint | null = null;
+    let snapshotMarkupBps: number | null = null;
+
+    if (body.amountMinor != null) {
+      const amount = BigInt(String(body.amountMinor));
+      const markupBps = await this.pricingRules.resolveMarkupBps(
+        actor.tenantId,
+        serviceKey,
+        vendorId,
+      );
+      const split = vendorPayoutFromCustomerPrice(amount, markupBps);
+      snapshotCustomer = amount;
+      snapshotPayout = split.vendorPayoutMinor;
+      snapshotMargin = split.platformMarginMinor;
+      snapshotMarkupBps = markupBps;
+    } else if (this.vendorServices) {
+      const resolved = await this.vendorServices.resolveBasePayoutMinor(actor.tenantId, vendorId, {
+        vendorServiceId,
+        serviceKey,
+        serviceName: serviceLabel,
+      });
+      if (resolved && resolved.basePayoutMinor > 0) {
+        const payout = BigInt(resolved.basePayoutMinor);
+        const markupBps = await this.pricingRules.resolveMarkupBps(
+          actor.tenantId,
+          serviceKey,
+          vendorId,
+        );
+        const split = customerPriceFromVendorPayout(payout, markupBps);
+        snapshotPayout = payout;
+        snapshotCustomer = split.customerPriceMinor;
+        snapshotMargin = split.platformMarginMinor;
+        snapshotMarkupBps = markupBps;
+        if (!vendorServiceId && resolved.vendorServiceId) {
+          vendorServiceId = resolved.vendorServiceId;
+        }
+      }
+    }
 
     const { rows } = await this.pool.query<{ id: string }>(
       `INSERT INTO vendor_event_requests (
-         tenant_id, event_id, vendor_id, organizer_id, stage, service_label, message, source
-       ) VALUES ($1, $2, $3, $4, 'new', $5, $6, $7)
-       ON CONFLICT (event_id, vendor_id) DO UPDATE
+         tenant_id, event_id, vendor_id, organizer_id, stage, service_label, service_key,
+         vendor_service_id, message, source,
+         customer_price_minor, vendor_payout_minor, platform_margin_minor, pricing_markup_bps
+       ) VALUES (
+         $1, $2, $3, $4, 'new', $5, $6, $7, $8, $9,
+         $10::bigint, $11::bigint, $12::bigint, $13
+       )
+       ON CONFLICT (event_id, vendor_id, service_key) DO UPDATE
          SET message = EXCLUDED.message,
              service_label = COALESCE(EXCLUDED.service_label, vendor_event_requests.service_label),
+             vendor_service_id = COALESCE(
+               EXCLUDED.vendor_service_id,
+               vendor_event_requests.vendor_service_id
+             ),
+             customer_price_minor = COALESCE(
+               EXCLUDED.customer_price_minor,
+               vendor_event_requests.customer_price_minor
+             ),
+             vendor_payout_minor = COALESCE(
+               EXCLUDED.vendor_payout_minor,
+               vendor_event_requests.vendor_payout_minor
+             ),
+             platform_margin_minor = COALESCE(
+               EXCLUDED.platform_margin_minor,
+               vendor_event_requests.platform_margin_minor
+             ),
+             pricing_markup_bps = COALESCE(
+               EXCLUDED.pricing_markup_bps,
+               vendor_event_requests.pricing_markup_bps
+             ),
              updated_at = now()
        RETURNING id`,
-      [actor.tenantId, event.id, vendorId, organizerId, serviceLabel, message, String(body.source ?? 'marketplace')],
+      [
+        actor.tenantId,
+        event.id,
+        vendorId,
+        organizerId,
+        serviceLabel,
+        serviceKey,
+        vendorServiceId,
+        message,
+        String(body.source ?? 'marketplace'),
+        snapshotCustomer?.toString() ?? null,
+        snapshotPayout?.toString() ?? null,
+        snapshotMargin?.toString() ?? null,
+        snapshotMarkupBps,
+      ],
     );
     const requestId = rows[0]!.id;
-
-    if (body.amountMinor != null) {
-      const { rows: negRows } = await this.pool.query<{ id: string }>(
-        `INSERT INTO vendor_negotiations (tenant_id, event_id, vendor_id, organizer_id, service_label, status, vendor_request_id)
-         VALUES ($1, $2, $3, $4, $5, 'pending', $6)
-         RETURNING id`,
-        [actor.tenantId, event.id, vendorId, organizerId, serviceLabel, requestId],
-      );
-      negotiationId = negRows[0]!.id;
-      await this.pool.query(
-        `INSERT INTO vendor_negotiation_offers
-           (negotiation_id, actor_type, actor_user_id, amount_minor, message, status)
-         VALUES ($1, 'organizer', $2, $3::bigint, $4, 'pending')`,
-        [negotiationId, actor.userId, String(body.amountMinor), message],
-      );
-      stage = 'negotiating';
-      await this.pool.query(
-        `UPDATE vendor_event_requests SET stage = 'negotiating', negotiation_id = $3, updated_at = now()
-         WHERE tenant_id = $1 AND id = $2`,
-        [actor.tenantId, requestId, negotiationId],
-      );
-    }
 
     await this.writeHistory(actor.tenantId, requestId, null, stage, 'organizer', actor.userId, 'Request created');
     const { rows: vendorName } = await this.pool.query<{ business_name: string }>(
@@ -393,8 +909,37 @@ export class VendorCrmService {
       const vendorId = await this.access.resolveVendorId(actor.tenantId, actor.userId);
       if (vendorId !== row.vendor_id) throw new ForbiddenException({ code: 'ACCESS_DENIED' });
       actorType = 'vendor';
-      if (!['negotiating', 'accepted', 'arrived', 'completed'].includes(toStage) && toStage !== 'declined') {
-        throw new ForbiddenException({ code: 'VENDOR_STAGE_DENIED', message: 'Vendor cannot set this stage' });
+    }
+
+    // Ownership: organizer creates/withdraws/operates post-accept; vendor alone accepts/declines.
+    // Negotiation is out of scope for this phase (status may exist historically).
+    if (toStage === 'negotiating') {
+      throw new ForbiddenException({
+        code: 'NEGOTIATION_DISABLED',
+        message: 'Price negotiation is not available for this request flow',
+      });
+    }
+    if (actorType === 'organizer') {
+      if (toStage === 'accepted' || toStage === 'declined') {
+        throw new ForbiddenException({
+          code: 'ORGANIZER_CANNOT_DECIDE',
+          message: 'Only the vendor can accept or decline this request',
+        });
+      }
+      const organizerAllowed: VendorRequestStage[] = ['cancelled', 'scheduled', 'arrived', 'completed'];
+      if (!organizerAllowed.includes(toStage)) {
+        throw new ForbiddenException({
+          code: 'ORGANIZER_STAGE_DENIED',
+          message: 'Organizer cannot set this stage',
+        });
+      }
+    } else {
+      const vendorAllowed: VendorRequestStage[] = ['accepted', 'declined', 'arrived', 'completed'];
+      if (!vendorAllowed.includes(toStage)) {
+        throw new ForbiddenException({
+          code: 'VENDOR_STAGE_DENIED',
+          message: 'Vendor cannot set this stage',
+        });
       }
     }
 
@@ -499,6 +1044,20 @@ export class VendorCrmService {
       });
     }
 
+    this.domainEvents.emit(DOMAIN_EVENTS.VENDOR_STAGE_CHANGED, {
+      tenantId: actor.tenantId,
+      organizerId: row.organizer_id,
+      eventId: row.event_id,
+      entityId: requestId,
+      actorUserId: actor.userId,
+      data: {
+        fromStage,
+        toStage,
+        vendorId: row.vendor_id,
+        summary: `Vendor request ${fromStage} → ${toStage}`,
+      },
+    });
+
     if (actorType === 'vendor') {
       return this.listForVendor(actor, row.vendor_id);
     }
@@ -535,74 +1094,156 @@ export class VendorCrmService {
     return this.listForEvent(actor, event.id);
   }
 
-  async counterOffer(actor: CommerceActor, requestId: string, body: Record<string, unknown>) {
+  async counterOffer(_actor: CommerceActor, _requestId: string, _body: Record<string, unknown>) {
+    throw new ForbiddenException({
+      code: 'NEGOTIATION_DISABLED',
+      message: 'Price negotiation is not available for this request flow',
+    });
+  }
+
+  /** Organizer confirms agreed terms (customer-facing). Does not credit vendor wallet. */
+  async confirmAgreement(actor: CommerceActor, requestId: string) {
     const row = await this.loadRequest(actor.tenantId, requestId);
-    const vendorId = await this.access.resolveVendorId(actor.tenantId, actor.userId);
-    if (vendorId !== row.vendor_id) {
-      throw new ForbiddenException({ code: 'ACCESS_DENIED', message: 'Not vendor owner' });
+    await this.access.assertOrganizerOwnsEvent(actor.tenantId, actor.userId, row.event_id);
+    const fromStage = row.stage as VendorRequestStage;
+    if (!['new', 'negotiating', 'accepted'].includes(fromStage)) {
+      throw new UnprocessableEntityException({
+        code: 'INVALID_TRANSITION',
+        message: `Cannot confirm agreement from ${fromStage}`,
+      });
     }
-    const amountMinor = body.amountMinor;
-    if (amountMinor == null) {
-      throw new BadRequestException({ code: 'AMOUNT_REQUIRED', message: 'amountMinor required' });
-    }
-    const message = String(body.message ?? body.note ?? '');
-    let negotiationId = row.negotiation_id;
-    if (!negotiationId) {
-      const { rows: negRows } = await this.pool.query<{ id: string }>(
-        `INSERT INTO vendor_negotiations (tenant_id, event_id, vendor_id, organizer_id, service_label, status, vendor_request_id)
-         VALUES ($1, $2, $3, $4, $5, 'pending', $6)
-         RETURNING id`,
-        [actor.tenantId, row.event_id, row.vendor_id, row.organizer_id, row.service_label, requestId],
-      );
-      negotiationId = negRows[0]!.id;
-      await this.pool.query(
-        `UPDATE vendor_event_requests SET negotiation_id = $3, updated_at = now() WHERE tenant_id = $1 AND id = $2`,
-        [actor.tenantId, requestId, negotiationId],
-      );
+    if (!(row as { customer_price_minor?: string | null }).customer_price_minor &&
+        !(row as { vendor_payout_minor?: string | null }).vendor_payout_minor) {
+      throw new BadRequestException({
+        code: 'PRICE_REQUIRED',
+        message: 'Negotiate a price before confirming agreement',
+      });
     }
     await this.pool.query(
-      `INSERT INTO vendor_negotiation_offers
-         (negotiation_id, actor_type, actor_user_id, amount_minor, message, status)
-       VALUES ($1, 'vendor', $2, $3::bigint, $4, 'pending')`,
-      [negotiationId, actor.userId, String(amountMinor), message],
+      `UPDATE vendor_event_requests
+       SET stage = 'accepted',
+           agreement_confirmed_at = now(),
+           updated_at = now()
+       WHERE tenant_id = $1 AND id = $2`,
+      [actor.tenantId, requestId],
     );
-    const fromStage = row.stage as VendorRequestStage;
-    if (fromStage !== 'negotiating') {
-      await this.pool.query(
-        `UPDATE vendor_event_requests SET stage = 'negotiating', updated_at = now() WHERE tenant_id = $1 AND id = $2`,
-        [actor.tenantId, requestId],
-      );
-      await this.writeHistory(actor.tenantId, requestId, fromStage, 'negotiating', 'vendor', actor.userId, message);
-    } else {
-      await this.writeHistory(actor.tenantId, requestId, fromStage, fromStage, 'vendor', actor.userId, message || 'Counter offer');
-    }
-    const label = row.service_label ?? 'Vendor';
-    await this.writeFeed(
+    await this.writeHistory(
       actor.tenantId,
-      row.event_id,
-      `${label}: counter offer`,
-      message || `Counter quote: ${amountMinor}`,
-      { requestId, negotiationId, amountMinor, correlationId: requestId },
+      requestId,
+      fromStage,
+      'accepted',
+      'organizer',
+      actor.userId,
+      'Agreement confirmed',
+    );
+    await this.ensureParticipationOnAccept(actor.tenantId, row.vendor_id, row.event_id);
+    return this.listForEvent(actor, row.event_id);
+  }
+
+  async markServiceComplete(actor: CommerceActor, requestId: string) {
+    const row = await this.loadRequest(actor.tenantId, requestId);
+    const vendorId = await this.access.resolveVendorId(actor.tenantId, actor.userId);
+    if (vendorId !== row.vendor_id) throw new ForbiddenException({ code: 'ACCESS_DENIED' });
+    await this.pool.query(
+      `UPDATE vendor_event_requests
+       SET completion_requested_at = now(), stage = 'arrived', updated_at = now()
+       WHERE tenant_id = $1 AND id = $2`,
+      [actor.tenantId, requestId],
+    );
+    await this.writeHistory(
+      actor.tenantId,
+      requestId,
+      row.stage,
+      'arrived',
+      'vendor',
+      actor.userId,
+      'Service marked complete — awaiting organizer confirmation',
     );
     const organizerOwnerId = await this.resolveOrganizerOwnerUserId(actor.tenantId, row.organizer_id);
     if (organizerOwnerId) {
       await this.enqueueInAppNotification(
         actor.tenantId,
         organizerOwnerId,
-        'vendor_request_counter',
-        'Vendor counter quote',
-        message || `New counter quote for ${label}`,
-        `vendor_request:${requestId}:counter:${Date.now()}`,
-        { requestId, negotiationId, amountMinor },
+        'vendor_service_complete',
+        'Vendor marked service complete',
+        `${row.service_label ?? 'Vendor'} is awaiting your confirmation`,
+        `vendor_request:${requestId}:complete_req`,
+        { requestId, eventId: row.event_id },
       );
     }
     return this.listForVendor(actor, row.vendor_id);
+  }
+
+  async confirmServiceCompletion(actor: CommerceActor, requestId: string) {
+    const row = await this.loadRequest(actor.tenantId, requestId);
+    await this.access.assertOrganizerOwnsEvent(actor.tenantId, actor.userId, row.event_id);
+    await this.eventFunds.releaseOnCompletion(actor, requestId);
+    await this.pool.query(
+      `UPDATE vendor_event_requests
+       SET stage = 'completed', completed_at = now(), updated_at = now()
+       WHERE tenant_id = $1 AND id = $2`,
+      [actor.tenantId, requestId],
+    );
+    await this.writeHistory(
+      actor.tenantId,
+      requestId,
+      row.stage,
+      'completed',
+      'organizer',
+      actor.userId,
+      'Organizer confirmed completion — escrow release initiated',
+    );
+    return this.listForEvent(actor, row.event_id);
+  }
+
+  async reportServiceIssue(actor: CommerceActor, requestId: string, body: Record<string, unknown>) {
+    const row = await this.loadRequest(actor.tenantId, requestId);
+    await this.access.assertOrganizerOwnsEvent(actor.tenantId, actor.userId, row.event_id);
+    const note = String(body.note ?? body.message ?? 'Issue reported').trim();
+    await this.eventFunds.holdOnIssue(actor, requestId);
+    await this.writeHistory(
+      actor.tenantId,
+      requestId,
+      row.stage,
+      row.stage,
+      'organizer',
+      actor.userId,
+      `Issue reported: ${note}`,
+    );
+    await this.writeFeed(
+      actor.tenantId,
+      row.event_id,
+      'Vendor service issue reported',
+      note,
+      { requestId, correlationId: requestId },
+    );
+    return this.listForEvent(actor, row.event_id);
   }
 
   async postMessage(actor: CommerceActor, requestId: string, body: Record<string, unknown>) {
     const row = await this.loadRequest(actor.tenantId, requestId);
     const message = String(body.message ?? '').trim();
     if (!message) throw new BadRequestException({ code: 'MESSAGE_REQUIRED', message: 'message required' });
+
+    // Conversation opens only after the vendor accepts (service-specific request thread).
+    const messagingStages: VendorRequestStage[] = ['accepted', 'scheduled', 'arrived'];
+    if (!messagingStages.includes(row.stage as VendorRequestStage)) {
+      throw new UnprocessableEntityException({
+        code: 'CONVERSATION_NOT_AVAILABLE',
+        message:
+          row.stage === 'completed'
+            ? 'This request is completed; conversation is read-only'
+            : 'Conversation opens only after the vendor accepts this request',
+      });
+    }
+
+    const bypass = detectPlatformBypass(message);
+    if (bypass.blocked) {
+      throw new UnprocessableEntityException({
+        code: 'PLATFORM_BYPASS_BLOCKED',
+        message: bypass.reason,
+      });
+    }
 
     let actorType: 'organizer' | 'vendor' = 'organizer';
     try {
@@ -642,7 +1283,7 @@ export class VendorCrmService {
         'New vendor request message',
         message,
         `vendor_request:${requestId}:msg:${Date.now()}`,
-        { requestId, actorType },
+        { requestId, actorType, eventId: row.event_id },
       );
     }
 

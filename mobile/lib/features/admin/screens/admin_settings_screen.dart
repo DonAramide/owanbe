@@ -9,6 +9,7 @@ import '../finance/finance_status_chip.dart';
 import '../widgets/admin_page_layout.dart';
 import 'admin_event_config_screen.dart';
 import 'admin_vendor_categories_screen.dart';
+import 'admin_vendor_pricing_screen.dart';
 
 class AdminSettingsScreen extends ConsumerWidget {
   const AdminSettingsScreen({super.key});
@@ -54,6 +55,31 @@ class AdminSettingsScreen extends ConsumerWidget {
                   ),
                   loading: () => const CircularProgressIndicator(),
                   error: (_, _) => Text('Could not load finance state', style: context.eosText.bodyMedium),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: context.eos.spacing.lg),
+          EosSurfaceCard(
+            elevated: true,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Commerce / Vendor Pricing',
+                    style: context.eosText.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                SizedBox(height: context.eos.spacing.sm),
+                Text(
+                  'Configure the platform markup used to calculate organizer-facing vendor service prices. '
+                  'Internal only — not visible to organizers or vendors.',
+                  style: context.eosText.bodyMedium,
+                ),
+                SizedBox(height: context.eos.spacing.md),
+                FilledButton.tonalIcon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const AdminVendorPricingScreen()),
+                  ),
+                  icon: const Icon(Icons.percent),
+                  label: const Text('Vendor Pricing Rules'),
                 ),
               ],
             ),

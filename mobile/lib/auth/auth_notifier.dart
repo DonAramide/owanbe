@@ -673,7 +673,7 @@ class AuthNotifier extends Notifier<AuthSession?> {
         raw.contains('failed host lookup') ||
         raw.contains('clientexception')) {
       return 'Cannot reach Owambe API at $apiBase. '
-          'Use your PC Wi‑Fi IP in mobile/assets/env/supabase.env, then hot restart.';
+          'Use your PC Wi‑Fi IP in mobile/assets/env/owanbe_config, then hot restart.';
     }
     return error.toString();
   }

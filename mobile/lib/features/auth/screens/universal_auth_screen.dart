@@ -163,10 +163,17 @@ class _UniversalAuthScreenState extends ConsumerState<UniversalAuthScreen> {
           context.go(ExperienceRoutes.adminHome);
           return;
         }
-        final identity = ref.read(userIdentityProvider).value ??
-            await ref.read(userIdentityProvider.future);
-        if (!mounted) return;
-        context.go(ExperienceNavigation.postLogin(identity));
+        try {
+          final identity = ref.read(userIdentityProvider).valueOrNull ??
+              await ref.read(userIdentityProvider.future);
+          if (!mounted) return;
+          context.go(ExperienceNavigation.postLogin(identity));
+        } catch (e, st) {
+          // API unreachable (Failed to fetch) must not red-screen the auth page.
+          if (kDebugMode) debugPrint('Post-login identity sync failed: $e\n$st');
+          if (!mounted) return;
+          setState(() => _error = formatAuthError(e, afterSupabaseAuth: true));
+        }
       }
     });
 

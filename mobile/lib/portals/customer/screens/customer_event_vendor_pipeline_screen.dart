@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../eos/eos.dart';
 import '../navigation/event_navigator.dart';
@@ -11,8 +10,7 @@ import '../workspace/event_module_scaffold.dart';
 import '../workspace/widgets/event_error_view.dart';
 import '../workspace/widgets/event_loading_skeleton.dart';
 import '../widgets/vendor_crm/vendor_stage_badge.dart';
-import '../../../platform/procurement/procurement_models.dart';
-import '../../../platform/procurement/contract_generator.dart';
+import '../../../core/utils/money.dart';
 
 /// Vendor CRM pipeline at `/events/:eventId/vendor-pipeline`.
 class CustomerEventVendorPipelineScreen extends ConsumerStatefulWidget {
@@ -140,6 +138,25 @@ class _RequestCard extends StatelessWidget {
             ),
             if (request.serviceLabel != null)
               Text(request.serviceLabel!, style: Theme.of(context).textTheme.bodySmall),
+            SizedBox(height: context.eos.spacing.xs),
+            Wrap(
+              spacing: 6,
+              children: [
+                Chip(
+                  label: Text('Contract: ${vendorCrmContractLabels[request.contractStatus] ?? request.contractStatus}'),
+                  visualDensity: VisualDensity.compact,
+                ),
+                Chip(
+                  label: Text('Assign: ${vendorCrmAssignmentLabels[request.assignmentStatus] ?? request.assignmentStatus}'),
+                  visualDensity: VisualDensity.compact,
+                ),
+                if (request.displayAmountMinor != null)
+                  Chip(
+                    label: Text('Service price ${formatRevenue(request.displayAmountMinor!)}'),
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
             if (request.message.isNotEmpty) ...[
               SizedBox(height: context.eos.spacing.sm),
               Text(request.message),
@@ -148,24 +165,21 @@ class _RequestCard extends StatelessWidget {
             Wrap(
               spacing: 8,
               children: [
-                if (request.stage == 'new')
-                  ActionChip(label: const Text('Start negotiating'), onPressed: () => onStage('negotiating')),
-                if (request.stage == 'negotiating') ...[
-                  ActionChip(label: const Text('Accept'), onPressed: () => onStage('accepted')),
+                ActionChip(
+                  label: const Text('View Request'),
+                  onPressed: () => _showHonestContractDialog(context, request),
+                ),
+                if (request.canWithdraw)
                   ActionChip(
-                    backgroundColor: EosColors.plum,
-                    label: const Text('Manage Contract', style: TextStyle(color: EosColors.champagne)),
-                    onPressed: () => _showContractManagementDialog(context, request),
+                    label: const Text('Withdraw Request'),
+                    onPressed: () => onStage('cancelled'),
                   ),
-                ],
                 if (request.stage == 'accepted')
                   ActionChip(label: const Text('Schedule'), onPressed: () => onStage('scheduled')),
                 if (request.stage == 'scheduled')
                   ActionChip(label: const Text('Mark arrived'), onPressed: () => onStage('arrived')),
                 if (request.stage == 'arrived')
                   ActionChip(label: const Text('Complete'), onPressed: () => onStage('completed')),
-                if (!['declined', 'cancelled', 'completed'].contains(request.stage))
-                  ActionChip(label: const Text('Decline'), onPressed: () => onStage('declined')),
               ],
             ),
           ],
@@ -174,68 +188,35 @@ class _RequestCard extends StatelessWidget {
     );
   }
 
-  void _showContractManagementDialog(BuildContext context, VendorRequest req) {
-    final proposal = ContractProposal(
-      id: 'con_90214',
-      organizerId: 'org_01',
-      vendorId: req.vendorId,
-      eventId: 'evt_wedding_01',
-      requirements: 'Provision of full buffet catering services for 300 guests, including servers and dinnerware.',
-      totalAmountMinor: 85000000,
-      milestones: [
-        ContractMilestone(id: 'm1', title: 'Onboarding Deposit', amountMinor: 30000000, status: MilestoneStatus.pending, description: 'Initial mobilization payment'),
-        ContractMilestone(id: 'm2', title: 'Post-event Release', amountMinor: 55000000, status: MilestoneStatus.pending, description: 'Final quality clearance check'),
-      ],
-      signatures: [],
-      state: ProcurementState.proposed,
-      createdAt: DateTime.now(),
-    );
-
-    final contractText = ContractGenerator.generateLegalDocument(proposal);
-
+  void _showHonestContractDialog(BuildContext context, VendorRequest req) {
+    final status = vendorCrmStageLabels[req.stage] ?? req.stage;
+    final amount = req.displayAmountMinor;
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: EosColors.plumDark,
-        title: Text('Procurement Contract: ${req.vendorName}', style: const TextStyle(color: Colors.white)),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('PROPOSED AGREEMENT TEXT:', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold, fontSize: 11)),
+        title: Text('Request · ${req.vendorName ?? 'Vendor'}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Service: ${req.serviceLabel ?? 'Service'}'),
+            Text('Status: $status'),
+            Text('Contract: ${vendorCrmContractLabels[req.contractStatus] ?? req.contractStatus}'),
+            Text('Assignment: ${vendorCrmAssignmentLabels[req.assignmentStatus] ?? req.assignmentStatus}'),
+            if (amount != null) Text('Service price: ${formatRevenue(amount)}'),
+            if (req.message.trim().isNotEmpty) ...[
               const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(8),
-                color: Colors.white10,
-                child: Text(
-                  contractText,
-                  style: const TextStyle(color: Colors.white70, fontFamily: 'monospace', fontSize: 10),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text('Dual Signatures Verification Status:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              const Text('• Organizer: NOT SIGNED\n• Vendor: NOT SIGNED', style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+              Text('Requirements: ${req.message}'),
             ],
-          ),
+            const SizedBox(height: 12),
+            const Text(
+              'The vendor accepts or declines this request. '
+              'Payment stays in Owanbe escrow. Vendor payout and platform margin are not shown here.',
+            ),
+          ],
         ),
         actions: [
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Contract signed digitally! Cryptographic hash recorded in DAM audit ledger.'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            },
-            child: const Text('Sign Digitally as Organizer'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close', style: TextStyle(color: Colors.white60)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
         ],
       ),
     );

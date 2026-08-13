@@ -9,19 +9,28 @@ import '../../../identity/owanbe_identity_config.dart';
 import '../../../identity/workspace_providers.dart';
 import '../../../router/portal_routes.dart';
 import '../vendor_identity.dart';
+import '../vendor_os_demo_mode.dart';
 import '../../organizer/providers/organizer_providers.dart';
 import '../finance/vendor_finance_providers.dart';
 import '../models/vendor_models.dart';
+import '../models/vendor_workspace_profile.dart';
 import '../data/vendor_store.dart';
+import 'vendor_profile_providers.dart';
 
 bool _allowMockFinanceFallback() =>
     (dotenv.env['ALLOW_MOCK_FINANCE_FALLBACK'] ?? 'true').trim().toLowerCase() == 'true';
 
+
 bool _isVendorSession(Ref ref) {
   if (OwanbeIdentityConfig.identityV2) {
-    return ref.read(isVendorWorkspaceProvider);
+    // Watch so vendor home rebuilds after identity refresh (read-only missed updates).
+    if (ref.watch(isVendorWorkspaceProvider)) return true;
+    // While identity is loading/refreshing, trust session role codes from /auth/me sync.
+    final session = ref.watch(authSessionProvider);
+    return session != null &&
+        (session.hasRoleCode('vendor') || session.hasRoleCode('vendor_pending'));
   }
-  final session = ref.read(authSessionProvider);
+  final session = ref.watch(authSessionProvider);
   return session != null && PortalRoutes.canonicalRole(session) == UserRole.vendor;
 }
 
@@ -61,6 +70,9 @@ final vendorOrdersViewModeProvider = StateProvider<VendorOrdersViewMode>(
 enum VendorOrdersViewMode { cards, table }
 
 /// Resolves the signed-in vendor's canonical CRM vendor ID (owned business row).
+///
+/// Chain: auth session user → GET /me/vendor-id → vendors.id for owner_user_id.
+/// Never substitutes the seed demo Vendor ID for a different authenticated user.
 final canonicalVendorIdProvider = FutureProvider.autoDispose<String>((ref) async {
   ref.watch(vendorRevisionProvider);
   final session = ref.watch(authSessionProvider);
@@ -69,17 +81,46 @@ final canonicalVendorIdProvider = FutureProvider.autoDispose<String>((ref) async
   }
   try {
     final resolved = await ref.read(identityApiProvider).resolveVendorId(session);
-    if (resolved != null && resolved.isNotEmpty) {
-      return VendorIdentity.resolveMarketplaceVendorId(resolved);
+    if (resolved != null && resolved.trim().isNotEmpty) {
+      return VendorIdentity.resolveMarketplaceVendorId(resolved.trim());
     }
   } catch (_) {
     if (!allowMockPersistenceFallback()) rethrow;
   }
-  if (allowMockPersistenceFallback()) {
-    return VendorIdentity.canonicalDevVendorId;
-  }
   throw StateError('Vendor workspace not activated — no vendor profile for this account');
 });
+
+VendorProfile _profileFromWorkspace({
+  required String id,
+  required VendorWorkspaceProfile? workspace,
+  required VendorProfile storeFallback,
+}) {
+  final name = (workspace?.businessName.trim().isNotEmpty ?? false)
+      ? workspace!.businessName.trim()
+      : (storeFallback.businessName.trim().isNotEmpty
+          ? storeFallback.businessName.trim()
+          : 'Complete your business profile');
+  final category = (workspace?.category.trim().isNotEmpty ?? false)
+      ? workspace!.category.trim()
+      : storeFallback.category;
+  final city = (workspace?.city?.trim().isNotEmpty ?? false)
+      ? workspace!.city!.trim()
+      : storeFallback.city;
+  final vendorType = VendorCatalogType.fromLabel(category) ?? storeFallback.vendorType;
+  // Never invent PREMIUM — only show tier when demo mode seeded one.
+  final tier = VendorOsDemoMode.isEnabled ? storeFallback.tier : '';
+  return VendorProfile(
+    id: id,
+    businessName: name,
+    category: category.isEmpty ? 'Vendor' : category,
+    vendorType: vendorType,
+    tier: tier,
+    city: city,
+    tagline: storeFallback.tagline,
+    rating: VendorOsDemoMode.isEnabled ? storeFallback.rating : 0,
+    completedEvents: VendorOsDemoMode.isEnabled ? storeFallback.completedEvents : 0,
+  );
+}
 
 final vendorProfileProvider = Provider<VendorProfile>((ref) {
   ref.watch(vendorRevisionProvider);
@@ -87,27 +128,26 @@ final vendorProfileProvider = Provider<VendorProfile>((ref) {
     throw StateError('Vendor portal access required');
   }
   final store = ref.read(vendorStoreProvider);
+  final workspace = ref.watch(vendorWorkspaceProfileProvider).valueOrNull;
   final canonicalAsync = ref.watch(canonicalVendorIdProvider);
   final canonicalId = canonicalAsync.valueOrNull;
   if (canonicalId == null) {
-    if (canonicalAsync.hasError && !_allowVendorMock(ref)) {
+    if (canonicalAsync.hasError && !VendorOsDemoMode.isEnabled) {
       throw canonicalAsync.error!;
     }
-    if (!_allowVendorMock(ref)) {
-      throw StateError('Vendor profile loading — activate Vendor workspace first');
+    if (canonicalAsync.isLoading || VendorOsDemoMode.isEnabled) {
+      return _profileFromWorkspace(
+        id: '',
+        workspace: workspace,
+        storeFallback: store.profile,
+      );
     }
+    throw StateError('Vendor profile loading — activate Vendor workspace first');
   }
-  final id = canonicalId ?? VendorIdentity.canonicalDevVendorId;
-  return VendorProfile(
-    id: id,
-    businessName: store.profile.businessName,
-    category: store.profile.category,
-    vendorType: store.profile.vendorType,
-    tier: store.profile.tier,
-    city: store.profile.city,
-    tagline: store.profile.tagline,
-    rating: store.profile.rating,
-    completedEvents: store.profile.completedEvents,
+  return _profileFromWorkspace(
+    id: canonicalId,
+    workspace: workspace,
+    storeFallback: store.profile,
   );
 });
 
@@ -313,12 +353,12 @@ final vendorDashboardStatsProvider = FutureProvider.autoDispose<VendorDashboardS
     final store = ref.read(vendorStoreProvider);
     return VendorDashboardStats(
       activeEvents: activeEvents,
-      totalBookings: store.totalBookings,
+      totalBookings: VendorOsDemoMode.isEnabled ? store.totalBookings : 0,
       revenueMinor: int.tryParse(t.totalEarningsMinor) ?? 0,
       walletBalanceMinor: int.tryParse(t.availableBalanceMinor) ?? 0,
-      pendingPayoutsMinor: store.pendingPayoutsMinor,
+      pendingPayoutsMinor: VendorOsDemoMode.isEnabled ? store.pendingPayoutsMinor : 0,
       pendingSettlementMinor: int.tryParse(t.pendingEarningsMinor) ?? 0,
-      customerRating: store.profile.rating,
+      customerRating: VendorOsDemoMode.isEnabled ? store.profile.rating : 0,
     );
   } catch (e) {
     if (!_allowVendorFinanceMock(ref)) rethrow;

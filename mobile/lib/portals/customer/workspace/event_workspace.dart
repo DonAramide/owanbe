@@ -2,11 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/utils/money.dart';
+import '../../../features/organizer/command_center_v3/tabs/analytics_tab_v3.dart';
+import '../../../features/organizer/command_center_v3/tabs/finance_tab_v3.dart';
+import '../../../features/organizer/command_center_v3/tabs/reports_tab_v3.dart';
+import '../../../features/organizer/command_center_v3/tabs/tickets_tab_v3.dart';
+import '../../../features/organizer/command_center_v3/tabs/vendors_tab_v3.dart';
 import '../../../eos/eos.dart';
 import '../../../eos/layout/workspace/workspace_definition.dart';
 import '../../../eos/layout/workspace/workspace_shell.dart';
 import '../../../eos/layout/workspace/workspace_widgets.dart';
+import '../navigation/event_navigator.dart';
 import '../providers/customer_event_command_providers.dart';
 import 'widgets/event_desktop.dart';
 import 'widgets/event_error_view.dart';
@@ -39,18 +44,19 @@ class _EventWorkspaceState extends ConsumerState<EventWorkspace> {
       ],
       quickActions: [
         WorkspaceActionDefinition(
-          label: 'Publish Event',
-          icon: Icons.publish,
-          onPressed: (context, id) async {
-            // Simulated actions
-          },
+          label: 'Create Ticket',
+          icon: Icons.confirmation_number_outlined,
+          onPressed: (context, id) async => EventNavigator(context).openTicketsManage(id),
         ),
         WorkspaceActionDefinition(
-          label: 'Go Live Operations',
-          icon: Icons.play_arrow,
-          onPressed: (context, id) async {
-            // Simulated actions
-          },
+          label: 'Manage Tickets',
+          icon: Icons.edit_note_outlined,
+          onPressed: (context, id) async => EventNavigator(context).openTicketsManage(id),
+        ),
+        WorkspaceActionDefinition(
+          label: 'View Sales',
+          icon: Icons.insights_outlined,
+          onPressed: (context, id) async => EventNavigator(context).openTicketsManage(id),
         ),
       ],
       tabs: [
@@ -68,11 +74,11 @@ class _EventWorkspaceState extends ConsumerState<EventWorkspace> {
         ),
         WorkspaceTabDefinition(
           label: 'Vendors',
-          builder: (context, id) => _VendorsTabBridge(eventId: id),
+          builder: (context, id) => VendorsTabV3(eventId: id),
         ),
         WorkspaceTabDefinition(
           label: 'Finance',
-          builder: (context, id) => _FinanceTabBridge(eventId: id),
+          builder: (context, id) => FinanceTabV3(eventId: id),
         ),
         WorkspaceTabDefinition(
           label: 'Operations',
@@ -80,7 +86,11 @@ class _EventWorkspaceState extends ConsumerState<EventWorkspace> {
         ),
         WorkspaceTabDefinition(
           label: 'Analytics',
-          builder: (context, id) => _AnalyticsTabBridge(eventId: id),
+          builder: (context, id) => AnalyticsTabV3(eventId: id),
+        ),
+        WorkspaceTabDefinition(
+          label: 'Reports',
+          builder: (context, id) => ReportsTabV3(eventId: id),
         ),
         WorkspaceTabDefinition(
           label: 'Timeline',
@@ -109,7 +119,7 @@ class _EventWorkspaceState extends ConsumerState<EventWorkspace> {
 
     return snapshot.when(
       loading: () => const EventLoadingSkeleton(variant: EventLoadingVariant.workspace),
-      error: (_, __) => Scaffold(
+      error: (_, _) => Scaffold(
         body: ListView(
           padding: const EdgeInsets.all(24),
           children: [
@@ -186,27 +196,7 @@ class _CommerceTabBridge extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final snapshot = ref.watch(customerEventCommandProvider(eventId));
-
-    return snapshot.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Text('Error: $e'),
-      data: (data) {
-        final event = data.event;
-        return ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            Text('Commerce Conversion Funnel', style: context.eosText.titleMedium),
-            const SizedBox(height: 16),
-            ListTile(
-              title: const Text('Direct Ticket Commerce'),
-              subtitle: Text('${event.ticketsSold} passes registered across active tiers.'),
-              trailing: const Icon(Icons.monetization_on_outlined),
-            ),
-          ],
-        );
-      },
-    );
+    return TicketsTabV3(eventId: eventId);
   }
 }
 
@@ -242,67 +232,6 @@ class _AttendeesTabBridge extends ConsumerWidget {
   }
 }
 
-class _VendorsTabBridge extends ConsumerWidget {
-  const _VendorsTabBridge({required this.eventId});
-  final String eventId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final snapshot = ref.watch(customerEventCommandProvider(eventId));
-
-    return snapshot.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Text('Error: $e'),
-      data: (data) {
-        return ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            Text('Partner Service Hires', style: context.eosText.titleMedium),
-            const SizedBox(height: 16),
-            ListTile(
-              title: const Text('Requested Vendors'),
-              trailing: Text('${data.vendorRequested}'),
-            ),
-            ListTile(
-              title: const Text('Accepted Hires'),
-              trailing: Text('${data.vendorAccepted}'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _FinanceTabBridge extends ConsumerWidget {
-  const _FinanceTabBridge({required this.eventId});
-  final String eventId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final snapshot = ref.watch(customerEventCommandProvider(eventId));
-
-    return snapshot.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Text('Error: $e'),
-      data: (data) {
-        final event = data.event;
-        return ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            Text('Event Wallet & Budget Splits', style: context.eosText.titleMedium),
-            const SizedBox(height: 16),
-            ListTile(
-              title: const Text('Escrow Release Total'),
-              trailing: Text(formatRevenue(event.revenueMinor)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
 class _OperationsTabBridge extends ConsumerWidget {
   const _OperationsTabBridge({required this.eventId});
   final String eventId;
@@ -319,49 +248,6 @@ class _OperationsTabBridge extends ConsumerWidget {
           trailing: Icon(Icons.check_circle_outline, color: Colors.green),
         ),
       ],
-    );
-  }
-}
-
-class _AnalyticsTabBridge extends ConsumerWidget {
-  const _AnalyticsTabBridge({required this.eventId});
-  final String eventId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final snapshot = ref.watch(customerEventCommandProvider(eventId));
-
-    return snapshot.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Text('Error: $e'),
-      data: (data) {
-        final event = data.event;
-        return ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            Text('Traffic & Channel Conversion', style: context.eosText.titleMedium),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 280,
-              child: EosTimeSeriesChart(
-                series: [
-                  EosTimeSeriesSeries(
-                    key: 'sales',
-                    label: 'Sales Volume',
-                    color: context.eosColors.primary,
-                  ),
-                ],
-                points: [
-                  const EosTimeSeriesPoint(label: '30d ago', values: {'sales': 12000000}),
-                  const EosTimeSeriesPoint(label: '20d ago', values: {'sales': 28000000}),
-                  const EosTimeSeriesPoint(label: '10d ago', values: {'sales': 19000000}),
-                  EosTimeSeriesPoint(label: 'Now', values: {'sales': event.revenueMinor.toDouble()}),
-                ],
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 }

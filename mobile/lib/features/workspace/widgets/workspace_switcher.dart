@@ -39,7 +39,7 @@ class WorkspaceSwitcher extends ConsumerWidget {
   }
 
   static Future<void> _showSwitcher(BuildContext context, WidgetRef ref) async {
-    final identity = ref.read(userIdentityProvider).value;
+    final identity = ref.read(userIdentityProvider).valueOrNull;
     if (identity == null) return;
 
     final activated = ExperienceWorkspace.values

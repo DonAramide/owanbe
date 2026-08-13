@@ -48,7 +48,7 @@ class AttendeeTicketsTab extends ConsumerWidget {
     return RefreshIndicator(
       onRefresh: () async {
         refreshCustomerHome(ref);
-        ref.invalidate(attendeeGuestInvitationsProvider);
+        invalidateAttendeePassesAfterRsvp(ref);
         ref.invalidate(attendeePendingTicketInvitationsProvider);
         await Future.wait([
           ref.refresh(attendeeHomeSnapshotProvider.future),
@@ -112,7 +112,7 @@ class AttendeeTicketsTab extends ConsumerWidget {
                     guestId: item.id,
                     status: status,
                   );
-              ref.invalidate(attendeeGuestInvitationsProvider);
+              invalidateAttendeePassesAfterRsvp(ref);
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(status == 'confirmed' ? 'RSVP confirmed' : 'RSVP declined')),

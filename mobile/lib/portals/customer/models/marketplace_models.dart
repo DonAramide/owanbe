@@ -85,7 +85,7 @@ String formatVendorPricePerGuest(MarketplaceVendor vendor, int guestCount) {
   final from = vendor.priceFromMinor;
   if (from == null || from <= 0) return '';
   final guests = guestCount <= 0 ? 150 : guestCount;
-  final to = vendor.priceToMinor ?? (from * 1.35).round();
+  final to = vendor.priceToMinor ?? from;
   final perLow = (from / guests).ceil();
   final perHigh = (to / guests).ceil();
   if (perLow == perHigh) {
@@ -106,21 +106,14 @@ VendorProfile buildVendorProfile(MarketplaceVendor vendor) {
   final seed = vendor.id.hashCode.abs();
   final palette = _palette[seed % _palette.length];
   final rating = vendor.ratingAverage ?? 4.5 + (seed % 5) * 0.1;
-  final enriched = MarketplaceVendor(
-    id: vendor.id,
-    businessName: vendor.businessName,
-    city: vendor.city,
-    status: vendor.status,
+  // Pricing comes from API pricing engine only — never invent category fallbacks.
+  final enriched = vendor.copyWith(
     ratingAverage: rating,
-    slug: vendor.slug,
     description: vendor.description ?? _defaultDescription(vendor),
     reviewCount: vendor.reviewCount ?? 12 + seed % 40,
-    priceFromMinor: vendor.priceFromMinor ?? _defaultPrice(vendor),
-    priceToMinor: vendor.priceToMinor ?? ((vendor.priceFromMinor ?? _defaultPrice(vendor)) * 1.35).round(),
     currency: vendor.currency ?? 'NGN',
     countryCode: vendor.countryCode ?? 'NG',
     imageUrl: vendor.imageUrl ?? vendorCoverImageUrl(vendor),
-    videoPreviewUrl: vendor.videoPreviewUrl,
   );
 
   return VendorProfile(
@@ -141,15 +134,6 @@ VendorProfile buildVendorProfile(MarketplaceVendor vendor) {
 String _defaultDescription(MarketplaceVendor vendor) {
   return '${vendor.businessName} crafts unforgettable ${vendor.categoryLabel.toLowerCase()} '
       'experiences for weddings, owambes, and corporate celebrations across ${vendor.city ?? 'Nigeria'}.';
-}
-
-int _defaultPrice(MarketplaceVendor vendor) {
-  final lower = vendor.categoryLabel.toLowerCase();
-  if (lower.contains('cater')) return 85000000;
-  if (lower.contains('photo')) return 45000000;
-  if (lower.contains('dj')) return 35000000;
-  if (lower.contains('décor') || lower.contains('decor')) return 60000000;
-  return 25000000;
 }
 
 List<VendorReview> _seedReviews(MarketplaceVendor vendor, int seed) {

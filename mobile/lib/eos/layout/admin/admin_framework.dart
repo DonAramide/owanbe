@@ -12,6 +12,8 @@ import '../../../features/super_admin/platform_admin/communication_center_screen
 import '../../../features/super_admin/platform_admin/copilot_workspace_screen.dart';
 import '../../../features/super_admin/platform_admin/integration_hub_screen.dart';
 import '../../../features/super_admin/platform_admin/enterprise_email_infrastructure_screen.dart';
+import '../../../core/api/control_plane_api.dart';
+import '../../../core/api/identity_security_api.dart';
 
 class AuditEvent {
   final String who;
@@ -116,16 +118,16 @@ class _AdminNavigationShellState extends ConsumerState<AdminNavigationShell> {
     return EosPageScaffold(
       title: 'Platform Administration',
       subtitle: 'Platform-wide configuration, broadcast center, moderation & maintenance',
+      bodyScrollable: false,
       body: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Navigation Side bar
           Container(
             width: 240,
             decoration: BoxDecoration(
               border: Border(right: BorderSide(color: context.eosColors.outlineVariant)),
             ),
-            child: Column(
+            child: ListView(
               children: [
                 _buildNavItem(0, 'User Directory', Icons.people),
                 _buildNavItem(1, 'Verification Center', Icons.verified_user),
@@ -133,17 +135,16 @@ class _AdminNavigationShellState extends ConsumerState<AdminNavigationShell> {
                 _buildNavItem(3, 'Maintenance Center', Icons.build),
                 _buildNavItem(4, 'Platform Master Data', Icons.dns),
                 _buildNavItem(5, 'Marketplace Moderation', Icons.gavel),
-                _buildNavItem(6, 'Governance Audit Logs', Icons.history_edu),
-                _buildNavItem(7, 'Workflow Studio', Icons.account_tree),
-                _buildNavItem(8, 'Platform Copilot', Icons.psychology),
-                _buildNavItem(9, 'Integration Hub', Icons.hub),
-                _buildNavItem(10, 'Enterprise Email', Icons.mark_email_unread),
+                _buildNavItem(6, 'Commerce Configuration', Icons.sell_outlined),
+                _buildNavItem(7, 'Governance Audit Logs', Icons.history_edu),
+                _buildNavItem(8, 'Workflow Studio', Icons.account_tree),
+                _buildNavItem(9, 'Platform Copilot', Icons.psychology),
+                _buildNavItem(10, 'Integration Hub', Icons.hub),
+                _buildNavItem(11, 'Enterprise Email', Icons.mark_email_unread),
               ],
             ),
           ),
           const SizedBox(width: 24),
-
-          // Active Panel area
           Expanded(
             child: SingleChildScrollView(
               child: _buildActivePanel(),
@@ -172,83 +173,97 @@ class _AdminNavigationShellState extends ConsumerState<AdminNavigationShell> {
       3 => _buildMaintenanceCenterPanel(),
       4 => const MdmWorkspaceScreen(),
       5 => _buildMarketplacePanel(),
-      6 => _buildGovernanceAuditLogsPanel(),
-      7 => const WorkflowStudioScreen(),
-      8 => const CopilotWorkspaceScreen(),
-      9 => const IntegrationHubScreen(),
+      6 => const _CommerceConfigurationPanel(),
+      7 => _buildGovernanceAuditLogsPanel(),
+      8 => const WorkflowStudioScreen(),
+      9 => const CopilotWorkspaceScreen(),
+      10 => const IntegrationHubScreen(),
       _ => const EnterpriseEmailInfrastructureScreen(),
     };
   }
 
   Widget _buildUserDirectoryPanel() {
-    final filtered = _usersList.where((u) {
-      final matchSearch = u['name']!.toLowerCase().contains(_userSearchQuery.toLowerCase());
-      final matchType = _selectedUserType == 'All' || u['type'] == _selectedUserType;
-      return matchSearch && matchType;
-    }).toList();
-
+    final usersAsync = ref.watch(identitySecurityUsersProvider(_userSearchQuery));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('User Directory', style: context.eosText.titleMedium),
+        const SizedBox(height: 8),
+        Text(
+          'Nest identity-security users (Phase 29) — not hardcoded seed rows.',
+          style: context.eosText.bodySmall,
+        ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: EosSearchBar(
-                hintText: 'Search user portfolio directories...',
-                onChanged: (val) => setState(() => _userSearchQuery = val),
-              ),
-            ),
-            const SizedBox(width: 12),
-            DropdownButton<String>(
-              value: _selectedUserType,
-              items: ['All', 'Finance', 'Organizer', 'Vendor', 'Attendee'].map((t) {
-                return DropdownMenuItem(value: t, child: Text(t));
-              }).toList(),
-              onChanged: (val) => setState(() => _selectedUserType = val ?? 'All'),
-            ),
-          ],
+        EosSearchBar(
+          hintText: 'Search users by email or name…',
+          onChanged: (val) => setState(() => _userSearchQuery = val),
         ),
         const SizedBox(height: 16),
-        EosDataTable(
-          columns: const [
-            DataColumn(label: Text('User ID')),
-            DataColumn(label: Text('Display Name')),
-            DataColumn(label: Text('MFA Active')),
-            DataColumn(label: Text('Account Status')),
-            DataColumn(label: Text('Actions')),
-          ],
-          rows: [
-            for (final u in filtered)
-              DataRow(cells: [
-                DataCell(Text(u['id']!)),
-                DataCell(Text('${u['name']!} (${u['type']!})')),
-                DataCell(Text(u['mfa']!)),
-                DataCell(Text(u['status']!)),
-                DataCell(Row(
-                  children: [
-                    TextButton(
-                      onPressed: () => context.go('/super-admin/users/${u['id']!}'),
-                      child: const Text('Open User360'),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.block, size: 14, color: Colors.red),
-                      onPressed: () {
-                        final prev = u['status']!;
-                        AdminUserService.suspendUser(u['id']!);
-                        setState(() => u['status'] = 'SUSPENDED');
-                        _logAuditEvent('SUSPEND_USER', u['id']!, prev, 'SUSPENDED', 'Administrative Suspension');
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Suspended ${u['name']} successfully.')),
-                        );
-                      },
-                    ),
-                  ],
-                )),
-              ]),
-          ],
+        usersAsync.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (e, _) => Text('User directory unavailable: $e'),
+          data: (items) {
+            if (items.isEmpty) {
+              return const Text('No users found.');
+            }
+            return EosDataTable(
+              columns: const [
+                DataColumn(label: Text('User ID')),
+                DataColumn(label: Text('Email')),
+                DataColumn(label: Text('Tenant')),
+                DataColumn(label: Text('Status')),
+                DataColumn(label: Text('Actions')),
+              ],
+              rows: [
+                for (final u in items.take(50))
+                  DataRow(cells: [
+                    DataCell(Text('${u['id']}'.substring(0, 8))),
+                    DataCell(Text('${u['email'] ?? ''}')),
+                    DataCell(Text('${u['tenantSlug'] ?? ''}')),
+                    DataCell(Text('${u['status'] ?? ''}')),
+                    DataCell(Row(
+                      children: [
+                        if (u['status'] != 'suspended')
+                          IconButton(
+                            icon: const Icon(Icons.block, size: 14, color: Colors.red),
+                            onPressed: () async {
+                              try {
+                                await AdminUserService.suspendUser(
+                                  u['id'].toString(),
+                                  reason: 'Administrative Suspension',
+                                );
+                                  ref.invalidate(identitySecurityUsersProvider(_userSearchQuery));
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Suspended ${u['email']}')),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('$e')),
+                                    );
+                                  }
+                                }
+                              },
+                            ),
+                          if (u['status'] == 'suspended')
+                            TextButton(
+                              onPressed: () async {
+                                await AdminUserService.reactivateUser(u['id'].toString());
+                                ref.invalidate(identitySecurityUsersProvider(_userSearchQuery));
+                              },
+                              child: const Text('Restore'),
+                            ),
+                        ],
+                      )),
+                    ]),
+                ],
+              );
+            },
         ),
       ],
     );
@@ -501,29 +516,109 @@ class _AdminNavigationShellState extends ConsumerState<AdminNavigationShell> {
   }
 
   Widget _buildGovernanceAuditLogsPanel() {
+    return const _ControlPlaneAuditPanel();
+  }
+}
+
+/// Control Tower → Commerce Configuration — deep-link only (no duplicate CRUD).
+class _CommerceConfigurationPanel extends StatelessWidget {
+  const _CommerceConfigurationPanel();
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Governance Audit Log Matrix', style: context.eosText.titleMedium),
+        Text('Commerce Configuration', style: context.eosText.titleMedium),
+        const SizedBox(height: 8),
+        Text(
+          'Platform commerce controls. Vendor Pricing opens the existing Platform Admin editor — '
+          'single source of truth (no duplicate screens).',
+          style: context.eosText.bodySmall,
+        ),
         const SizedBox(height: 16),
-        EosDataTable(
-          columns: const [
-            DataColumn(label: Text('Correlation ID')),
-            DataColumn(label: Text('Operator')),
-            DataColumn(label: Text('Affected Target')),
-            DataColumn(label: Text('Action Type')),
-            DataColumn(label: Text('Transition')),
-          ],
-          rows: [
-            for (final audit in _auditLogs)
-              DataRow(cells: [
-                DataCell(Text(audit.correlationId)),
-                DataCell(Text(audit.who)),
-                DataCell(Text(audit.affected)),
-                DataCell(Text(audit.action)),
-                DataCell(Text('${audit.prevVal} -> ${audit.newVal}')),
-              ]),
-          ],
+        EosSurfaceCard(
+          elevated: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Vendor Pricing',
+                style: context.eosText.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Global default, service category, vendor, and vendor+service markup rules. '
+                'Same screen as Platform Admin → Settings → Vendor Pricing Rules.',
+                style: context.eosText.bodyMedium,
+              ),
+              const SizedBox(height: 12),
+              FilledButton.tonalIcon(
+                onPressed: () => context.push('/super-admin/commerce/vendor-pricing'),
+                icon: const Icon(Icons.percent),
+                label: const Text('Open Vendor Pricing'),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ControlPlaneAuditPanel extends ConsumerWidget {
+  const _ControlPlaneAuditPanel();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activity = ref.watch(controlPlaneActivityProvider);
+    final dash = ref.watch(controlPlaneDashboardProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Control plane audit', style: context.eosText.titleMedium),
+        const SizedBox(height: 8),
+        Text(
+          'Live Nest audit_log (control_plane.* / mdm.* / tenant_* / vendor_*)',
+          style: context.eosText.bodySmall,
+        ),
+        const SizedBox(height: 16),
+        dash.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (e, _) => Text('Dashboard: $e'),
+          data: (d) => Wrap(
+            spacing: 8,
+            children: [
+              Chip(label: Text('Tenants ${d['tenantsByStatus']}')),
+              Chip(label: Text('Vendors ${d['vendorsByStatus']}')),
+              Chip(label: Text('MDM ${d['mdm']}')),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        activity.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Text('Audit unavailable: $e'),
+          data: (items) {
+            if (items.isEmpty) {
+              return const Text('No control-plane audit events yet');
+            }
+            return EosDataTable(
+              columns: const [
+                DataColumn(label: Text('Action')),
+                DataColumn(label: Text('Resource')),
+                DataColumn(label: Text('When')),
+              ],
+              rows: [
+                for (final a in items.take(40))
+                  DataRow(cells: [
+                    DataCell(Text('${a['action']}')),
+                    DataCell(Text('${a['resourceType']} ${a['resourceId'] ?? ''}')),
+                    DataCell(Text('${a['createdAt'] ?? ''}')),
+                  ]),
+              ],
+            );
+          },
         ),
       ],
     );

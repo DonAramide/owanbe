@@ -32,7 +32,7 @@ class _AttendeeMyEventsScreenState extends ConsumerState<AttendeeMyEventsScreen>
       onBack: () => context.canPop() ? context.pop() : context.go(AttendeeRoutes.dashboard),
       body: RefreshIndicator(
         onRefresh: () async {
-          ref.invalidate(myEventsBundleProvider);
+          invalidateAttendeePassesAfterRsvp(ref);
           await ref.read(myEventsBundleProvider.future);
         },
         child: async.when(

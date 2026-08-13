@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/api/events_api.dart';
 import '../../../eos/eos.dart';
-import '../data/organizer_persistence.dart';
+import '../../operations/providers/operations_providers.dart';
 import '../providers/organizer_providers.dart';
 import '../widgets/organizer_shared.dart';
 
@@ -109,12 +110,31 @@ class AttendeeManagementScreen extends ConsumerWidget {
                                     alignment: Alignment.centerLeft,
                                     child: TextButton(
                                       onPressed: () async {
-                                        await updateAttendee(ref, event.id, (e) {
-                                          final attendees = e.attendees
-                                              .map((x) => x.id == a.id ? x.copyWith(checkedIn: true) : x)
-                                              .toList();
-                                          return e.copyWith(attendees: attendees);
-                                        });
+                                        try {
+                                          await performOrganizerAttendeeCheckIn(
+                                            ref,
+                                            eventId: event.id,
+                                            entitlementOrGuestId: a.id,
+                                            ticketCode: a.ticketId,
+                                          );
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('${a.name} checked in')),
+                                            );
+                                          }
+                                        } on EventsApiException catch (e) {
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text(e.message)),
+                                            );
+                                          }
+                                        } catch (e) {
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('$e')),
+                                            );
+                                          }
+                                        }
                                       },
                                       child: const Text('Check in'),
                                     ),

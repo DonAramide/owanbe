@@ -44,7 +44,7 @@ class _WorkspaceActivationScreenState extends ConsumerState<WorkspaceActivationS
 
   @override
   Widget build(BuildContext context) {
-    final identity = ref.watch(userIdentityProvider).value;
+    final identity = ref.watch(userIdentityProvider).valueOrNull;
 
     return Scaffold(
       backgroundColor: EosColors.plumDark,

@@ -50,6 +50,7 @@ class _TenantManagementScreenState extends ConsumerState<TenantManagementScreen>
     return EosPageScaffold(
       title: 'Tenant Intelligence Center',
       subtitle: 'Analyze, audit, and configure Owambe tenant organizations',
+      bodyScrollable: false,
       floatingHeader: Row(
         children: [
           Expanded(
@@ -148,9 +149,9 @@ class _TenantManagementScreenState extends ConsumerState<TenantManagementScreen>
                   ),
                 ),
               ],
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: EosDataTable(
+              Expanded(
+                child: SingleChildScrollView(
+                  child: EosDataTable(
                       columns: [
                         DataColumn(
                           label: Row(
@@ -265,6 +266,7 @@ class _TenantManagementScreenState extends ConsumerState<TenantManagementScreen>
                       }).toList(),
                     ),
                   ),
+                ),
                 ],
               );
         },

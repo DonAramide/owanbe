@@ -34,7 +34,14 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { EventConfigModule } from './modules/event-config/event-config.module';
 import { RentalsModule } from './modules/rentals/rentals.module';
 import { VendorOperationsModule } from './modules/vendor-operations/vendor-operations.module';
+import { OrganizerReportsModule } from './modules/organizer-reports/organizer-reports.module';
+import { OrganizerTeamModule } from './modules/organizer-team/organizer-team.module';
+import { DomainEventsModule } from './modules/domain-events/domain-events.module';
+import { AutomationModule } from './modules/automation/automation.module';
 import { IdentityModule } from './modules/identity/identity.module';
+import { OrganizerMarketingModule } from './modules/organizer-marketing/organizer-marketing.module';
+import { ControlPlaneModule } from './modules/control-plane/control-plane.module';
+import { IdentitySecurityModule } from './modules/identity-security/identity-security.module';
 
 @Module({
   imports: [
@@ -74,7 +81,14 @@ import { IdentityModule } from './modules/identity/identity.module';
     EventConfigModule,
     RentalsModule,
     VendorOperationsModule,
+    OrganizerReportsModule,
+    OrganizerTeamModule,
+    DomainEventsModule,
+    AutomationModule,
     IdentityModule,
+    OrganizerMarketingModule,
+    ControlPlaneModule,
+    IdentitySecurityModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

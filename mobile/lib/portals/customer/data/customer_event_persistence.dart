@@ -44,12 +44,17 @@ Future<void> inviteVendorToEvent(
   MarketplaceVendor vendor, {
   String? message,
   String? serviceLabel,
+  String? serviceKey,
+  String? vendorServiceId,
 }) async {
   try {
     await ref.read(vendorCrmApiProvider).createRequest(eventId, {
       'vendorId': VendorIdentity.resolveMarketplaceVendorId(vendor.id),
       'message': message ?? '',
-      if (serviceLabel != null) 'serviceLabel': serviceLabel,
+      if (serviceLabel != null && serviceLabel.trim().isNotEmpty) 'serviceLabel': serviceLabel.trim(),
+      if (serviceKey != null && serviceKey.trim().isNotEmpty) 'serviceKey': serviceKey.trim(),
+      if (vendorServiceId != null && vendorServiceId.trim().isNotEmpty)
+        'vendorServiceId': vendorServiceId.trim(),
       'source': 'marketplace',
     });
     bumpCustomerEventRevision(ref);

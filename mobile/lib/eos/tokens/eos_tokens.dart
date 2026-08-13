@@ -77,7 +77,9 @@ class EosRadiusRef {
 
 class EosBreakpointsRef {
   const EosBreakpointsRef();
+  double get phone => EosBreakpoints.phone;
   double get mobile => EosBreakpoints.mobile;
   double get tablet => EosBreakpoints.tablet;
   double get desktop => EosBreakpoints.desktop;
+  double get wide => EosBreakpoints.wide;
 }

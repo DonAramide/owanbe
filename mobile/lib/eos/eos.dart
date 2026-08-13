@@ -5,6 +5,7 @@
 library eos;
 
 export 'extensions/eos_context.dart';
+export 'layout/eos_adaptive.dart';
 export 'layout/eos_page_scaffold.dart';
 export 'layout/eos_responsive.dart';
 export 'layout/eos_section.dart';

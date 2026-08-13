@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 
 
@@ -29,6 +30,8 @@ import '../../widgets/command_center/command_activity_feed.dart';
 import '../event_module_registry.dart';
 
 import 'event_closing_center.dart';
+
+import 'event_creation_readiness_panel.dart';
 
 import 'event_desktop_hero.dart';
 
@@ -86,6 +89,7 @@ class EventDesktop extends ConsumerWidget {
 
     final modeAsync = ref.watch(eventDesktopModeProvider(eventId));
     final isArchived = ref.watch(archivedEventIdsProvider).contains(eventId);
+    final focus = GoRouterState.of(context).uri.queryParameters['focus'];
 
 
 
@@ -116,6 +120,13 @@ class EventDesktop extends ConsumerWidget {
         children: [
 
           EventDesktopHero(event: event, daysUntil: daysUntil),
+
+          SizedBox(height: context.eos.spacing.lg),
+
+          _FocusableReadiness(
+            focus: focus,
+            child: EventCreationReadinessPanel(eventId: eventId, snapshot: snapshot),
+          ),
 
           SizedBox(height: context.eos.spacing.lg),
 
@@ -401,6 +412,48 @@ class EventDesktop extends ConsumerWidget {
 
   }
 
+}
+
+/// Scrolls the Setup checklist into view when `?focus=readiness`.
+class _FocusableReadiness extends StatefulWidget {
+  const _FocusableReadiness({required this.focus, required this.child});
+
+  final String? focus;
+  final Widget child;
+
+  @override
+  State<_FocusableReadiness> createState() => _FocusableReadinessState();
+}
+
+class _FocusableReadinessState extends State<_FocusableReadiness> {
+  final _key = GlobalKey();
+  var _scrolled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.focus == 'readiness') {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _ensureVisible());
+    }
+  }
+
+  void _ensureVisible() {
+    if (_scrolled || !mounted) return;
+    final ctx = _key.currentContext;
+    if (ctx == null) return;
+    _scrolled = true;
+    Scrollable.ensureVisible(
+      ctx,
+      alignment: 0.08,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return KeyedSubtree(key: _key, child: widget.child);
+  }
 }
 
 

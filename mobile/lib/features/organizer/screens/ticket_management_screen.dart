@@ -4,10 +4,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/money.dart';
 import '../../../eos/eos.dart';
-import '../data/organizer_persistence.dart';
 import '../models/organizer_models.dart';
 import '../providers/organizer_providers.dart';
 import '../widgets/organizer_shared.dart';
+import '../widgets/organizer_ticket_tier_editor.dart';
+import '../data/organizer_persistence.dart';
 
 class TicketManagementScreen extends ConsumerWidget {
   const TicketManagementScreen({super.key});
@@ -18,15 +19,21 @@ class TicketManagementScreen extends ConsumerWidget {
     final eventAsync = eventId == null ? null : ref.watch(organizerEventProvider(eventId));
 
     return EosPageScaffold(
-      title: 'Ticket management',
-      subtitle: 'Pricing, capacity, sales windows, and visibility',
+      title: 'Tickets',
+      subtitle: 'Create tickets with pricing, capacity, sales windows, and visibility',
       actions: [
-        if (eventId != null)
+        if (eventId != null) ...[
           FilledButton.icon(
-            onPressed: () => context.push('/organizer/events/$eventId?tab=1'),
-            icon: const Icon(Icons.open_in_new, size: 18),
-            label: const Text('Workspace'),
+            onPressed: () => showOrganizerTicketTierEditor(context, ref, eventId: eventId),
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Create ticket'),
           ),
+          OutlinedButton.icon(
+            onPressed: () => context.push('/organizer/events/$eventId?tabKey=tickets'),
+            icon: const Icon(Icons.open_in_new, size: 18),
+            label: const Text('Event workspace'),
+          ),
+        ],
       ],
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -34,11 +41,18 @@ class TicketManagementScreen extends ConsumerWidget {
           const OrganizerEventPicker(),
           SizedBox(height: context.eos.spacing.lg),
           if (eventId == null)
-            EosSurfaceCard(child: Text('Select an event', style: context.eosText.bodyMedium))
+            EosSurfaceCard(
+              child: Text(
+                'Select an event to manage tickets.',
+                style: context.eosText.bodyMedium,
+              ),
+            )
           else
             eventAsync!.when(
               data: (event) {
-                if (event == null) return const Text('Event not found');
+                if (event == null) {
+                  return Text('Event not found', style: context.eosText.bodyMedium);
+                }
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -63,116 +77,161 @@ class TicketManagementScreen extends ConsumerWidget {
                             icon: Icons.payments_outlined,
                           ),
                         ),
+                        SizedBox(
+                          width: 220,
+                          child: EosKpiCard(
+                            title: 'Tiers',
+                            value: '${event.ticketTiers.length}',
+                            icon: Icons.layers_outlined,
+                          ),
+                        ),
                       ],
                     ),
                     SizedBox(height: context.eos.spacing.lg),
-                    EosDataTable(
-                      columns: const [
-                        DataColumn(label: Text('Tier')),
-                        DataColumn(label: Text('Type')),
-                        DataColumn(label: Text('Price')),
-                        DataColumn(label: Text('Sold')),
-                        DataColumn(label: Text('Remaining')),
-                        DataColumn(label: Text('Window')),
-                        DataColumn(label: Text('Visibility')),
-                        DataColumn(label: Text('Status')),
-                      ],
-                      rows: event.ticketTiers.map((t) {
-                        final sold = t.capacity - t.remaining;
-                        final window = t.salesWindowStart == null
-                            ? '—'
-                            : '${t.salesWindowStart!.month}/${t.salesWindowStart!.day}–${t.salesWindowEnd?.month}/${t.salesWindowEnd?.day}';
-                        return DataRow(
-                          cells: [
-                            DataCell(Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(t.name, style: context.eosText.titleSmall),
-                                Text(t.description, style: context.eosText.bodySmall),
-                              ],
-                            )),
-                            DataCell(Text(ticketTierTypeLabel(t.tierType))),
-                            DataCell(Text(ngnFromMinor(t.priceMinor.toString()))),
-                            DataCell(Text('$sold')),
-                            DataCell(Text('${t.remaining}')),
-                            DataCell(Text(window, style: context.eosText.labelSmall)),
-                            DataCell(EosFinanceChip(
-                              label: t.visibility == TicketVisibility.publicListing ? 'public' : 'hidden',
-                              compact: true,
-                            )),
-                            DataCell(EosFinanceChip(
-                              label: t.salesPaused ? 'paused' : (t.remaining == 0 ? 'sold_out' : 'on_sale'),
-                              compact: true,
-                            )),
+                    if (event.ticketTiers.isEmpty)
+                      EosSurfaceCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('No tickets yet', style: context.eosText.titleSmall),
+                            SizedBox(height: context.eos.spacing.xs),
+                            Text(
+                              'Create a ticket to set price, capacity, sales dates, and visibility.',
+                              style: context.eosText.bodyMedium,
+                            ),
+                            SizedBox(height: context.eos.spacing.sm),
+                            FilledButton.icon(
+                              onPressed: () =>
+                                  showOrganizerTicketTierEditor(context, ref, eventId: event.id),
+                              icon: const Icon(Icons.add, size: 18),
+                              label: const Text('Create ticket'),
+                            ),
                           ],
-                        );
-                      }).toList(),
-                    ),
-                    SizedBox(height: context.eos.spacing.md),
-                    OutlinedButton.icon(
-                      onPressed: () => _showAddTier(context, ref, event.id),
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add ticket tier'),
-                    ),
+                        ),
+                      )
+                    else ...[
+                      EosDataTable(
+                        columns: const [
+                          DataColumn(label: Text('Ticket')),
+                          DataColumn(label: Text('Type')),
+                          DataColumn(label: Text('Price')),
+                          DataColumn(label: Text('Sold')),
+                          DataColumn(label: Text('Remaining')),
+                          DataColumn(label: Text('Window')),
+                          DataColumn(label: Text('Visibility')),
+                          DataColumn(label: Text('Status')),
+                          DataColumn(label: Text('')),
+                        ],
+                        rows: event.ticketTiers.map((t) {
+                          final sold = t.capacity - t.remaining;
+                          final window = t.salesWindowStart == null
+                              ? '—'
+                              : '${t.salesWindowStart!.month}/${t.salesWindowStart!.day}–${t.salesWindowEnd?.month}/${t.salesWindowEnd?.day}';
+                          return DataRow(
+                            cells: [
+                              DataCell(
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(t.name, style: context.eosText.titleSmall),
+                                    Text(t.description, style: context.eosText.bodySmall),
+                                  ],
+                                ),
+                              ),
+                              DataCell(Text(ticketTierTypeLabel(t.tierType))),
+                              DataCell(Text(ngnFromMinor(t.priceMinor.toString()))),
+                              DataCell(Text('$sold')),
+                              DataCell(Text(t.unlimitedCapacity ? '∞' : '${t.remaining}')),
+                              DataCell(Text(window, style: context.eosText.labelSmall)),
+                              DataCell(
+                                EosFinanceChip(
+                                  label: t.archived
+                                      ? 'archived'
+                                      : t.visibility == TicketVisibility.publicListing
+                                          ? 'public'
+                                          : 'hidden',
+                                  compact: true,
+                                ),
+                              ),
+                              DataCell(
+                                EosFinanceChip(
+                                  label: t.archived
+                                      ? 'archived'
+                                      : t.salesPaused
+                                          ? 'paused'
+                                          : (t.isSoldOut ? 'sold_out' : 'on_sale'),
+                                  compact: true,
+                                ),
+                              ),
+                              DataCell(
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    TextButton(
+                                      onPressed: () => showOrganizerTicketTierEditor(
+                                        context,
+                                        ref,
+                                        eventId: event.id,
+                                        existing: t,
+                                      ),
+                                      child: const Text('Edit'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () async {
+                                        final ok = await confirmDeleteTicketTier(context, t);
+                                        if (!ok) return;
+                                        try {
+                                          await deleteTicketTier(ref, t);
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('Removed "${t.name}"')),
+                                            );
+                                          }
+                                        } catch (e) {
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('Delete failed: $e')),
+                                            );
+                                          }
+                                        }
+                                      },
+                                      child: const Text('Delete'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                      SizedBox(height: context.eos.spacing.md),
+                      OutlinedButton.icon(
+                        onPressed: () =>
+                            showOrganizerTicketTierEditor(context, ref, eventId: event.id),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Create ticket'),
+                      ),
+                    ],
                   ],
                 );
               },
               loading: () => const CircularProgressIndicator(),
-              error: (e, _) => Text('$e'),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showAddTier(BuildContext context, WidgetRef ref, String eventId) async {
-    final name = TextEditingController(text: 'Early Bird');
-    var tierType = TicketTierType.earlyBird;
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Quick add tier'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            EosTextField(controller: name, label: 'Name'),
-            EosSelectField<TicketTierType>(
-              label: 'Type',
-              value: tierType,
-              items: TicketTierType.values
-                  .map((t) => DropdownMenuItem(value: t, child: Text(ticketTierTypeLabel(t))))
-                  .toList(),
-              onChanged: (v) => tierType = v ?? tierType,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () async {
-              await addTicketTier(
-                ref,
-                eventId,
-                OrganizerTicketTier(
-                  id: 'tier_${DateTime.now().millisecondsSinceEpoch}',
-                  name: name.text.trim(),
-                  description: ticketTierTypeLabel(tierType),
-                  priceMinor: 1000000,
-                  currency: 'NGN',
-                  capacity: 100,
-                  remaining: 100,
-                  tierType: tierType,
-                  salesWindowStart: DateTime.now(),
-                  salesWindowEnd: DateTime.now().add(const Duration(days: 30)),
+              error: (e, _) => EosSurfaceCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Could not load tickets', style: context.eosText.titleSmall),
+                    Text('$e', style: context.eosText.bodySmall),
+                    OutlinedButton(
+                      onPressed: () => ref.invalidate(organizerEventProvider(eventId)),
+                      child: const Text('Retry'),
+                    ),
+                  ],
                 ),
-              );
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: const Text('Add'),
-          ),
+              ),
+            ),
         ],
       ),
     );
-    name.dispose();
   }
 }

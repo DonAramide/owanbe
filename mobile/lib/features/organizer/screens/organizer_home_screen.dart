@@ -10,6 +10,7 @@ import '../../../features/workspace/widgets/workspace_experience_shell.dart';
 import '../../../portals/customer/router/customer_routes.dart';
 import '../../../theme/theme_mode_provider.dart';
 import '../../operations/screens/operations_shell.dart';
+import '../providers/organizer_event_list_filters.dart';
 import '../providers/organizer_providers.dart';
 import 'attendee_management_screen.dart';
 import 'event_analytics_screen.dart';
@@ -18,6 +19,9 @@ import 'organizer_dashboard_screen.dart';
 import 'organizer_profile_edit_sheet.dart';
 import 'ticket_management_screen.dart';
 import 'vendor_management_screen.dart';
+import '../team/organization_team_screen.dart';
+import '../automation/automations_screen.dart';
+import '../marketing/marketing_screen.dart';
 
 class OrganizerHomeScreen extends ConsumerWidget {
   const OrganizerHomeScreen({super.key});
@@ -30,22 +34,22 @@ class OrganizerHomeScreen extends ConsumerWidget {
     return WorkspaceExperienceShell(
       workspace: ExperienceWorkspace.organizer,
       child: EosAppShell(
-      brandLabel: 'Owambe',
-      brandSubtitle: 'Organizer Workspace',
-      destinations: EosRoleDestinations.organizer,
-      selectedIndex: tab,
-      onSelected: (v) => ref.read(organizerShellTabProvider.notifier).select(v),
-      topBar: _OrganizerTopBar(
-        name: session?.displayName ?? 'Organizer',
-        onCreateEvent: () => context.push('/organizer/events/new'),
-        onBrowseMarketplace: () => context.push(CustomerRoutes.vendors),
-        onEditProfile: () => showOrganizerProfileEditor(context, ref),
-        onSignOut: () {
-          ref.read(authSessionProvider.notifier).signOut();
-          context.go(ExperienceNavigation.afterSignOut());
-        },
-      ),
-      body: _bodyForTab(tab),
+        brandLabel: 'Owambe',
+        brandSubtitle: 'Organizer Workspace',
+        destinations: EosRoleDestinations.organizer,
+        selectedIndex: tab,
+        onSelected: (v) => ref.read(organizerShellTabProvider.notifier).select(v),
+        topBar: _OrganizerTopBar(
+          name: session?.displayName ?? 'Organizer',
+          onCreateEvent: () => context.push('/organizer/events/new'),
+          onBrowseMarketplace: () => context.push(CustomerRoutes.vendors),
+          onEditProfile: () => showOrganizerProfileEditor(context, ref),
+          onSignOut: () {
+            ref.read(authSessionProvider.notifier).signOut();
+            context.go(ExperienceNavigation.afterSignOut());
+          },
+        ),
+        body: _bodyForTab(tab),
       ),
     );
   }
@@ -58,6 +62,9 @@ class OrganizerHomeScreen extends ConsumerWidget {
         4 => const AttendeeManagementScreen(),
         5 => const EventAnalyticsScreen(),
         6 => const OperationsShell(),
+        7 => const OrganizationTeamScreen(),
+        8 => const AutomationsScreen(),
+        9 => const MarketingScreen(),
         _ => const OrganizerDashboardScreen(),
       };
 }
@@ -80,43 +87,46 @@ class _OrganizerTopBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = ref.watch(themeModeProvider) == ThemeMode.dark;
-    return Material(
-      color: context.eosColors.surface,
-      child: DecoratedBox(
-        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.eosColors.outlineVariant))),
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: context.eos.spacing.lg, vertical: context.eos.spacing.sm),
-          child: Row(
-            children: [
-              Expanded(child: EosSearchField(hint: 'Search events, vendors, attendees…')),
-              SizedBox(width: context.eos.spacing.sm),
-              OutlinedButton.icon(
-                onPressed: onBrowseMarketplace,
-                icon: const Icon(Icons.storefront_outlined, size: 18),
-                label: const Text('Marketplace'),
-              ),
-              SizedBox(width: context.eos.spacing.sm),
-              FilledButton.icon(
-                onPressed: onCreateEvent,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Create event'),
-              ),
-              SizedBox(width: context.eos.spacing.sm),
-              IconButton(
-                tooltip: 'Edit Organizer Profile',
-                onPressed: onEditProfile,
-                icon: const Icon(Icons.manage_accounts_outlined),
-              ),
-              IconButton(
-                tooltip: isDark ? 'Switch to light mode' : 'Switch to dark mode',
-                onPressed: () => ref.read(themeModeProvider.notifier).toggleLightDark(),
-                icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
-              ),
-              const WorkspaceContextActions(),
-              IconButton(onPressed: onSignOut, icon: const Icon(Icons.logout)),
-            ],
-          ),
+    return EosAdaptiveTopBarChrome(
+      search: EosSearchField(
+        hint: 'Search events, vendors, attendees…',
+        onChanged: (v) => ref.read(organizerEventSearchQueryProvider.notifier).state = v,
+        onSubmitted: (v) {
+          ref.read(organizerEventSearchQueryProvider.notifier).state = v;
+          ref.read(organizerShellTabProvider.notifier).select(1);
+        },
+      ),
+      primaryActions: [
+        EosAdaptiveChromeAction(
+          label: 'Marketplace',
+          icon: Icons.storefront_outlined,
+          onPressed: onBrowseMarketplace,
         ),
+        EosAdaptiveChromeAction(
+          label: 'Create event',
+          icon: Icons.add,
+          onPressed: onCreateEvent,
+          filled: true,
+        ),
+      ],
+      iconActions: [
+        IconButton(
+          tooltip: 'Edit Organizer Profile',
+          onPressed: onEditProfile,
+          icon: const Icon(Icons.manage_accounts_outlined),
+        ),
+        IconButton(
+          tooltip: isDark ? 'Switch to light mode' : 'Switch to dark mode',
+          onPressed: () => ref.read(themeModeProvider.notifier).toggleLightDark(),
+          icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+        ),
+      ],
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const WorkspaceContextActions(),
+          IconButton(tooltip: 'Sign out ($name)', onPressed: onSignOut, icon: const Icon(Icons.logout)),
+        ],
       ),
     );
   }

@@ -20,7 +20,14 @@ class LiveOpsEventPicker extends ConsumerWidget {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Text('$e'),
       data: (events) {
-        if (events.isEmpty) {
+        // DropdownButton requires unique item values; also drop stale selection.
+        final seen = <String>{};
+        final unique = <OrganizerEvent>[
+          for (final e in events)
+            if (seen.add(e.id)) e,
+        ];
+
+        if (unique.isEmpty) {
           return EosAttentionBanner(
             headline: 'No live events',
             message: 'Publish an event and tap Go live from Events to open the command center.',
@@ -30,14 +37,17 @@ class LiveOpsEventPicker extends ConsumerWidget {
           );
         }
 
-        final value = selected ?? events.first.id;
-        if (selected == null) {
+        final selectedInList = selected != null && unique.any((e) => e.id == selected);
+        final value = selectedInList ? selected! : unique.first.id;
+        if (selected != value) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            ref.read(liveOpsEventIdProvider.notifier).state = events.first.id;
+            if (ref.read(liveOpsEventIdProvider) != value) {
+              ref.read(liveOpsEventIdProvider.notifier).state = value;
+            }
           });
         }
 
-        final event = events.firstWhere((e) => e.id == value, orElse: () => events.first);
+        final event = unique.firstWhere((e) => e.id == value);
         final isLive = event.status == OrganizerEventStatus.live;
 
         return EosSurfaceCard(
@@ -50,7 +60,7 @@ class LiveOpsEventPicker extends ConsumerWidget {
                   label: 'Live event',
                   value: value,
                   items: [
-                    for (final e in events)
+                    for (final e in unique)
                       DropdownMenuItem(
                         value: e.id,
                         child: Text(
@@ -131,6 +141,8 @@ class OpsGuestCard extends StatelessWidget {
                   label: guest.tier == GuestTier.vvip ? 'vvip' : 'vip',
                   compact: true,
                 ),
+              SizedBox(width: context.eos.spacing.xs),
+              EosFinanceChip(label: guest.doorStatusLabel, compact: true),
               SizedBox(width: context.eos.spacing.xs),
               EosCheckinStatus(
                 checkedIn: guest.checkedIn,
@@ -256,6 +268,8 @@ class QrScanResultPanel extends StatelessWidget {
       QrScanResult.vvip => (EosColors.champagne, Icons.diamond_outlined),
       QrScanResult.alreadyUsed => (EosColors.warning, Icons.info_outline),
       QrScanResult.expired => (EosColors.warning, Icons.schedule),
+      QrScanResult.cancelled => (EosColors.critical, Icons.block),
+      QrScanResult.offline => (EosColors.warning, Icons.wifi_off),
       QrScanResult.invalid => (EosColors.critical, Icons.cancel_outlined),
     };
 
@@ -392,10 +406,14 @@ List<OpsGuest> filterGuests(List<OpsGuest> guests, CheckInFilter filter) => swit
 
 IconData feedIcon(FeedEventType type) => switch (type) {
       FeedEventType.guestCheckedIn => Icons.qr_code_scanner,
+      FeedEventType.invitationArrival => Icons.mail_outline,
+      FeedEventType.checkInDuplicate => Icons.copy_all_outlined,
+      FeedEventType.checkInInvalid => Icons.block,
       FeedEventType.vendorJoined => Icons.storefront_outlined,
       FeedEventType.orderPlaced => Icons.receipt_long_outlined,
       FeedEventType.refundRequested => Icons.undo,
       FeedEventType.incidentLogged => Icons.report_problem_outlined,
+      FeedEventType.incidentUpdated => Icons.update,
       FeedEventType.wallPost => Icons.forum_outlined,
       FeedEventType.wallPinned => Icons.push_pin_outlined,
     };

@@ -15,12 +15,21 @@ class RequestVendorSheet extends ConsumerStatefulWidget {
     super.key,
     required this.vendor,
     this.lockedEventId,
+    this.serviceCategory,
+    this.serviceKey,
+    this.vendorServiceId,
   });
 
   final MarketplaceVendor vendor;
 
   /// When set (Event Desktop marketplace), the request is bound to this event — no picker.
   final String? lockedEventId;
+
+  /// Planning / marketplace category for this request (e.g. Catering, DJ).
+  final String? serviceCategory;
+
+  final String? serviceKey;
+  final String? vendorServiceId;
 
   @override
   ConsumerState<RequestVendorSheet> createState() => _RequestVendorSheetState();
@@ -50,12 +59,19 @@ class _RequestVendorSheetState extends ConsumerState<RequestVendorSheet> {
     if (_eventId == null) return;
     setState(() => _submitting = true);
     try {
+      final label = widget.serviceCategory?.trim().isNotEmpty == true
+          ? widget.serviceCategory!.trim()
+          : (widget.vendor.categoryLabel.isNotEmpty
+              ? widget.vendor.categoryLabel
+              : widget.vendor.slug);
       await inviteVendorToEvent(
         ref,
         _eventId!,
         widget.vendor,
         message: _messageController.text.trim(),
-        serviceLabel: widget.vendor.slug,
+        serviceLabel: label,
+        serviceKey: widget.serviceKey,
+        vendorServiceId: widget.vendorServiceId,
       );
       if (!mounted) return;
       Navigator.pop(context, true);
@@ -74,6 +90,7 @@ class _RequestVendorSheetState extends ConsumerState<RequestVendorSheet> {
     final events = ref.watch(customerOwnedEventsProvider);
     final lockedEventId = widget.lockedEventId;
     final isEventLocked = lockedEventId != null && lockedEventId.isNotEmpty;
+    final serviceName = widget.serviceCategory?.trim();
 
     return Padding(
       padding: EdgeInsets.only(
@@ -86,10 +103,17 @@ class _RequestVendorSheetState extends ConsumerState<RequestVendorSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Request ${widget.vendor.businessName}', style: context.eosText.titleLarge),
+          Text(
+            serviceName != null && serviceName.isNotEmpty
+                ? 'Request $serviceName'
+                : 'Request ${widget.vendor.businessName}',
+            style: context.eosText.titleLarge,
+          ),
           SizedBox(height: context.eos.spacing.xs),
           Text(
-            'Send a vendor request for your celebration.',
+            serviceName != null && serviceName.isNotEmpty
+                ? 'Send a ${widget.vendor.businessName} request for $serviceName.'
+                : 'Send a vendor request for your celebration.',
             style: context.eosText.bodySmall,
           ),
           SizedBox(height: context.eos.spacing.md),
@@ -141,7 +165,13 @@ class _RequestVendorSheetState extends ConsumerState<RequestVendorSheet> {
           SizedBox(height: context.eos.spacing.lg),
           FilledButton(
             onPressed: _submitting || _eventId == null ? null : _submit,
-            child: Text(_submitting ? 'Sending…' : 'Send request'),
+            child: Text(
+              _submitting
+                  ? 'Sending…'
+                  : (serviceName != null && serviceName.isNotEmpty
+                      ? 'Request $serviceName'
+                      : 'Send request'),
+            ),
           ),
         ],
       ),

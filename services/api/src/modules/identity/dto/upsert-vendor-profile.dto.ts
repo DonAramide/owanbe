@@ -29,6 +29,17 @@ export class VendorVerificationDocumentDto {
   uploadedAt?: string;
 }
 
+/** Per-service vendor/base payout (minor units) — authoritative commercial price. */
+export class VendorServicePriceDto {
+  @IsString()
+  @MaxLength(80)
+  name!: string;
+
+  @IsInt()
+  @Min(0)
+  basePayoutMinor!: number;
+}
+
 /** Vendor workspace profile only — never writes `users` global profile columns. */
 export class UpsertVendorProfileDto {
   @IsOptional()
@@ -69,6 +80,14 @@ export class UpsertVendorProfileDto {
   @IsString({ each: true })
   @MaxLength(80, { each: true })
   servicesOffered?: string[];
+
+  /** Authoritative per-service base payouts (synced onto vendor_services.base_payout_minor). */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(48)
+  @ValidateNested({ each: true })
+  @Type(() => VendorServicePriceDto)
+  servicePrices?: VendorServicePriceDto[];
 
   @IsOptional()
   @IsArray()

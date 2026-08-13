@@ -6,6 +6,8 @@ import { LedgerService } from '../payments/ledger.service';
 import { FinanceStateService } from '../payments/finance-state.service';
 import { NotificationService } from '../../integrations/notifications/notification.service';
 import { MetricsService } from '../../integrations/observability/metrics.service';
+import { DomainEventsService } from '../domain-events/domain-events.service';
+import { DOMAIN_EVENTS } from '../domain-events/domain-event.types';
 
 export interface TicketCaptureResult {
   ok: boolean;
@@ -22,6 +24,7 @@ export class TicketCaptureService {
     private readonly financeState: FinanceStateService,
     private readonly notifications: NotificationService,
     private readonly metrics: MetricsService,
+    private readonly domainEvents: DomainEventsService,
   ) {}
 
   async applyCapture(
@@ -276,6 +279,22 @@ export class TicketCaptureService {
         eventTitle: row.title,
         ticketCode: row.ticket_code,
         tierName: row.tier_name,
+      });
+      const org = await this.pool.query<{ organizer_id: string }>(
+        `SELECT organizer_id FROM events WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [eventId, tenantId],
+      );
+      this.domainEvents.emit(DOMAIN_EVENTS.TICKET_ISSUED, {
+        tenantId,
+        organizerId: org.rows[0]?.organizer_id,
+        eventId,
+        entityId: orderId,
+        data: {
+          ticketCode: row.ticket_code,
+          tierName: row.tier_name,
+          eventTitle: row.title,
+          summary: `Ticket issued for ${row.title}`,
+        },
       });
     } catch {
       /* non-blocking */

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/auth_notifier.dart';
 import '../../../auth/auth_session.dart';
 import 'organizer_finance_api.dart';
+
 final organizerFinanceApiProvider = Provider<OrganizerFinanceApi>((ref) => OrganizerFinanceApi());
 
 final organizerEventFinanceSummaryProvider =
@@ -16,6 +17,31 @@ final organizerEventFinanceTransactionsProvider =
   final session = ref.watch(authSessionProvider);
   return ref.read(organizerFinanceApiProvider).fetchEventTransactions(eventId: eventId, session: session);
 });
+
+final organizerEventFinanceRefundsProvider =
+    FutureProvider.autoDispose.family<List<OrganizerRefundCase>, String>((ref, eventId) async {
+  final session = ref.watch(authSessionProvider);
+  return ref.read(organizerFinanceApiProvider).fetchEventRefunds(eventId: eventId, session: session);
+});
+
+final organizerEventFinancePayoutsProvider =
+    FutureProvider.autoDispose.family<List<OrganizerPayoutItem>, String>((ref, eventId) async {
+  final session = ref.watch(authSessionProvider);
+  return ref.read(organizerFinanceApiProvider).fetchEventPayouts(eventId: eventId, session: session);
+});
+
+final organizerFinanceHubProvider = FutureProvider.autoDispose<OrganizerFinanceHub>((ref) async {
+  final session = ref.watch(authSessionProvider);
+  return ref.read(organizerFinanceApiProvider).fetchFinanceHub(session: session);
+});
+
+void invalidateEventFinance(WidgetRef ref, String eventId) {
+  ref.invalidate(organizerEventFinanceSummaryProvider(eventId));
+  ref.invalidate(organizerEventFinanceTransactionsProvider(eventId));
+  ref.invalidate(organizerEventFinanceRefundsProvider(eventId));
+  ref.invalidate(organizerEventFinancePayoutsProvider(eventId));
+  ref.invalidate(organizerFinanceHubProvider);
+}
 
 class OrganizerPayoutState {
   const OrganizerPayoutState({this.loading = false, this.error, this.lastSuccess});

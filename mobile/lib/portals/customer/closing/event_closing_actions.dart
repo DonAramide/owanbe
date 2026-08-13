@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/money.dart';
 import '../../../features/organizer/models/organizer_models.dart';
+import '../../../shared/models/event_access_mode.dart';
 import '../models/customer_event_models.dart';
 import 'event_closing_models.dart';
 
@@ -43,9 +44,11 @@ EventWizardV2Draft buildDuplicateEventDraft({
   final duration = event.endsAt.difference(event.startsAt);
 
   return EventWizardV2Draft(
+    categorySlug: event.category.toLowerCase().replaceAll(' ', '-'),
     categoryLabel: event.category,
     title: '${event.title}$suffix',
     tagline: event.tagline,
+    description: event.description,
     city: event.city,
     venueName: event.venueName.isNotEmpty ? event.venueName : event.venue,
     venueAddress: event.venue,
@@ -55,7 +58,7 @@ EventWizardV2Draft buildDuplicateEventDraft({
     expectedGuests: event.expectedGuests > 0 ? event.expectedGuests : workspace.summary.guestsInvited,
     tags: event.tags,
     startsAt: nextYear,
-    endsAt: nextYear.add(duration),
+    endsAt: nextYear.add(duration.isNegative ? const Duration(hours: 6) : duration),
     ticketTiers: [
       for (final tier in event.ticketTiers)
         OrganizerTicketTier(
@@ -79,6 +82,9 @@ EventWizardV2Draft buildDuplicateEventDraft({
     ],
     celebrantImageUrl: event.celebrantImageUrl,
     eventAccessMode: event.eventAccessMode,
+    listingVisibility:
+        event.eventAccessMode == EventAccessMode.publicTicketed ? 'public' : 'invite_only',
+    bannerLabel: event.bannerLabel.isNotEmpty ? event.bannerLabel : 'Default banner',
   );
 }
 

@@ -23,7 +23,14 @@ async function bootstrap() {
       ? (process.env.CORS_ORIGINS ?? '').split(',').filter(Boolean)
       : true,
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-Id', 'Accept'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Tenant-Id',
+      'Accept',
+      'Idempotency-Key',
+      'idempotency-key',
+    ],
   });
   app.setGlobalPrefix('v1', {
     exclude: [

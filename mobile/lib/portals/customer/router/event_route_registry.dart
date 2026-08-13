@@ -35,10 +35,21 @@ abstract final class EventRouteRegistry {
 
   static String vendorDetail(String vendorId) => '/vendors/$vendorId';
 
-  static String vendorDetailForEvent(String vendorId, {String? eventId}) {
+  static String vendorDetailForEvent(
+    String vendorId, {
+    String? eventId,
+    String? service,
+  }) {
     final base = vendorDetail(vendorId);
-    if (eventId == null || eventId.isEmpty) return base;
-    return '$base?eventId=${Uri.encodeComponent(eventId)}';
+    final params = <String, String>{};
+    if (eventId != null && eventId.isNotEmpty) {
+      params['eventId'] = eventId;
+    }
+    if (service != null && service.trim().isNotEmpty && service.trim() != 'All') {
+      params['service'] = service.trim();
+    }
+    if (params.isEmpty) return base;
+    return Uri(path: base, queryParameters: params).toString();
   }
 
   // — Event hub & modules —

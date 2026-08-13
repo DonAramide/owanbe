@@ -9,6 +9,8 @@ import '../../../eos/layout/workspace/workspace_widgets.dart';
 import '../../../eos/security/security_engine.dart';
 import '../../../platform/identity/identity_mfa_provider.dart';
 import '../../../platform/identity/identity_mfa_models.dart';
+import '../../../core/api/identity_security_api.dart';
+import '../../admin/platform/compliance_providers.dart';
 
 class Security360WorkspaceScreen extends ConsumerStatefulWidget {
   const Security360WorkspaceScreen({super.key, required this.securityId});
@@ -551,75 +553,58 @@ class _AuthTabBridge extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final mfaState = ref.watch(identityMfaProvider);
-    final users = mfaState.configs.values.toList();
-    final totalUsers = users.length;
-    final mfaEnabledCount = users.where((u) => u.isMfaEnabled).length;
-    final mfaAdoptionRate = totalUsers == 0 ? 0.0 : (mfaEnabledCount / totalUsers) * 100;
-    
-    final activeSessionsCount = users.fold<int>(0, (sum, u) => sum + u.activeSessionsCount);
-    final lockedAccountsCount = users.where((u) => u.isLocked).length;
-    final trustedDevicesCount = users.fold<int>(0, (sum, u) => sum + u.trustedDevicesCount);
+    final center = ref.watch(identitySecurityCenterProvider);
+    final mfa = ref.watch(identityMfaProvider);
 
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        Text('Platform Access Authentication Logs', style: context.eosText.titleMedium),
-        const SizedBox(height: 12),
-        EosDataTable(
-          columns: const [
-            DataColumn(label: Text('Timestamp')),
-            DataColumn(label: Text('User ID')),
-            DataColumn(label: Text('Event Type')),
-            DataColumn(label: Text('IP Address')),
-            DataColumn(label: Text('Details')),
-          ],
-          onRowTap: (idx) {
-            final log = mfaState.logs[idx];
-            EntityEngine.open(context, ref, log.userId, fallbackType: WorkspaceEntityType.user);
-          },
-          rows: [
-            for (final log in mfaState.logs)
-              DataRow(cells: [
-                DataCell(Text(log.timestamp)),
-                DataCell(Text(log.userId)),
-                DataCell(EosFinanceChip(label: log.eventType, compact: true)),
-                DataCell(Text(log.ipAddress)),
-                DataCell(Text(log.details)),
-              ]),
-          ],
+        Text('Authentication & MFA', style: context.eosText.titleMedium),
+        const SizedBox(height: 8),
+        Text(
+          'Nest/Supabase MFA status — seeded MFA theater removed as source of truth.',
+          style: context.eosText.bodySmall,
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
         EosSurfaceCard(
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Authentication Engine Statistics', style: context.eosText.titleMedium),
-                const Divider(height: 24),
-                _buildStatRow(context, 'MFA Enrollment Adoption Rate', '${mfaAdoptionRate.toStringAsFixed(1)}%'),
-                _buildStatRow(context, 'Total Active Telemetry Sessions', '$activeSessionsCount active'),
-                _buildStatRow(context, 'Compromise Lockouts (Active)', '$lockedAccountsCount locked'),
-                _buildStatRow(context, 'Trusted Workstations Registered', '$trustedDevicesCount workstations'),
+                Text('Current user MFA enrolled: ${mfa.rawStatus?['enrolled'] == true}'),
+                Text('Factors available: ${mfa.rawStatus?['available'] != false}'),
+                if (mfa.error != null) Text('Error: ${mfa.error}'),
+                if (mfa.rawStatus?['reason'] != null) Text('${mfa.rawStatus?['reason']}'),
               ],
             ),
           ),
         ),
+        const SizedBox(height: 16),
+        center.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (e, _) => Text('Security events unavailable: $e'),
+          data: (d) {
+            final login = (d['loginActivity'] as List<dynamic>? ?? const [])
+                .cast<Map<String, dynamic>>();
+            return EosDataTable(
+              columns: const [
+                DataColumn(label: Text('Event')),
+                DataColumn(label: Text('Actor')),
+                DataColumn(label: Text('When')),
+              ],
+              rows: [
+                for (final e in login.take(20))
+                  DataRow(cells: [
+                    DataCell(Text('${e['eventType']}')),
+                    DataCell(Text('${e['actorUserId'] ?? ''}')),
+                    DataCell(Text('${e['timestamp'] ?? ''}')),
+                  ]),
+              ],
+            );
+          },
+        ),
       ],
-    );
-  }
-
-  Widget _buildStatRow(BuildContext context, String label, String val) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: context.eosText.bodyMedium),
-          Text(val, style: context.eosText.labelMedium?.copyWith(fontWeight: FontWeight.bold)),
-        ],
-      ),
     );
   }
 }
@@ -729,46 +714,118 @@ class _FraudTabBridge extends StatelessWidget {
   }
 }
 
-class _ComplianceTabBridge extends StatelessWidget {
+class _ComplianceTabBridge extends ConsumerWidget {
   const _ComplianceTabBridge({required this.securityId});
   final String securityId;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dash = ref.watch(complianceDashboardProvider);
+    final activity = ref.watch(complianceActivityProvider);
+
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        Text('Regulatory Compliance Alignments', style: context.eosText.titleMedium),
-        const SizedBox(height: 12),
-        EosDataTable(
-          columns: const [
-            DataColumn(label: Text('Standard')),
-            DataColumn(label: Text('Alignment Score')),
-            DataColumn(label: Text('Status')),
-          ],
-          rows: [
-            for (final c in SecurityEngine.complianceMetrics)
-              DataRow(cells: [
-                DataCell(Text(c.standard)),
-                DataCell(Text('${c.score}%')),
-                DataCell(EosFinanceChip(label: c.status, compact: true)),
-              ]),
-          ],
+        Text('Data governance status', style: context.eosText.titleMedium),
+        const SizedBox(height: 8),
+        Text(
+          'Live Nest /compliance dashboard (Phase 27). Cosmetic SecurityEngine scores removed.',
+          style: context.eosText.bodySmall?.copyWith(color: context.eosColors.onSurfaceVariant),
         ),
-        const SizedBox(height: 24),
-        EosSurfaceCard(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('User Data Retention & Deletion Requests', style: context.eosText.titleMedium),
-                const Divider(height: 24),
-                const Text('Data Retention Limit: 7 Years (GDPR / NDPR standard compliant)'),
-                const Text('Pending Deletion Queue: 0 active requests'),
-              ],
+        const SizedBox(height: 16),
+        dash.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => EosSurfaceCard(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Compliance API unavailable', style: context.eosText.titleSmall),
+                  const SizedBox(height: 8),
+                  Text('$e'),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Requires admin tier + tenant.manage. Full operations live under Admin → Compliance.',
+                  ),
+                  TextButton(
+                    onPressed: () => ref.invalidate(complianceDashboardProvider),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
             ),
           ),
+          data: (d) {
+            final pending = (d['pendingDeletions'] as num?)?.toInt() ?? 0;
+            final gov = d['governanceStatus'] as Map<String, dynamic>? ?? {};
+            final retention = d['retention'] as Map<String, dynamic>?;
+            final cats = (retention?['categories'] as List<dynamic>? ?? const [])
+                .cast<Map<String, dynamic>>();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                EosSurfaceCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Retention configured: ${gov['retentionConfigured'] == true ? 'Yes' : 'No'}',
+                        ),
+                        Text('Open deletion queue: $pending'),
+                        Text('Export statuses: ${d['exportByStatus']}'),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('Retention categories', style: context.eosText.titleSmall),
+                const SizedBox(height: 8),
+                EosDataTable(
+                  columns: const [
+                    DataColumn(label: Text('Category')),
+                    DataColumn(label: Text('Days')),
+                  ],
+                  rows: [
+                    for (final c in cats)
+                      DataRow(cells: [
+                        DataCell(Text('${c['label'] ?? c['id']}')),
+                        DataCell(Text('${c['retentionDays']}')),
+                      ]),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Text('Recent compliance activity', style: context.eosText.titleSmall),
+                const SizedBox(height: 8),
+                activity.when(
+                  loading: () => const LinearProgressIndicator(),
+                  error: (_, __) => const Text('Activity unavailable'),
+                  data: (items) {
+                    if (items.isEmpty) {
+                      return const Text('No compliance.* audit events yet');
+                    }
+                    return EosDataTable(
+                      columns: const [
+                        DataColumn(label: Text('Action')),
+                        DataColumn(label: Text('Resource')),
+                        DataColumn(label: Text('When')),
+                      ],
+                      rows: [
+                        for (final a in items.take(15))
+                          DataRow(cells: [
+                            DataCell(Text('${a['action']}')),
+                            DataCell(Text('${a['resourceType']}')),
+                            DataCell(Text('${a['createdAt'] ?? ''}')),
+                          ]),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            );
+          },
         ),
       ],
     );

@@ -64,6 +64,34 @@ export class TicketPaymentsService {
     ticketOrderId: string,
     idempotencyHeader?: string,
   ): Promise<CreateTicketPaymentResult> {
+    // Free fulfill short-circuit before payment-rail gates.
+    const freeCheck = await this.pool.query<{
+      status: string;
+      currency: string;
+      total_minor: string;
+    }>(
+      `SELECT status::text, currency, total_minor::text
+       FROM ticket_orders WHERE id = $1 AND tenant_id = $2`,
+      [ticketOrderId, tenantId],
+    );
+    const freeOrder = freeCheck.rows[0];
+    if (freeOrder?.status === 'fulfilled' && freeOrder.total_minor === '0') {
+      const entitlements = await this.loadEntitlements(tenantId, ticketOrderId);
+      return {
+        payment: {
+          id: `free_${ticketOrderId}`,
+          ticketOrderId,
+          status: 'captured',
+          currency: freeOrder.currency,
+          amountExpectedMinor: '0',
+          quaserReference: null,
+        },
+        quaser: {},
+        capture: { ok: true, reason: 'free_order' },
+        entitlements,
+      };
+    }
+
     await this.financeState.ensurePaymentsAllowed();
 
     if (!this.integrations.allowPaymentStubs() && !this.integrations.isQuaserConfigured()) {
@@ -115,6 +143,25 @@ export class TicketPaymentsService {
       if (!order) {
         throw new UnprocessableEntityException({ code: 'ORDER_NOT_FOUND', message: 'Ticket order not found' });
       }
+
+      if (order.status === 'fulfilled' && order.total_minor === '0') {
+        await client.query('COMMIT');
+        const entitlements = await this.loadEntitlements(tenantId, ticketOrderId);
+        return {
+          payment: {
+            id: `free_${ticketOrderId}`,
+            ticketOrderId,
+            status: 'captured',
+            currency: order.currency,
+            amountExpectedMinor: '0',
+            quaserReference: null,
+          },
+          quaser: {},
+          capture: { ok: true, reason: 'free_order' },
+          entitlements,
+        };
+      }
+
       if (order.status !== 'pending_payment') {
         throw new UnprocessableEntityException({
           code: 'ORDER_NOT_PAYABLE',

@@ -26,52 +26,59 @@ class AdminTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: context.eosColors.surface,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: context.eosColors.outlineVariant)),
-          boxShadow: context.eos.shadowSoft,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: EosSpacing.lg, vertical: EosSpacing.sm),
-          child: Row(
-            children: [
-              Expanded(
-                child: EosSearchField(
-                  hint: 'Search organizers, events, vendors…',
-                  onChanged: onSearch,
-                ),
+    final compact = EosAdaptive.isCompact(context);
+
+    return EosAdaptiveTopBarChrome(
+      search: EosSearchField(
+        hint: 'Search organizers, events, vendors…',
+        onChanged: onSearch,
+      ),
+      primaryActions: compact
+          ? [
+              EosAdaptiveChromeAction(
+                label: 'Environment: $environmentLabel',
+                icon: Icons.cloud_outlined,
+                onPressed: () {},
               ),
-              SizedBox(width: context.eos.spacing.md),
-              IconButton(tooltip: 'Notifications', onPressed: () {}, icon: const Icon(Icons.notifications_outlined)),
-              _EnvironmentBadge(label: environmentLabel),
-              SizedBox(width: context.eos.spacing.sm),
-              financeState.when(
-                data: (state) => Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    FinanceStatusChip(label: state, compact: true),
-                    SizedBox(width: context.eos.spacing.xs),
-                    DropdownButton<String>(
-                      value: state,
-                      underline: const SizedBox.shrink(),
-                      items: const [
-                        DropdownMenuItem(value: 'normal', child: Text('NORMAL')),
-                        DropdownMenuItem(value: 'restricted', child: Text('RESTRICTED')),
-                        DropdownMenuItem(value: 'frozen', child: Text('FROZEN')),
-                      ],
-                      onChanged: (v) async {
-                        if (v != null) await onSetFinanceState(v);
-                      },
-                    ),
+            ]
+          : const [],
+      iconActions: [
+        IconButton(tooltip: 'Notifications', onPressed: () {}, icon: const Icon(Icons.notifications_outlined)),
+        if (!compact) ...[
+          _EnvironmentBadge(label: environmentLabel),
+          SizedBox(width: context.eos.spacing.sm),
+          financeState.when(
+            data: (state) => Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FinanceStatusChip(label: state, compact: true),
+                SizedBox(width: context.eos.spacing.xs),
+                DropdownButton<String>(
+                  value: state,
+                  underline: const SizedBox.shrink(),
+                  items: const [
+                    DropdownMenuItem(value: 'normal', child: Text('NORMAL')),
+                    DropdownMenuItem(value: 'restricted', child: Text('RESTRICTED')),
+                    DropdownMenuItem(value: 'frozen', child: Text('FROZEN')),
                   ],
+                  onChanged: (v) async {
+                    if (v != null) await onSetFinanceState(v);
+                  },
                 ),
-                loading: () => const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
-                error: (_, _) => const Icon(Icons.error_outline, size: 20),
-              ),
-              SizedBox(width: context.eos.spacing.md),
-              Column(
+              ],
+            ),
+            loading: () => const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+            error: (_, _) => const Icon(Icons.error_outline, size: 20),
+          ),
+        ],
+      ],
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (!compact)
+            Padding(
+              padding: EdgeInsets.only(right: context.eos.spacing.sm),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -79,10 +86,9 @@ class AdminTopBar extends StatelessWidget {
                   Text(roleLabel, style: context.eosText.labelSmall?.copyWith(color: context.eosColors.onSurfaceVariant)),
                 ],
               ),
-              IconButton(tooltip: 'Sign out', onPressed: onSignOut, icon: const Icon(Icons.logout)),
-            ],
-          ),
-        ),
+            ),
+          IconButton(tooltip: 'Sign out', onPressed: onSignOut, icon: const Icon(Icons.logout)),
+        ],
       ),
     );
   }

@@ -162,68 +162,6 @@ class OrganizerEventStore {
     return items;
   }
 
-  EventAnalyticsSnapshot analyticsFor(String eventId) {
-    final e = byId(eventId);
-    if (e == null) {
-      return EventAnalyticsSnapshot(
-        eventId: eventId,
-        pageViews: 0,
-        ticketsSold: 0,
-        revenueMinor: 0,
-        checkInRate: 0,
-        registrations: 0,
-        checkIns: 0,
-        noShows: 0,
-        dailySales: const [0, 0, 0, 0, 0, 0, 0],
-        weeklySales: const [0, 0, 0, 0],
-        monthlySales: const [0, 0, 0],
-        salesTrend: const [0, 0, 0, 0, 0, 0, 0],
-        tierBreakdown: const {},
-        tierTypeBreakdown: const {},
-      );
-    }
-    final sold = e.ticketsSold;
-    final checkIn = e.attendees.isEmpty ? 0.0 : e.checkedInCount / e.attendees.length;
-    final breakdown = {for (final t in e.ticketTiers) t.name: t.capacity - t.remaining};
-    final typeBreakdown = <TicketTierType, int>{};
-    for (final t in e.ticketTiers) {
-      typeBreakdown[t.tierType] = (typeBreakdown[t.tierType] ?? 0) + (t.capacity - t.remaining);
-    }
-    final trend = _syntheticTrend(sold);
-    return EventAnalyticsSnapshot(
-      eventId: eventId,
-      pageViews: e.pageViews + sold * 3,
-      ticketsSold: sold,
-      revenueMinor: e.revenueMinor,
-      checkInRate: checkIn,
-      registrations: e.attendees.length,
-      checkIns: e.checkedInCount,
-      noShows: e.noShowCount,
-      dailySales: trend,
-      weeklySales: _weeklyFromDaily(trend),
-      monthlySales: [sold * 0.4, sold * 0.7, sold.toDouble()],
-      salesTrend: trend,
-      tierBreakdown: breakdown,
-      tierTypeBreakdown: typeBreakdown,
-    );
-  }
-
-  List<double> _syntheticTrend(int sold) {
-    if (sold == 0) return [0, 0, 0, 0, 0, 0, 0];
-    final step = sold / 7;
-    return List.generate(7, (i) => step * (i + 1));
-  }
-
-  List<double> _weeklyFromDaily(List<double> daily) {
-    if (daily.length < 7) return [0, 0, 0, 0];
-    return [
-      daily[1],
-      daily[3],
-      daily[5],
-      daily[6],
-    ];
-  }
-
   static List<OrganizerAttendee> _seedAttendees() {
     return List.generate(8, (i) {
       final purchased = DateTime.now().subtract(Duration(days: i));

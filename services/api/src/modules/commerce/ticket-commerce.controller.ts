@@ -6,6 +6,7 @@ import {
   HttpCode,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
@@ -16,6 +17,7 @@ import { CreateTicketOrderDto } from './dto/create-ticket-order.dto';
 import { TicketOrdersService } from './ticket-orders.service';
 import { TicketPaymentsService } from './ticket-payments.service';
 import { TicketEntitlementsService } from './ticket-entitlements.service';
+import { OrganizerTicketSalesService } from './organizer-ticket-sales.service';
 import { CommerceAuthGuard } from './commerce-auth.guard';
 import { CommerceActorParam, type CommerceActor } from './commerce-auth.service';
 
@@ -27,6 +29,7 @@ export class TicketCommerceController {
     private readonly orders: TicketOrdersService,
     private readonly payments: TicketPaymentsService,
     private readonly entitlements: TicketEntitlementsService,
+    private readonly sales: OrganizerTicketSalesService,
   ) {}
 
   @Throttle({ strict: { limit: 30, ttl: 60_000 } })
@@ -86,5 +89,53 @@ export class TicketCommerceController {
     @CommerceActorParam() actor: CommerceActor,
   ) {
     return this.entitlements.resendTicket(actor!.tenantId, actor!.userId, entitlementId);
+  }
+
+  @Post('ticket-orders/release-abandoned')
+  async releaseAbandoned(@CommerceActorParam() actor: CommerceActor) {
+    return this.orders.releaseAbandonedOrders(actor!.tenantId);
+  }
+
+  // —— Organizer sales visibility (Phase 14/17) ——
+
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  @Get('events/:eventId/ticket-orders')
+  async listEventTicketOrders(
+    @Param('eventId') eventId: string,
+    @CommerceActorParam() actor: CommerceActor,
+    @Query('limit') limit?: string,
+  ) {
+    const n = parseInt(limit ?? '100', 10) || 100;
+    return this.sales.listOrders(actor!, eventId, n);
+  }
+
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  @Get('events/:eventId/ticket-orders/:orderId')
+  async getEventTicketOrder(
+    @Param('eventId') eventId: string,
+    @Param('orderId') orderId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.sales.getOrder(actor!, eventId, orderId);
+  }
+
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  @Get('events/:eventId/ticket-buyers')
+  async listEventTicketBuyers(
+    @Param('eventId') eventId: string,
+    @CommerceActorParam() actor: CommerceActor,
+    @Query('limit') limit?: string,
+  ) {
+    const n = parseInt(limit ?? '200', 10) || 200;
+    return this.sales.listBuyers(actor!, eventId, n);
+  }
+
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  @Get('events/:eventId/ticket-sales-summary')
+  async eventTicketSalesSummary(
+    @Param('eventId') eventId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.sales.salesDashboard(actor!, eventId);
   }
 }

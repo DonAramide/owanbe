@@ -3,6 +3,8 @@ import {
   Get,
   Param,
   Post,
+  Put,
+  Delete,
   Query,
   Body,
 } from '@nestjs/common';
@@ -14,6 +16,7 @@ import {
   ADMIN_TIERS,
   ADMIN_FINANCE_CONTROL_ROLES,
   ADMIN_APPROVERS,
+  VENDOR_PRICING_ADMIN_ROLES,
 } from '../../common/permission-matrix';
 import { RequirePermissions } from '../../permissions/permissions.decorator';
 import { PlatformDashboardService } from './platform-dashboard.service';
@@ -24,6 +27,7 @@ import { AdminOperationsCenterService } from './admin-operations-center.service'
 import { AdminFinanceSupervisionService } from './admin-finance-supervision.service';
 import { AdminAuditService } from './admin-audit.service';
 import { LaunchOpsDashboardService } from './launch-ops-dashboard.service';
+import { AdminVendorPricingService } from './admin-vendor-pricing.service';
 
 @Controller('admin')
 export class PlatformAdminController {
@@ -36,6 +40,7 @@ export class PlatformAdminController {
     private readonly finance: AdminFinanceSupervisionService,
     private readonly audit: AdminAuditService,
     private readonly launchOps: LaunchOpsDashboardService,
+    private readonly vendorPricing: AdminVendorPricingService,
   ) {}
 
   @Roles(...ADMIN_TIERS)
@@ -198,6 +203,85 @@ export class PlatformAdminController {
   @Get('finance/supervision')
   async financeSupervision(@TenantId() tenantId: string) {
     return this.finance.getSupervision(tenantId);
+  }
+
+  /** Vendor commerce markup rules — admin only; never exposed to organizer/vendor clients. */
+  @Roles(...VENDOR_PRICING_ADMIN_ROLES)
+  @Get('settings/vendor-pricing-rules')
+  async listVendorPricingRules(@TenantId() tenantId: string) {
+    return this.vendorPricing.listRules(tenantId);
+  }
+
+  @Roles(...VENDOR_PRICING_ADMIN_ROLES)
+  @Put('settings/vendor-pricing-rules/default')
+  async upsertDefaultVendorPricing(
+    @TenantId() tenantId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() body: { markupPercent?: number },
+  ) {
+    return this.vendorPricing.upsertDefault(
+      tenantId,
+      user.userId,
+      Number(body?.markupPercent),
+    );
+  }
+
+  @Roles(...VENDOR_PRICING_ADMIN_ROLES)
+  @Put('settings/vendor-pricing-rules/service')
+  async upsertServiceVendorPricing(
+    @TenantId() tenantId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() body: { serviceKey?: string; markupPercent?: number },
+  ) {
+    return this.vendorPricing.upsertServiceRule(
+      tenantId,
+      user.userId,
+      String(body?.serviceKey ?? ''),
+      Number(body?.markupPercent),
+    );
+  }
+
+  @Roles(...VENDOR_PRICING_ADMIN_ROLES)
+  @Delete('settings/vendor-pricing-rules/service/:serviceKey')
+  async deleteServiceVendorPricing(
+    @TenantId() tenantId: string,
+    @CurrentUser() user: JwtUser,
+    @Param('serviceKey') serviceKey: string,
+  ) {
+    return this.vendorPricing.deleteServiceRule(tenantId, user.userId, serviceKey);
+  }
+
+  @Roles(...VENDOR_PRICING_ADMIN_ROLES)
+  @Put('settings/vendor-pricing-rules/vendor')
+  async upsertVendorVendorPricing(
+    @TenantId() tenantId: string,
+    @CurrentUser() user: JwtUser,
+    @Body()
+    body: { vendorId?: string; serviceKey?: string | null; markupPercent?: number },
+  ) {
+    return this.vendorPricing.upsertVendorRule(
+      tenantId,
+      user.userId,
+      String(body?.vendorId ?? ''),
+      Number(body?.markupPercent),
+      body?.serviceKey,
+    );
+  }
+
+  @Roles(...VENDOR_PRICING_ADMIN_ROLES)
+  @Delete('settings/vendor-pricing-rules/vendor/:vendorId')
+  async deleteVendorVendorPricing(
+    @TenantId() tenantId: string,
+    @CurrentUser() user: JwtUser,
+    @Param('vendorId') vendorId: string,
+    @Query('serviceKey') serviceKey?: string,
+  ) {
+    return this.vendorPricing.deleteVendorRule(
+      tenantId,
+      user.userId,
+      vendorId,
+      serviceKey,
+    );
   }
 
   @Roles(...ADMIN_TIERS)

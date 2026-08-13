@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -72,6 +73,71 @@ class VendorCrmApi {
     return VendorCrmSnapshot.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
+  Future<VendorCrmSnapshot> confirmAgreement(String requestId) async {
+    final res = await _http.post(
+      Uri.parse('$_base/vendor-requests/$requestId/confirm-agreement'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return VendorCrmSnapshot.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<Map<String, dynamic>> fundRequest(String requestId) async {
+    final res = await _http.post(
+      Uri.parse('$_base/vendor-requests/$requestId/fund'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> fundEventPool(String eventId, {required int amountMinor}) async {
+    final res = await _http.post(
+      Uri.parse('$_base/events/$eventId/vendor-funds'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      body: jsonEncode({'amountMinor': amountMinor}),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getEventFunds(String eventId) async {
+    final res = await _http.get(
+      Uri.parse('$_base/events/$eventId/vendor-funds'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<VendorCrmSnapshot> markComplete(String requestId) async {
+    final res = await _http.post(
+      Uri.parse('$_base/vendor-requests/$requestId/mark-complete'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return VendorCrmSnapshot.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<VendorCrmSnapshot> confirmCompletion(String requestId) async {
+    final res = await _http.post(
+      Uri.parse('$_base/vendor-requests/$requestId/confirm-completion'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return VendorCrmSnapshot.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<VendorCrmSnapshot> reportIssue(String requestId, {String? note}) async {
+    final res = await _http.post(
+      Uri.parse('$_base/vendor-requests/$requestId/report-issue'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      body: jsonEncode({'note': note ?? 'Issue reported'}),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return VendorCrmSnapshot.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
   Future<VendorCrmSnapshot> listForVendor(String vendorId) async {
     final res = await _http.get(
       Uri.parse('$_base/vendors/$vendorId/requests'),
@@ -79,6 +145,15 @@ class VendorCrmApi {
     );
     if (res.statusCode >= 400) _throw(res);
     return VendorCrmSnapshot.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<VendorRequestTimeline> fetchTimeline(String requestId) async {
+    final res = await _http.get(
+      Uri.parse('$_base/vendor-requests/$requestId/timeline'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return VendorRequestTimeline.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
   Future<VendorCalendarSnapshot> fetchCalendar(String vendorId, DateTime from, DateTime to) async {
@@ -128,12 +203,24 @@ final vendorCrmApiProvider = Provider<VendorCrmApi>((ref) => VendorCrmApi());
 
 final vendorCrmRefreshProvider = StateProvider<int>((ref) => 0);
 
+/// Soft poll tick — same pattern as Live Ops feed (cross-party sync without hot restart).
+final vendorCrmLiveTickProvider = StreamProvider.autoDispose<int>((ref) async* {
+  yield 0;
+  var n = 0;
+  while (true) {
+    await Future<void>.delayed(const Duration(seconds: 5));
+    n += 1;
+    yield n;
+  }
+});
+
 void refreshVendorCrm(WidgetRef ref) {
   ref.read(vendorCrmRefreshProvider.notifier).state++;
 }
 
 final eventVendorCrmProvider = FutureProvider.autoDispose.family<VendorCrmSnapshot, String>((ref, eventId) async {
   ref.watch(vendorCrmRefreshProvider);
+  ref.watch(vendorCrmLiveTickProvider);
   try {
     return await ref.read(vendorCrmApiProvider).listForEvent(eventId);
   } catch (e) {
@@ -147,6 +234,7 @@ final eventVendorCrmProvider = FutureProvider.autoDispose.family<VendorCrmSnapsh
 
 final vendorInboxProvider = FutureProvider.autoDispose.family<VendorCrmSnapshot, String>((ref, vendorId) async {
   ref.watch(vendorCrmRefreshProvider);
+  ref.watch(vendorCrmLiveTickProvider);
   try {
     return await ref.read(vendorCrmApiProvider).listForVendor(vendorId);
   } catch (e) {
@@ -158,9 +246,24 @@ final vendorInboxProvider = FutureProvider.autoDispose.family<VendorCrmSnapshot,
   }
 });
 
+final vendorRequestTimelineProvider =
+    FutureProvider.autoDispose.family<VendorRequestTimeline, String>((ref, requestId) async {
+  ref.watch(vendorCrmRefreshProvider);
+  ref.watch(vendorCrmLiveTickProvider);
+  return ref.read(vendorCrmApiProvider).fetchTimeline(requestId);
+});
+
+final eventVendorFundsProvider =
+    FutureProvider.autoDispose.family<Map<String, dynamic>, String>((ref, eventId) async {
+  ref.watch(vendorCrmRefreshProvider);
+  ref.watch(vendorCrmLiveTickProvider);
+  return ref.read(vendorCrmApiProvider).getEventFunds(eventId);
+});
+
 final organizerVendorCrmAlertsProvider =
     FutureProvider.autoDispose<List<OrganizerAttentionItem>>((ref) async {
   ref.watch(vendorCrmRefreshProvider);
+  ref.watch(vendorCrmLiveTickProvider);
   try {
     final events = await ref.watch(customerEventsProvider.future);
     final items = <OrganizerAttentionItem>[];
@@ -170,7 +273,7 @@ final organizerVendorCrmAlertsProvider =
         if (r.stage == 'negotiating') {
           items.add(OrganizerAttentionItem(
             type: OrganizerAttentionType.lowTicketSales,
-            headline: 'Vendor negotiation',
+            headline: 'Pending vendor response',
             message: '${r.vendorName ?? 'Vendor'} · ${r.eventTitle ?? e.title}',
             eventId: e.id,
             severity: 'INFO',
@@ -205,30 +308,5 @@ final vendorCalendarProvider = FutureProvider.autoDispose.family<VendorCalendarS
   final now = DateTime.now();
   final from = now.subtract(const Duration(days: 7));
   final to = now.add(const Duration(days: 60));
-  try {
-    return await ref.read(vendorCrmApiProvider).fetchCalendar(vendorId, from, to);
-  } catch (e) {
-    if (!allowMockPersistenceFallback()) rethrow;
-    return VendorCalendarSnapshot(
-      vacationMode: false,
-      blocks: [
-        VendorCalendarBlock(
-          id: 'mock_block_1',
-          kind: 'busy',
-          startsAt: now.add(const Duration(days: 2)),
-          endsAt: now.add(const Duration(days: 2, hours: 4)),
-          reason: 'Busy with Jollof Catering Event',
-          allDay: false,
-        ),
-        VendorCalendarBlock(
-          id: 'mock_block_2',
-          kind: 'busy',
-          startsAt: now.add(const Duration(days: 5)),
-          endsAt: now.add(const Duration(days: 6)),
-          reason: 'Weekend Rest',
-          allDay: true,
-        ),
-      ],
-    );
-  }
+  return ref.read(vendorCrmApiProvider).fetchCalendar(vendorId, from, to);
 });

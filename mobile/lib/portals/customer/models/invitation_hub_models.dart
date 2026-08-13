@@ -75,13 +75,13 @@ InvitationFunnelStats buildInvitationStats(List<CustomerGuestView> guests) {
   );
 }
 
-InvitationShareTargets buildShareTargets(CustomerEvent event) {
+InvitationShareTargets buildShareTargets(CustomerEvent event, {String? inviteTokenUrl}) {
   final eventId = event.id;
   final eventPage = 'https://app.owanbe.com/events/$eventId';
-  final rsvpPage = 'https://app.owanbe.com/events/$eventId/tickets';
+  final rsvpPage = inviteTokenUrl ?? 'https://app.owanbe.com/events/$eventId/rsvp';
   final dateLine = formatEventDate(event.startsAt);
-  final invitePayload = 'OWANBE:EVENT:$eventId:INVITE';
-  final rsvpPayload = 'OWANBE:EVENT:$eventId:RSVP';
+  final invitePayload = inviteTokenUrl ?? 'OWANBE:EVENT:$eventId:INVITE';
+  final rsvpPayload = inviteTokenUrl ?? 'OWANBE:EVENT:$eventId:RSVP';
 
   final message = "You're invited to ${event.title}!\n"
       '$dateLine · ${event.venue}, ${event.city}\n'

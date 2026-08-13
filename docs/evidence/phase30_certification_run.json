@@ -1,0 +1,437 @@
+{
+  "phase": 30,
+  "title": "Platform Certification Live QA",
+  "startedAt": "2026-08-02T23:26:13.346Z",
+  "finishedAt": "2026-08-02T23:26:14.222Z",
+  "apiOrigin": "http://127.0.0.1:8080",
+  "tenantId": "11111111-1111-4111-8111-111111111111",
+  "eventId": null,
+  "overall": "CERTIFIED WITH LIMITATIONS",
+  "counts": {
+    "PASS": 10,
+    "PARTIAL": 25,
+    "FAIL": 0,
+    "SKIP": 6
+  },
+  "results": [
+    {
+      "id": "E1",
+      "pack": "env",
+      "label": "Health endpoint",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "status=ok",
+      "bodySnippet": "{\"status\":\"ok\",\"checks\":{\"database\":{\"status\":\"ok\"},\"payments\":{\"status\":\"configured\",\"detail\":\"http://localhost:4000\"},\"quaserWebhookSecret\":{\"status\":\"missing\",\"detail\":\"QUASER_W…"
+    },
+    {
+      "id": "E2",
+      "pack": "env",
+      "label": "Database check",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "database=ok",
+      "bodySnippet": null
+    },
+    {
+      "id": "E3",
+      "pack": "env",
+      "label": "Subsystem readiness",
+      "status": "PARTIAL",
+      "httpStatus": 200,
+      "notes": "gaps: quaserWebhookSecret:missing(QUASER_WEBHOOK_SECRET empty); automationEngine:unavailable(relation \"automation_runs\" does not exist); automationJobs:unavailable(relation \"automation_jobs\" does not exist); webhookDelivery:unavailable(relation \"platform_webhook_deliveries\" does not exist); messagingProviders:unavailable(messaging_providers missing)",
+      "bodySnippet": "{\"database\":{\"status\":\"ok\"},\"payments\":{\"status\":\"configured\",\"detail\":\"http://localhost:4000\"},\"quaserWebhookSecret\":{\"status\":\"missing\",\"detail\":\"QUASER_WEBHOOK_SECRET empty\"},\"notifications\":{\"status\":\"enterprise_email\",\"detail\":\"Enterprise Email Infrastructure provider(s) enabled\"},\"storage\":{\"status\":\"local_fallback\"},\"integrationsMode\":{\"status\":\"development\"},\"automationEngine\":{\"status\":\"u…"
+    },
+    {
+      "id": "P7",
+      "pack": "prod",
+      "label": "Recovery / Unavailable honesty",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "API remains up while subsystems report Unavailable",
+      "bodySnippet": null
+    },
+    {
+      "id": "E7",
+      "pack": "env",
+      "label": "Metrics scrape",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "prometheus text",
+      "bodySnippet": null
+    },
+    {
+      "id": "S1",
+      "pack": "security",
+      "label": "Protected route without token",
+      "status": "PASS",
+      "httpStatus": 400,
+      "notes": "request rejected without credentials (TENANT_REQUIRED)",
+      "bodySnippet": "{\"code\":\"TENANT_REQUIRED\",\"message\":\"X-Tenant-Id is required for unauthenticated requests\",\"request_id\":\"4e2d2de9-48ae-45a6-9428-d7c268f8f567\"}"
+    },
+    {
+      "id": "S4",
+      "pack": "security",
+      "label": "RBAC admin surface denial",
+      "status": "PASS",
+      "httpStatus": 403,
+      "notes": "organizer denied compliance (roles enforced from DB)",
+      "bodySnippet": "{\"code\":\"FORBIDDEN\",\"message\":\"Requires one of roles: admin_super, admin_ops, admin_support\",\"request_id\":\"f7def627-690e-4d15-86c0-e31c385885e5\"}"
+    },
+    {
+      "id": "A1",
+      "pack": "14-18",
+      "label": "Organizer events list",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"items\":[{\"id\":\"38e3a1fc-d334-440e-a27d-6fe1d9f59834\",\"externalRef\":\"evt_phase13_qa_commerce_1785205026944\",\"slug\":\"phase13-qa-commerce-1785205026944\",\"title\":\"Phase13 QA Commerce…"
+    },
+    {
+      "id": "A7",
+      "pack": "14-18",
+      "label": "Attendee guest invitations",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"items\":[]}"
+    },
+    {
+      "id": "A9",
+      "pack": "14-18",
+      "label": "Finance hub",
+      "status": "PARTIAL",
+      "httpStatus": 500,
+      "notes": "INTERNAL 500 — likely missing migration/relation (see API logs code 42P01); apply migrations 055–062",
+      "bodySnippet": "{\"code\":\"INTERNAL\",\"message\":\"Internal server error\",\"request_id\":\"4a694a2c-b24d-45a0-8c0d-8e67fa859da1\"}"
+    },
+    {
+      "id": "A10",
+      "pack": "14-18",
+      "label": "Analytics portfolio",
+      "status": "PARTIAL",
+      "httpStatus": 500,
+      "notes": "INTERNAL 500 — likely missing migration/relation (see API logs code 42P01); apply migrations 055–062",
+      "bodySnippet": "{\"code\":\"INTERNAL\",\"message\":\"Internal server error\",\"request_id\":\"602559ed-1c09-4ab6-86b3-fb4d7185cb01\"}"
+    },
+    {
+      "id": "A3",
+      "pack": "14-18",
+      "label": "Public/event tiers",
+      "status": "SKIP",
+      "httpStatus": null,
+      "notes": "set EVENT_ID",
+      "bodySnippet": null
+    },
+    {
+      "id": "A5",
+      "pack": "14-18",
+      "label": "Invitations hub",
+      "status": "SKIP",
+      "httpStatus": null,
+      "notes": "set EVENT_ID",
+      "bodySnippet": null
+    },
+    {
+      "id": "A8",
+      "pack": "14-18",
+      "label": "Door summary",
+      "status": "SKIP",
+      "httpStatus": null,
+      "notes": "set EVENT_ID",
+      "bodySnippet": null
+    },
+    {
+      "id": "A2",
+      "pack": "14-18",
+      "label": "Publish path",
+      "status": "SKIP",
+      "httpStatus": null,
+      "notes": "mutating path — manual/prior phase evidence",
+      "bodySnippet": null
+    },
+    {
+      "id": "A4",
+      "pack": "14-18",
+      "label": "Ticket order rules",
+      "status": "SKIP",
+      "httpStatus": null,
+      "notes": "see phase13_closure_qa evidence",
+      "bodySnippet": null
+    },
+    {
+      "id": "A6",
+      "pack": "14-18",
+      "label": "RSVP validate",
+      "status": "SKIP",
+      "httpStatus": null,
+      "notes": "requires invitation token",
+      "bodySnippet": null
+    },
+    {
+      "id": "B1",
+      "pack": "19-29",
+      "label": "Reports catalog",
+      "status": "PARTIAL",
+      "httpStatus": 500,
+      "notes": "INTERNAL 500 — likely missing migration/relation (see API logs code 42P01); apply migrations 055–062",
+      "bodySnippet": "{\"code\":\"INTERNAL\",\"message\":\"Internal server error\",\"request_id\":\"88bd3575-9f57-47c9-a536-a98a2c61247c\"}"
+    },
+    {
+      "id": "B2",
+      "pack": "19-29",
+      "label": "Organizer team",
+      "status": "PARTIAL",
+      "httpStatus": 500,
+      "notes": "INTERNAL 500 — likely missing migration/relation (see API logs code 42P01); apply migrations 055–062",
+      "bodySnippet": "{\"code\":\"INTERNAL\",\"message\":\"Internal server error\",\"request_id\":\"85563134-85bf-4413-8244-2d06c652a8a6\"}"
+    },
+    {
+      "id": "B2b",
+      "pack": "19-29",
+      "label": "Organizer membership",
+      "status": "PARTIAL",
+      "httpStatus": 500,
+      "notes": "INTERNAL 500 — likely missing migration/relation (see API logs code 42P01); apply migrations 055–062",
+      "bodySnippet": "{\"code\":\"INTERNAL\",\"message\":\"Internal server error\",\"request_id\":\"70296846-e57e-4ce7-a10c-f8ec2ca1aa1c\"}"
+    },
+    {
+      "id": "B3",
+      "pack": "19-29",
+      "label": "Automations",
+      "status": "PARTIAL",
+      "httpStatus": 500,
+      "notes": "INTERNAL 500 — likely missing migration/relation (see API logs code 42P01); apply migrations 055–062",
+      "bodySnippet": "{\"code\":\"INTERNAL\",\"message\":\"Internal server error\",\"request_id\":\"9d23ae20-900d-4193-97b7-67345d5b89c8\"}"
+    },
+    {
+      "id": "B4",
+      "pack": "19-29",
+      "label": "Automation observability",
+      "status": "PARTIAL",
+      "httpStatus": 500,
+      "notes": "INTERNAL 500 — likely missing migration/relation (see API logs code 42P01); apply migrations 055–062",
+      "bodySnippet": "{\"code\":\"INTERNAL\",\"message\":\"Internal server error\",\"request_id\":\"fcc30e86-e61b-4667-9095-e166f7bac9fb\"}"
+    },
+    {
+      "id": "B5",
+      "pack": "19-29",
+      "label": "Integrations status",
+      "status": "PARTIAL",
+      "httpStatus": 500,
+      "notes": "INTERNAL 500 — likely missing migration/relation (see API logs code 42P01); apply migrations 055–062",
+      "bodySnippet": "{\"code\":\"INTERNAL\",\"message\":\"Internal server error\",\"request_id\":\"a7610e33-db2e-43b4-96be-aa0a36771b7b\"}"
+    },
+    {
+      "id": "B6",
+      "pack": "19-29",
+      "label": "Webhook deliveries",
+      "status": "PARTIAL",
+      "httpStatus": 500,
+      "notes": "INTERNAL 500 — likely missing migration/relation (see API logs code 42P01); apply migrations 055–062",
+      "bodySnippet": "{\"code\":\"INTERNAL\",\"message\":\"Internal server error\",\"request_id\":\"ad0f5f33-a06c-4622-9ca7-c08c62200fd2\"}"
+    },
+    {
+      "id": "B7",
+      "pack": "19-29",
+      "label": "Marketing channels",
+      "status": "PARTIAL",
+      "httpStatus": 500,
+      "notes": "INTERNAL 500 — likely missing migration/relation (see API logs code 42P01); apply migrations 055–062",
+      "bodySnippet": "{\"code\":\"INTERNAL\",\"message\":\"Internal server error\",\"request_id\":\"70e1d791-9f95-45bf-b5b0-bc35275020de\"}"
+    },
+    {
+      "id": "B7b",
+      "pack": "19-29",
+      "label": "Marketing campaigns",
+      "status": "PARTIAL",
+      "httpStatus": 500,
+      "notes": "INTERNAL 500 — likely missing migration/relation (see API logs code 42P01); apply migrations 055–062",
+      "bodySnippet": "{\"code\":\"INTERNAL\",\"message\":\"Internal server error\",\"request_id\":\"a6c0ee07-66a2-4b32-9f74-c349c30ca663\"}"
+    },
+    {
+      "id": "B13",
+      "pack": "19-29",
+      "label": "Self MFA status",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"available\":false,\"reason\":\"SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not configured\",\"enrolled\":false,\"factorCount\":0,\"verifiedFactorCount\":0,\"factors\":[],\"enrollmentNote\":\"Enroll…"
+    },
+    {
+      "id": "B14",
+      "pack": "19-29",
+      "label": "Self sessions",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"available\":false,\"reason\":\"SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not configured\",\"items\":[],\"note\":\"Supabase Auth Admin required. No invented session rows.\"}"
+    },
+    {
+      "id": "D1",
+      "pack": "data",
+      "label": "Finance owns money",
+      "status": "PARTIAL",
+      "httpStatus": 500,
+      "notes": "INTERNAL 500 — likely missing migration/relation (see API logs code 42P01); apply migrations 055–062",
+      "bodySnippet": null
+    },
+    {
+      "id": "D2",
+      "pack": "data",
+      "label": "Analytics consumes finance",
+      "status": "PARTIAL",
+      "httpStatus": 500,
+      "notes": "INTERNAL 500 — likely missing migration/relation (see API logs code 42P01); apply migrations 055–062",
+      "bodySnippet": null
+    },
+    {
+      "id": "D3",
+      "pack": "data",
+      "label": "Reporting catalog",
+      "status": "PARTIAL",
+      "httpStatus": 500,
+      "notes": "canonical packs via reports catalog",
+      "bodySnippet": null
+    },
+    {
+      "id": "B8",
+      "pack": "19-29",
+      "label": "Compliance dashboard",
+      "status": "PARTIAL",
+      "httpStatus": 403,
+      "notes": "Admin fixture required — RBAC correctly denied non-admin; set ADMIN_ACCESS_TOKEN for full journey PASS",
+      "bodySnippet": "{\"code\":\"FORBIDDEN\",\"message\":\"Requires one of roles: admin_super, admin_ops, admin_support\",\"request_id\":\"a9cd42a1-b02e-4e4a-addd-5ce9abc5c642\"}"
+    },
+    {
+      "id": "B9",
+      "pack": "19-29",
+      "label": "Compliance retention",
+      "status": "PARTIAL",
+      "httpStatus": 403,
+      "notes": "Admin fixture required — RBAC correctly denied non-admin; set ADMIN_ACCESS_TOKEN for full journey PASS",
+      "bodySnippet": "{\"code\":\"FORBIDDEN\",\"message\":\"Requires one of roles: admin_super, admin_ops, admin_support\",\"request_id\":\"7c3b10f9-7745-4d27-a6c1-366956cb289b\"}"
+    },
+    {
+      "id": "B9b",
+      "pack": "19-29",
+      "label": "Compliance activity",
+      "status": "PARTIAL",
+      "httpStatus": 403,
+      "notes": "Admin fixture required — RBAC correctly denied non-admin; set ADMIN_ACCESS_TOKEN for full journey PASS",
+      "bodySnippet": "{\"code\":\"FORBIDDEN\",\"message\":\"Requires one of roles: admin_super, admin_ops, admin_support\",\"request_id\":\"f7d73843-9654-4b65-9ac4-ade7671d847c\"}"
+    },
+    {
+      "id": "B10",
+      "pack": "19-29",
+      "label": "Control Plane dashboard",
+      "status": "PARTIAL",
+      "httpStatus": 403,
+      "notes": "Admin fixture required — RBAC correctly denied non-admin; set ADMIN_ACCESS_TOKEN for full journey PASS",
+      "bodySnippet": "{\"code\":\"FORBIDDEN\",\"message\":\"Requires one of roles: super_admin, admin_super, admin_ops, admin_support\",\"request_id\":\"4adcd964-2c3f-41eb-bd5a-01bc4bcd758c\"}"
+    },
+    {
+      "id": "B11",
+      "pack": "19-29",
+      "label": "Control Plane MDM domains",
+      "status": "PARTIAL",
+      "httpStatus": 403,
+      "notes": "Admin fixture required — RBAC correctly denied non-admin; set ADMIN_ACCESS_TOKEN for full journey PASS",
+      "bodySnippet": "{\"code\":\"FORBIDDEN\",\"message\":\"Requires one of roles: super_admin, admin_super, admin_ops, admin_support\",\"request_id\":\"c99b6318-d107-487b-b274-2b72ad65ae93\"}"
+    },
+    {
+      "id": "B12",
+      "pack": "19-29",
+      "label": "Control Plane devices",
+      "status": "PARTIAL",
+      "httpStatus": 403,
+      "notes": "Admin fixture required — RBAC correctly denied non-admin; set ADMIN_ACCESS_TOKEN for full journey PASS",
+      "bodySnippet": "{\"code\":\"FORBIDDEN\",\"message\":\"Requires one of roles: super_admin, admin_super, admin_ops, admin_support\",\"request_id\":\"caf58126-3acd-4ca7-b9f3-f902358325f5\"}"
+    },
+    {
+      "id": "B15",
+      "pack": "19-29",
+      "label": "Identity Security Center",
+      "status": "PARTIAL",
+      "httpStatus": 403,
+      "notes": "Admin fixture required — RBAC correctly denied non-admin; set ADMIN_ACCESS_TOKEN for full journey PASS",
+      "bodySnippet": "{\"code\":\"FORBIDDEN\",\"message\":\"Requires one of roles: super_admin, admin_super, admin_ops, admin_support\",\"request_id\":\"e312e4a2-0e47-4cc9-b7a2-06c1d85de4d9\"}"
+    },
+    {
+      "id": "B16",
+      "pack": "19-29",
+      "label": "Control Plane vendors",
+      "status": "PARTIAL",
+      "httpStatus": 403,
+      "notes": "Admin fixture required — RBAC correctly denied non-admin; set ADMIN_ACCESS_TOKEN for full journey PASS",
+      "bodySnippet": "{\"code\":\"FORBIDDEN\",\"message\":\"Requires one of roles: super_admin, admin_super, admin_ops, admin_support\",\"request_id\":\"96e8ab8c-1b50-4107-be60-788cbadc8600\"}"
+    },
+    {
+      "id": "B17",
+      "pack": "19-29",
+      "label": "Control Plane activity",
+      "status": "PARTIAL",
+      "httpStatus": 403,
+      "notes": "Admin fixture required — RBAC correctly denied non-admin; set ADMIN_ACCESS_TOKEN for full journey PASS",
+      "bodySnippet": "{\"code\":\"FORBIDDEN\",\"message\":\"Requires one of roles: super_admin, admin_super, admin_ops, admin_support\",\"request_id\":\"9c39bd09-00ed-4ff2-bb78-d32d92d36181\"}"
+    },
+    {
+      "id": "D4",
+      "pack": "data",
+      "label": "Compliance lifecycle surfaces",
+      "status": "PARTIAL",
+      "httpStatus": 403,
+      "notes": "dashboard/retention/activity — governance without inventing business rows",
+      "bodySnippet": null
+    }
+  ],
+  "healthSnapshot": {
+    "status": "ok",
+    "checks": {
+      "database": {
+        "status": "ok"
+      },
+      "payments": {
+        "status": "configured",
+        "detail": "http://localhost:4000"
+      },
+      "quaserWebhookSecret": {
+        "status": "missing",
+        "detail": "QUASER_WEBHOOK_SECRET empty"
+      },
+      "notifications": {
+        "status": "enterprise_email",
+        "detail": "Enterprise Email Infrastructure provider(s) enabled"
+      },
+      "storage": {
+        "status": "local_fallback"
+      },
+      "integrationsMode": {
+        "status": "development"
+      },
+      "automationEngine": {
+        "status": "unavailable",
+        "detail": "relation \"automation_runs\" does not exist"
+      },
+      "automationJobs": {
+        "status": "unavailable",
+        "detail": "relation \"automation_jobs\" does not exist"
+      },
+      "webhookDelivery": {
+        "status": "unavailable",
+        "detail": "relation \"platform_webhook_deliveries\" does not exist"
+      },
+      "notificationDelivery": {
+        "status": "ok",
+        "detail": "notification_deliveries",
+        "counts": {
+          "failed": 6
+        }
+      },
+      "messagingProviders": {
+        "status": "unavailable",
+        "detail": "messaging_providers missing"
+      }
+    },
+    "timestamp": "2026-08-02T23:26:13.523Z"
+  }
+}

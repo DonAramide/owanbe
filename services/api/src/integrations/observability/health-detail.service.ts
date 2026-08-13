@@ -14,7 +14,7 @@ export class HealthDetailService {
   ) {}
 
   async getDetailedHealth() {
-    const checks: Record<string, { status: string; detail?: string }> = {};
+    const checks: Record<string, { status: string; detail?: string; counts?: Record<string, number> }> = {};
 
     try {
       await this.pool.query('SELECT 1');
@@ -24,9 +24,18 @@ export class HealthDetailService {
     }
 
     const quaserUrl = this.config.get('QUASER_ROUTER_BASE_URL', { infer: true }).trim();
+    const quaserSecret = this.config.get('QUASER_WEBHOOK_SECRET', { infer: true }).trim();
     checks.payments = {
       status: quaserUrl ? 'configured' : this.integrations.allowPaymentStubs() ? 'stub' : 'missing',
       detail: quaserUrl || 'QUASER_ROUTER_BASE_URL unset',
+    };
+    checks.quaserWebhookSecret = {
+      status: quaserSecret
+        ? 'configured'
+        : this.integrations.isProduction()
+          ? 'error'
+          : 'missing',
+      detail: quaserSecret ? 'set' : 'QUASER_WEBHOOK_SECRET empty',
     };
 
     let emailInfra = false;
@@ -57,7 +66,55 @@ export class HealthDetailService {
       status: this.integrations.isProduction() ? 'production' : 'development',
     };
 
+    // Phase 25 — automation / webhook / notification job visibility
+    checks.automationEngine = await this.countCheck(
+      `SELECT status, COUNT(*)::text AS n FROM automation_runs GROUP BY status`,
+      'automation_runs',
+    );
+    checks.automationJobs = await this.countCheck(
+      `SELECT status, COUNT(*)::text AS n FROM automation_jobs GROUP BY status`,
+      'automation_jobs',
+    );
+    checks.webhookDelivery = await this.countCheck(
+      `SELECT status, COUNT(*)::text AS n FROM platform_webhook_deliveries GROUP BY status`,
+      'platform_webhook_deliveries',
+    );
+    checks.notificationDelivery = await this.countCheck(
+      `SELECT status, COUNT(*)::text AS n FROM notification_deliveries GROUP BY status`,
+      'notification_deliveries',
+    );
+
+    try {
+      const { rows } = await this.pool.query<{ n: string }>(
+        `SELECT COUNT(*)::text AS n FROM messaging_providers WHERE enabled = true`,
+      );
+      checks.messagingProviders = {
+        status: Number(rows[0]?.n ?? 0) > 0 ? 'configured' : 'none',
+        detail: `${rows[0]?.n ?? 0} enabled`,
+      };
+    } catch {
+      checks.messagingProviders = { status: 'unavailable', detail: 'messaging_providers missing' };
+    }
+
     const overall = Object.values(checks).every((c) => c.status !== 'error') ? 'ok' : 'degraded';
     return { status: overall, checks, timestamp: new Date().toISOString() };
+  }
+
+  private async countCheck(sql: string, label: string) {
+    try {
+      const { rows } = await this.pool.query<{ status: string; n: string }>(sql);
+      const counts = Object.fromEntries(rows.map((r) => [r.status, parseInt(r.n, 10)]));
+      const dead = (counts.dead_letter ?? 0) + (counts.failed ?? 0);
+      return {
+        status: dead > 100 ? 'degraded' : 'ok',
+        detail: label,
+        counts,
+      };
+    } catch (e) {
+      return {
+        status: 'unavailable',
+        detail: e instanceof Error ? e.message : label,
+      };
+    }
   }
 }

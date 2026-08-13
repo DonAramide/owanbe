@@ -20,12 +20,16 @@ class EosSelectField<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Avoid DropdownButton assertion when value is missing or duplicated in items.
+    final matchCount = value == null ? 0 : items.where((i) => i.value == value).length;
+    final effectiveValue = matchCount == 1 ? value : null;
+
     return InputDecorator(
       decoration: InputDecoration(labelText: label),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<T>(
           isExpanded: true,
-          value: value,
+          value: effectiveValue,
           hint: hint != null ? Text(hint!) : null,
           items: items,
           onChanged: onChanged,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../features/organizer/marketing/marketing_screen.dart';
 import '../models/command_center_models.dart';
 import '../models/customer_event_models.dart';
 import '../navigation/event_navigator.dart';
@@ -38,6 +39,8 @@ enum EventModuleId {
   eventDay,
   finance,
   analytics,
+  reports,
+  marketing,
   tickets,
   settings,
 }
@@ -239,29 +242,57 @@ abstract final class EventModuleRegistry {
     EventModuleDefinition(
       id: EventModuleId.finance,
       title: 'Finance',
-      subtitle: 'Wallet, releases, and settlements',
+      subtitle: 'Revenue, refunds, escrow, and payouts',
       icon: Icons.payments_outlined,
       category: EventModuleCategory.commerce,
-      visible: (e) => e.isPrivateCelebration,
-      onOpen: (c, id) => c.eventNav.openBudget(id),
+      visible: (_) => true,
+      onOpen: (c, id) => c.eventNav.openOverview(id),
     ),
     EventModuleDefinition(
       id: EventModuleId.tickets,
       title: 'Tickets',
-      subtitle: 'Tier management and sales',
+      subtitle: 'Create tickets, pricing, and sales',
       icon: Icons.confirmation_number_outlined,
       category: EventModuleCategory.commerce,
-      visible: (e) => e.isPublicTicketed,
+      visible: (_) => true,
+      supportsQuickAction: true,
       onOpen: (c, id) => c.eventNav.openTicketsManage(id),
     ),
     EventModuleDefinition(
       id: EventModuleId.analytics,
       title: 'Analytics',
-      subtitle: 'Performance and trends',
+      subtitle: 'Performance and event intelligence',
       icon: Icons.insights_outlined,
       category: EventModuleCategory.commerce,
-      visible: (_) => false,
-      onOpen: (c, _) {},
+      visible: (_) => true,
+      supportsQuickAction: true,
+      onOpen: (c, id) => c.eventNav.openOverview(id),
+    ),
+    EventModuleDefinition(
+      id: EventModuleId.reports,
+      title: 'Reports & Exports',
+      subtitle: 'Export Center — packs and downloads',
+      icon: Icons.file_download_outlined,
+      category: EventModuleCategory.administration,
+      visible: (_) => true,
+      supportsQuickAction: true,
+      onOpen: (c, id) => c.eventNav.openOverview(id),
+    ),
+    EventModuleDefinition(
+      id: EventModuleId.marketing,
+      title: 'Marketing',
+      subtitle: 'Audiences, campaigns, and delivery',
+      icon: Icons.campaign_outlined,
+      category: EventModuleCategory.commerce,
+      visible: (_) => true,
+      supportsQuickAction: true,
+      onOpen: (c, id) {
+        Navigator.of(c).push(
+          MaterialPageRoute<void>(
+            builder: (_) => MarketingScreen(initialEventId: id),
+          ),
+        );
+      },
     ),
     EventModuleDefinition(
       id: EventModuleId.settings,
@@ -269,8 +300,8 @@ abstract final class EventModuleRegistry {
       subtitle: 'Event configuration',
       icon: Icons.settings_outlined,
       category: EventModuleCategory.administration,
-      visible: (_) => false,
-      onOpen: (c, _) {},
+      visible: (_) => true,
+      onOpen: (c, id) => c.eventNav.openOverview(id),
     ),
   ];
 
@@ -301,9 +332,8 @@ abstract final class EventModuleRegistry {
 
   /// Modules eligible for the Event Desktop launcher (Phase 1).
   ///
-  /// Excludes hidden / no-op modules (analytics, settings, gallery, memories).
+  /// Excludes hidden / no-op modules (settings, gallery, memories).
   static const _desktopExcludedIds = <EventModuleId>{
-    EventModuleId.analytics,
     EventModuleId.settings,
     EventModuleId.gallery,
     EventModuleId.memories,
@@ -350,10 +380,11 @@ abstract final class EventModuleRegistry {
       case 'marketplace':
         nav.openMarketplace(eventId: eventId);
       case 'finance':
-        nav.openBudget(eventId);
+        nav.openOverview(eventId);
       case 'operations':
         nav.openEventDay(eventId);
       case 'analytics':
+        nav.openOverview(eventId);
       case 'settings':
         return;
       default:

@@ -4,6 +4,8 @@ import '../layout/workspace/entity_engine.dart';
 import '../layout/workspace/workspace_definition.dart';
 import 'security_models.dart';
 
+/// @Deprecated Phase 29 — Security Center SoT is Nest `/identity-security/center`
+/// and `platform_security_events`. Do not use as operational truth.
 class SecurityEngine {
   static SecurityScore get platformSecurityScore => const SecurityScore(
         score: 96,

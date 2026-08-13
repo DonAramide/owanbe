@@ -1,0 +1,35 @@
+---
+description: Architecture freeze for Phases 14–18 — do not redesign or silently modify frozen organizer flows
+alwaysApply: true
+---
+
+# Architecture Freeze — Phases 14–18
+
+Phases **14–18** are feature-complete and **architecture-frozen** pending Live QA.
+
+See `docs/ARCHITECTURE_FREEZE_PHASES_14_18.md`.
+
+## Do not
+
+- Redesign, replace, rename, or migrate business flows from Phases 14–18
+- Change canonical workflows (publish → sell → invite → door → finance → analytics)
+- Duplicate modules or invent parallel implementations (second check-in, finance, or analytics truth)
+- Break backward compatibility of frozen APIs, routes, or data contracts
+- Silently modify Phase 14–18 code to unblock Phases 19–25
+
+## May
+
+- Read frozen-phase data
+- Reuse frozen-phase services
+- Deep-link into frozen-phase UI
+- Consume frozen-phase APIs
+
+## If a later phase needs Phase 14–18 changes
+
+1. Document the dependency and blast radius
+2. Stop and ask for approval
+3. Do not proceed with the change until approved
+
+Regression fixes that restore documented Phase 14–18 behavior are OK. Rule/workflow changes are not.
+
+Analytics remains read-only and must never invent metrics when canonical operational data exists.

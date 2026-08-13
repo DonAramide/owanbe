@@ -40,15 +40,26 @@ export class VendorAccessService {
   }
 
   async resolveVendorIdForUser(tenantId: string, userId: string): Promise<string> {
+    // Prefer vendor_profiles.vendor_id (canonical workspace link), then owned vendors row.
     const { rows } = await this.pool.query<{ id: string }>(
-      `SELECT v.id FROM vendors v
-       WHERE v.tenant_id = $1
-         AND v.status::text NOT IN ('suspended', 'rejected')
-         AND (v.owner_user_id = $2 OR EXISTS (
-           SELECT 1 FROM vendor_users vu WHERE vu.vendor_id = v.id AND vu.user_id = $2
-         ))
-       ORDER BY v.created_at ASC
-       LIMIT 1`,
+      `SELECT COALESCE(
+         (
+           SELECT vp.vendor_id
+           FROM vendor_profiles vp
+           WHERE vp.tenant_id = $1 AND vp.user_id = $2 AND vp.vendor_id IS NOT NULL
+           LIMIT 1
+         ),
+         (
+           SELECT v.id FROM vendors v
+           WHERE v.tenant_id = $1
+             AND v.status::text NOT IN ('suspended', 'rejected')
+             AND (v.owner_user_id = $2 OR EXISTS (
+               SELECT 1 FROM vendor_users vu WHERE vu.vendor_id = v.id AND vu.user_id = $2
+             ))
+           ORDER BY v.created_at ASC
+           LIMIT 1
+         )
+       ) AS id`,
       [tenantId, userId],
     );
     const id = rows[0]?.id;

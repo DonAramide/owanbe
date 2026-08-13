@@ -28,5 +28,8 @@ export class IntegrationsModeService {
     if (!this.config.get('PUBLIC_API_BASE_URL', { infer: true }).trim()) {
       throw new Error('INTEGRATIONS_MODE=production requires PUBLIC_API_BASE_URL');
     }
+    if (!this.config.get('QUASER_WEBHOOK_SECRET', { infer: true }).trim()) {
+      throw new Error('INTEGRATIONS_MODE=production requires QUASER_WEBHOOK_SECRET');
+    }
   }
 }

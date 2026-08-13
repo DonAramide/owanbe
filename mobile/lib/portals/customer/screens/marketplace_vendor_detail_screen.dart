@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/api/vendors_api.dart';
+import '../../../core/utils/money.dart';
 import '../../../eos/eos.dart';
 import '../models/marketplace_filters.dart';
 import '../models/marketplace_models.dart';
@@ -23,12 +25,16 @@ class MarketplaceVendorDetailScreen extends ConsumerWidget {
     super.key,
     required this.vendorId,
     this.eventId,
+    this.initialService,
   });
 
   final String vendorId;
 
   /// Active event when opened from Event Desktop marketplace.
   final String? eventId;
+
+  /// Originating marketplace filter (service name) — preserved across navigation.
+  final String? initialService;
 
   void _handleBack(BuildContext context) {
     if (context.canPop()) {
@@ -40,20 +46,51 @@ class MarketplaceVendorDetailScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _requestVendor(BuildContext context, WidgetRef ref) async {
-    final profile = await ref.read(marketplaceVendorProfileProvider(vendorId).future);
-    if (!context.mounted) return;
+  String? _originatingService(WidgetRef ref) {
+    final fromRoute = initialService?.trim();
+    if (fromRoute != null && fromRoute.isNotEmpty && fromRoute != 'All') {
+      return fromRoute;
+    }
+    final filterCategory = ref.read(marketplaceFiltersProvider).serviceCategory;
+    if (filterCategory != 'All' && filterCategory.trim().isNotEmpty) {
+      return filterCategory.trim();
+    }
+    return null;
+  }
+
+  MarketplaceVendorService? _resolveSelected(
+    List<MarketplaceVendorService> services,
+    String? originating,
+  ) {
+    if (originating == null || originating.isEmpty) return null;
+    for (final s in services) {
+      if (s.matchesLabel(originating)) return s;
+    }
+    return null;
+  }
+
+  Future<void> _requestService(
+    BuildContext context,
+    WidgetRef ref, {
+    required MarketplaceVendor vendor,
+    MarketplaceVendorService? service,
+    String? fallbackLabel,
+  }) async {
     final sent = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       builder: (context) => RequestVendorSheet(
-        vendor: profile.vendor,
+        vendor: vendor,
         lockedEventId: eventId,
+        serviceCategory: service?.serviceName ?? fallbackLabel ?? vendor.categoryLabel,
+        serviceKey: service?.serviceKey,
+        vendorServiceId: service?.id,
       ),
     );
     if (sent == true && context.mounted) {
+      final name = service?.serviceName ?? fallbackLabel ?? 'service';
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vendor request sent for your event')),
+        SnackBar(content: Text('Request sent for $name')),
       );
     }
   }
@@ -61,6 +98,7 @@ class MarketplaceVendorDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(marketplaceVendorProfileProvider(vendorId));
+    final originating = _originatingService(ref);
 
     return Scaffold(
       appBar: AppBar(
@@ -72,11 +110,21 @@ class MarketplaceVendorDetailScreen extends ConsumerWidget {
         title: const Text('Vendor profile'),
       ),
       bottomNavigationBar: profile.maybeWhen(
-        data: (data) => VendorContactBar(
-          vendorName: data.vendor.businessName,
-          phone: data.phone,
-          onRequest: () => _requestVendor(context, ref),
-        ),
+        data: (data) {
+          final services = data.vendor.services;
+          final selected = _resolveSelected(services, originating);
+          return VendorContactBar(
+            vendorName: data.vendor.businessName,
+            phone: data.phone,
+            onRequest: () => _requestService(
+              context,
+              ref,
+              vendor: data.vendor,
+              service: selected,
+              fallbackLabel: originating ?? data.vendor.categoryLabel,
+            ),
+          );
+        },
         orElse: () => null,
       ),
       body: profile.when(
@@ -96,6 +144,9 @@ class MarketplaceVendorDetailScreen extends ConsumerWidget {
           final vendor = data.vendor;
           final guestCount = ref.watch(marketplaceExpectedGuestsProvider);
           final imageUrl = vendor.imageUrl ?? vendorCoverImageUrl(vendor);
+          final services = vendor.services;
+          final selected = _resolveSelected(services, originating);
+
           return ListView(
             padding: EdgeInsets.all(context.eos.spacing.lg),
             children: [
@@ -180,14 +231,114 @@ class MarketplaceVendorDetailScreen extends ConsumerWidget {
                     style: context.eosText.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const Spacer(),
-                  if (data.priceLabel != null)
-                    Text(data.priceLabel!, style: context.eosText.titleSmall),
+                  Builder(
+                    builder: (context) {
+                      final priced = services
+                          .map((s) => s.priceFromMinor)
+                          .whereType<int>()
+                          .where((p) => p > 0)
+                          .toList()
+                        ..sort();
+                      if (priced.isNotEmpty) {
+                        return Text(
+                          'From ${formatRevenue(priced.first)}',
+                          style: context.eosText.titleSmall,
+                        );
+                      }
+                      if (data.priceLabel != null) {
+                        return Text(data.priceLabel!, style: context.eosText.titleSmall);
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
                 ],
               ),
               if (data.pricePerGuestLabel(guestCount).isNotEmpty) ...[
                 SizedBox(height: context.eos.spacing.xs),
                 Text(data.pricePerGuestLabel(guestCount), style: context.eosText.bodySmall),
               ],
+              SizedBox(height: context.eos.spacing.lg),
+              SectionHeader(
+                title: 'Services Offered',
+                subtitle: () {
+                  final priced = services
+                      .map((s) => s.priceFromMinor)
+                      .whereType<int>()
+                      .where((p) => p > 0)
+                      .toList();
+                  if (priced.isEmpty) {
+                    return 'Request one specific service from this vendor.';
+                  }
+                  priced.sort();
+                  return '${services.length} service${services.length == 1 ? '' : 's'} · From ${formatRevenue(priced.first)}';
+                }(),
+              ),
+              // Legacy starting_price is display metadata only — never the commercial source.
+              if (services.isEmpty)
+                EosSurfaceCard(
+                  child: Text(
+                    vendor.servicesOffered.isEmpty
+                        ? 'No services listed yet for this vendor.'
+                        : vendor.servicesOffered.join(' · '),
+                    style: context.eosText.bodyMedium,
+                  ),
+                )
+              else
+                ...services.map((service) {
+                  final isSelected = selected?.id == service.id;
+                  final price = service.priceFromMinor;
+                  return Padding(
+                    padding: EdgeInsets.only(bottom: context.eos.spacing.sm),
+                    child: EosSurfaceCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  service.serviceName,
+                                  style: context.eosText.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              if (isSelected)
+                                Chip(
+                                  avatar: const Icon(Icons.check, size: 16),
+                                  label: const Text('Selected'),
+                                  visualDensity: VisualDensity.compact,
+                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                            ],
+                          ),
+                          if (price != null && price > 0) ...[
+                            SizedBox(height: context.eos.spacing.xxs),
+                            Text(
+                              formatRevenue(price),
+                              style: context.eosText.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                          SizedBox(height: context.eos.spacing.sm),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: FilledButton(
+                              onPressed: () => _requestService(
+                                context,
+                                ref,
+                                vendor: vendor,
+                                service: service,
+                              ),
+                              child: Text('Request ${service.serviceName}'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
               SizedBox(height: context.eos.spacing.lg),
               const SectionHeader(
                 title: 'Vendor metrics',

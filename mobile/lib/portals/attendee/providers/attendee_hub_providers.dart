@@ -17,6 +17,14 @@ import '../../../portals/customer/models/home_hub_models.dart';
 
 final guestInvitationsApiProvider = Provider<GuestInvitationsApi>((ref) => GuestInvitationsApi());
 
+/// After RSVP confirm/decline, refresh invitations + ticket passes so My Events updates.
+void invalidateAttendeePassesAfterRsvp(WidgetRef ref) {
+  ref.invalidate(attendeeGuestInvitationsProvider);
+  ref.invalidate(attendeeTicketsSyncProvider);
+  ref.invalidate(attendeeEventsProvider);
+  ref.invalidate(myEventsBundleProvider);
+}
+
 /// Pending + answered RSVP invitations for the signed-in attendee.
 final attendeeGuestInvitationsProvider =
     FutureProvider.autoDispose<List<GuestInvitationItem>>((ref) async {

@@ -74,10 +74,12 @@ VendorParticipationStatus mapVendorStatus(String raw) => switch (raw) {
 
 VendorEventParticipation mapVendorParticipation(Map<String, dynamic> json) {
   final eventId = (json['eventId'] ?? '').toString();
+  final eventUuidRaw = (json['eventUuid'] ?? '').toString().trim();
   final status = mapVendorStatus((json['status'] ?? 'invited').toString());
   return VendorEventParticipation(
     id: (json['id'] ?? '').toString(),
     eventId: eventId,
+    eventUuid: eventUuidRaw.isEmpty ? null : eventUuidRaw,
     eventTitle: (json['eventTitle'] ?? '').toString(),
     city: (json['city'] ?? '').toString(),
     venue: (json['venue'] ?? '').toString(),

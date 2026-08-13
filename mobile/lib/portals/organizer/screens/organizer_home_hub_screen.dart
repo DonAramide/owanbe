@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../auth/auth_notifier.dart';
 import '../../../eos/eos.dart';
+import '../../../features/organizer/widgets/organizer_dashboard_kpi_strip.dart';
+import '../../../features/organizer/providers/organizer_providers.dart';
 import '../../customer/navigation/event_navigator.dart';
 import '../../customer/providers/customer_home_providers.dart';
 import '../../customer/workspace/widgets/event_friendly_errors.dart';
@@ -28,6 +31,7 @@ class _OrganizerHomeHubScreenState extends ConsumerState<OrganizerHomeHubScreen>
 
   Future<void> _onRefresh() async {
     refreshCustomerHome(ref);
+    ref.invalidate(organizerDashboardStatsProvider);
     await ref.read(organizerHomeSnapshotProvider.future);
   }
 
@@ -76,6 +80,28 @@ class _OrganizerHomeHubScreenState extends ConsumerState<OrganizerHomeHubScreen>
                 HomeWelcomeHero(
                   displayName: session?.displayName ?? 'Organizer',
                   nearestEvent: snapshot.nearestEvent,
+                ),
+                SizedBox(height: sectionGap),
+                EosSurfaceCard(
+                  child: ListTile(
+                    leading: const Icon(Icons.dashboard_outlined),
+                    title: const Text('Organizer command center'),
+                    subtitle: const Text('Full dashboard, events, tickets, vendors, analytics, and live ops.'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.go('/organizer'),
+                  ),
+                ),
+                SizedBox(height: sectionGap),
+                const SectionHeader(
+                  title: 'Portfolio KPIs',
+                  subtitle: 'Live metrics from your organizer dashboard API.',
+                ),
+                OrganizerDashboardKpiStrip(
+                  onEventsTap: () => context.go('/organizer'),
+                  onTicketsTap: () => context.go('/organizer'),
+                  onVendorsTap: () => context.go('/organizer'),
+                  onAttendeesTap: () => context.go('/organizer'),
+                  onAnalyticsTap: () => context.go('/organizer'),
                 ),
                 SizedBox(height: sectionGap),
                 if (snapshot.nearestEvent != null) ...[

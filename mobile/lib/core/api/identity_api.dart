@@ -158,7 +158,7 @@ class OrganizerProfileView {
 class IdentityApi {
   IdentityApi({http.Client? client}) : _http = client ?? http.Client();
 
-  static const _timeout = Duration(seconds: 12);
+  static const _timeout = Duration(seconds: 45);
   final http.Client _http;
 
   Future<http.Response> _get(Uri uri, {Map<String, String>? headers}) =>
@@ -334,7 +334,10 @@ class IdentityApi {
   ) async {
     final res = await _patch(
       _u('me/vendor-profile'),
-      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      headers: await OwambeApiAuth.authorizedHeaders(
+        tenantId: _tenantId,
+        refreshIfNeeded: true,
+      ),
       body: jsonEncode(body),
     );
     if (res.statusCode >= 400) _throw(res);

@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../eos/eos.dart';
 import '../providers/vendor_providers.dart';
 import '../providers/vendor_intelligence_engine.dart';
+import '../vendor_os_demo_mode.dart';
 import '../widgets/vendor_shared.dart';
+import '../widgets/vendor_empty_state.dart';
 
 class VendorRentalsScreen extends ConsumerStatefulWidget {
   const VendorRentalsScreen({super.key});
@@ -16,28 +18,32 @@ class VendorRentalsScreen extends ConsumerStatefulWidget {
 class _VendorRentalsScreenState extends ConsumerState<VendorRentalsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  final List<Map<String, dynamic>> _mockInventory = [
-    {
-      'name': 'Chafing Dishes (Stainless Steel)',
-      'type': 'Rental Asset',
-      'stock': 40,
-      'reserved': 10,
-      'warehouse': 'Lagos Mainland Warehouse',
-      'qrCode': 'QR-CHAFE-09A',
-    },
-    {
-      'name': 'Wedding Arch (Gold Circle Metal)',
-      'type': 'Rental Asset',
-      'stock': 3,
-      'reserved': 1,
-      'warehouse': 'Lagos Island Studio',
-      'qrCode': 'QR-ARCH-88B',
-    },
-  ];
+  late final List<Map<String, dynamic>> _mockInventory = VendorOsDemoMode.isEnabled
+      ? [
+          {
+            'name': 'Chafing Dishes (Stainless Steel)',
+            'type': 'Rental Asset',
+            'stock': 40,
+            'reserved': 10,
+            'warehouse': 'Lagos Mainland Warehouse',
+            'qrCode': 'QR-CHAFE-09A',
+          },
+          {
+            'name': 'Wedding Arch (Gold Circle Metal)',
+            'type': 'Rental Asset',
+            'stock': 3,
+            'reserved': 1,
+            'warehouse': 'Lagos Island Studio',
+            'qrCode': 'QR-ARCH-88B',
+          },
+        ]
+      : <Map<String, dynamic>>[];
 
-  final List<Map<String, dynamic>> _mockMaintenance = [
-    {'name': 'JBL Party Sound Speakers', 'issue': 'Blown tweeter replacement', 'date': '2026-07-10', 'status': 'Pending'},
-  ];
+  late final List<Map<String, dynamic>> _mockMaintenance = VendorOsDemoMode.isEnabled
+      ? [
+          {'name': 'JBL Party Sound Speakers', 'issue': 'Blown tweeter replacement', 'date': '2026-07-10', 'status': 'Pending'},
+        ]
+      : <Map<String, dynamic>>[];
 
   @override
   void initState() {

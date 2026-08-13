@@ -6,13 +6,23 @@ import 'package:owambe/portals/customer/models/vendor_crm_models.dart';
 
 void main() {
   group('VendorIdentity', () {
-    test('resolves legacy marketplace aliases to canonical vendor id', () {
-      expect(VendorIdentity.resolveMarketplaceVendorId('v12'), VendorIdentity.canonicalDevVendorId);
-      expect(VendorIdentity.resolveMarketplaceVendorId('vendor_jollof'), VendorIdentity.canonicalDevVendorId);
+    test('resolves legacy marketplace aliases to seed demo vendor id', () {
+      expect(VendorIdentity.resolveMarketplaceVendorId('v12'), VendorIdentity.seedDemoVendorId);
+      expect(VendorIdentity.resolveMarketplaceVendorId('vendor_jollof'), VendorIdentity.seedDemoVendorId);
       expect(
-        VendorIdentity.resolveMarketplaceVendorId(VendorIdentity.canonicalDevVendorId),
-        VendorIdentity.canonicalDevVendorId,
+        VendorIdentity.resolveMarketplaceVendorId(VendorIdentity.seedDemoVendorId),
+        VendorIdentity.seedDemoVendorId,
       );
+    });
+
+    test('rejects orphan marketplace string ids', () {
+      expect(() => VendorIdentity.resolveMarketplaceVendorId('v1'), throwsArgumentError);
+      expect(() => VendorIdentity.resolveMarketplaceVendorId('v2'), throwsArgumentError);
+    });
+
+    test('passes through real vendors.id UUIDs', () {
+      const real = '79f4d451-98be-4f81-83c1-6c1732862ace';
+      expect(VendorIdentity.resolveMarketplaceVendorId(real), real);
     });
   });
 
@@ -28,7 +38,7 @@ void main() {
       return VendorRequest(
         id: id,
         eventId: 'evt_1',
-        vendorId: VendorIdentity.canonicalDevVendorId,
+        vendorId: VendorIdentity.seedDemoVendorId,
         stage: stage,
         serviceLabel: 'Catering',
         message: 'Please cater our event',

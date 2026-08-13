@@ -18,7 +18,7 @@ class OwambeApiAuth {
   static const devTenantId = '11111111-1111-4111-8111-111111111111';
 
   /// Resolves API base URL. On a physical phone, `localhost` is the phone itself —
-  /// use your PC's Wi‑Fi IP in `assets/env/supabase.env` (see OWANBE_API_BASE).
+  /// use your PC's Wi‑Fi IP in `assets/env/owanbe_config` (see OWANBE_API_BASE).
   static String resolveApiBase([String fallback = 'http://localhost:8080/v1']) {
     var raw = (dotenv.env['OWANBE_API_BASE'] ?? fallback).trim();
     if (!kIsWeb && Platform.isAndroid) {
@@ -49,11 +49,38 @@ class OwambeApiAuth {
   static String? accessToken() =>
       Supabase.instance.client.auth.currentSession?.accessToken;
 
+  /// Refresh the Supabase session when missing or within [skew] of expiry.
+  /// Call before long / critical Nest writes (e.g. vendor onboarding create).
+  static Future<String> ensureFreshAccessToken({
+    Duration skew = const Duration(minutes: 2),
+  }) async {
+    final auth = Supabase.instance.client.auth;
+    var session = auth.currentSession;
+    final expiresAt = session?.expiresAt;
+    final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final needsRefresh = session == null ||
+        session.accessToken.isEmpty ||
+        expiresAt == null ||
+        expiresAt <= nowSec + skew.inSeconds;
+    if (needsRefresh) {
+      final res = await auth.refreshSession();
+      session = res.session ?? auth.currentSession;
+    }
+    final token = session?.accessToken;
+    if (token == null || token.isEmpty) {
+      throw OwambeAuthRequiredException('Session expired — sign in again');
+    }
+    return token;
+  }
+
   static Future<Map<String, String>> authorizedHeaders({
     String? tenantId,
     bool json = true,
+    bool refreshIfNeeded = false,
   }) async {
-    final token = accessToken();
+    final token = refreshIfNeeded
+        ? await ensureFreshAccessToken()
+        : accessToken();
     if (token == null || token.isEmpty) {
       throw OwambeAuthRequiredException();
     }

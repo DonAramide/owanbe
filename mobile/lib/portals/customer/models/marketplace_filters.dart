@@ -103,7 +103,22 @@ List<MarketplaceVendor> applyMarketplaceFilters(List<MarketplaceVendor> vendors,
 }
 
 List<String> marketplaceServiceCategories(List<MarketplaceVendor> vendors) {
-  final cats = vendors.map((v) => v.categoryLabel).toSet().toList()..sort();
+  // Prefer first-class vendor_services / servicesOffered so multi-service vendors
+  // appear under every applicable filter chip.
+  final labels = <String>{};
+  for (final v in vendors) {
+    for (final s in v.services) {
+      final name = s.serviceName.trim();
+      if (name.isNotEmpty) labels.add(name);
+    }
+    for (final s in v.servicesOffered) {
+      final name = s.trim();
+      if (name.isNotEmpty) labels.add(name);
+    }
+    final cat = v.categoryLabel.trim();
+    if (cat.isNotEmpty && cat != 'Celebration vendor') labels.add(cat);
+  }
+  final cats = labels.toList()..sort();
   return ['All', ...cats];
 }
 

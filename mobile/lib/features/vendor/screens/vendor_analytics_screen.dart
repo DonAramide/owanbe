@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../eos/eos.dart';
 import '../providers/vendor_providers.dart';
 import '../providers/vendor_intelligence_engine.dart';
+import '../vendor_os_demo_mode.dart';
 import '../widgets/vendor_shared.dart';
+import '../widgets/vendor_empty_state.dart';
 
 class VendorAnalyticsScreen extends ConsumerStatefulWidget {
   const VendorAnalyticsScreen({super.key});
@@ -62,6 +64,14 @@ class _VendorAnalyticsScreenState extends ConsumerState<VendorAnalyticsScreen> w
   }
 
   Widget _buildMarketplaceMetricsTab(IntelligenceState state) {
+    if (!state.metricsAvailable && !VendorOsDemoMode.isEnabled) {
+      return const Center(
+        child: VendorEmptyState(
+          message: 'Analytics will appear after you begin working with events.',
+          icon: Icons.analytics_outlined,
+        ),
+      );
+    }
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -84,7 +94,7 @@ class _VendorAnalyticsScreenState extends ConsumerState<VendorAnalyticsScreen> w
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildMetricCard('Negotiation Win Rate', '72.3%', '+4.8%'),
+              child: _buildMetricCard('Acceptance rate', '72.3%', '+4.8%'),
             ),
           ],
         ),
@@ -144,6 +154,14 @@ class _VendorAnalyticsScreenState extends ConsumerState<VendorAnalyticsScreen> w
   }
 
   Widget _buildOperationalTab(IntelligenceState state) {
+    if (!state.metricsAvailable && !VendorOsDemoMode.isEnabled) {
+      return const Center(
+        child: VendorEmptyState(
+          message: 'Analytics will appear after you begin working with events.',
+          icon: Icons.analytics_outlined,
+        ),
+      );
+    }
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -157,13 +175,13 @@ class _VendorAnalyticsScreenState extends ConsumerState<VendorAnalyticsScreen> w
               children: [
                 const Text('RESPONSE TIME & SATISFACTION INDEX', style: TextStyle(color: Color(0xFFF59E0B), fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
-                Text('Average quote response time: 24 minutes', style: const TextStyle(color: Colors.white)),
+                const Text('Average quote response time: 24 minutes', style: TextStyle(color: Colors.white)),
                 const SizedBox(height: 4),
                 Text('SLA compliance rate: ${state.slaCompliance}%', style: const TextStyle(color: Colors.white70)),
                 const SizedBox(height: 4),
-                Text('Refund rate: 0.2% (Low)', style: const TextStyle(color: Colors.white70)),
+                const Text('Refund rate: 0.2% (Low)', style: TextStyle(color: Colors.white70)),
                 const SizedBox(height: 4),
-                Text('Cancellation rate: 1.1%', style: const TextStyle(color: Colors.white70)),
+                const Text('Cancellation rate: 1.1%', style: TextStyle(color: Colors.white70)),
               ],
             ),
           ),
@@ -173,6 +191,14 @@ class _VendorAnalyticsScreenState extends ConsumerState<VendorAnalyticsScreen> w
   }
 
   Widget _buildForecastTab() {
+    if (!VendorOsDemoMode.isEnabled) {
+      return const Center(
+        child: VendorEmptyState(
+          message: 'Analytics will appear after you begin working with events.',
+          icon: Icons.analytics_outlined,
+        ),
+      );
+    }
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [

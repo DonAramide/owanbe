@@ -6,6 +6,7 @@ import '../../../identity/experience_navigation.dart';
 import '../../../identity/identity_provider.dart';
 import '../../../identity/workspace_models.dart';
 import '../../../navigation/enterprise_back_handler.dart';
+import '../../../eos/layout/eos_adaptive.dart';
 import 'workspace_switcher.dart';
 
 /// Unified workspace shell — access control, active context, and platform chrome.
@@ -45,14 +46,35 @@ class _WorkspaceExperienceShellState extends ConsumerState<WorkspaceExperienceSh
 }
 
 /// Shared platform actions — return to launcher + instant workspace switching.
+///
+/// Compact windows use icon-only chrome to avoid top-bar overflow.
 class WorkspaceContextActions extends ConsumerWidget {
-  const WorkspaceContextActions({super.key, this.iconColor});
+  const WorkspaceContextActions({super.key, this.iconColor, this.forceCompact});
 
   final Color? iconColor;
+  final bool? forceCompact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final active = ref.watch(activeWorkspaceProvider);
+    final compact = forceCompact ?? EosAdaptive.isCompact(context);
+    final color = iconColor ?? Theme.of(context).colorScheme.onSurfaceVariant;
+
+    if (compact) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'Owanbe Home',
+            visualDensity: VisualDensity.compact,
+            onPressed: () => ExperienceNavigation.returnToHub(context),
+            icon: Icon(Icons.home_outlined, color: color),
+          ),
+          WorkspaceSwitcher(iconColor: color),
+        ],
+      );
+    }
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -65,10 +87,10 @@ class WorkspaceContextActions extends ConsumerWidget {
           message: 'Owanbe Home',
           child: TextButton.icon(
             onPressed: () => ExperienceNavigation.returnToHub(context),
-            icon: Icon(Icons.arrow_back, size: 18, color: iconColor ?? Colors.white70),
+            icon: Icon(Icons.arrow_back, size: 18, color: color),
             label: Text(
               'Owanbe Home',
-              style: TextStyle(color: iconColor ?? Colors.white70, fontWeight: FontWeight.w600),
+              style: TextStyle(color: color, fontWeight: FontWeight.w600),
             ),
             style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -77,7 +99,7 @@ class WorkspaceContextActions extends ConsumerWidget {
             ),
           ),
         ),
-        WorkspaceSwitcher(iconColor: iconColor),
+        WorkspaceSwitcher(iconColor: color),
       ],
     );
   }
@@ -104,11 +126,13 @@ class WorkspaceContextChip extends StatelessWidget {
         border: Border.all(color: Colors.white24),
       ),
       child: Text(
-        '${workspace.title} Workspace',
+        compact ? workspace.title : '${workspace.title} Workspace',
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: Colors.white70,
               fontWeight: FontWeight.w600,
             ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }

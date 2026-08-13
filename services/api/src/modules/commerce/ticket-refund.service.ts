@@ -10,6 +10,9 @@ import { computeFeeReversalMinor } from './commerce.types';
 import { TenantFinancePolicyService } from './tenant-finance-policy.service';
 import type { CommerceActor } from './commerce-auth.service';
 import { LedgerService } from '../payments/ledger.service';
+import { sqlOrganizerOwnerOrMember } from '../events/organizer-access.sql';
+import { DomainEventsService } from '../domain-events/domain-events.service';
+import { DOMAIN_EVENTS } from '../domain-events/domain-event.types';
 
 export type TicketRefundAction = 'approve' | 'reject' | 'escalate';
 
@@ -19,6 +22,7 @@ export class TicketRefundService {
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly financePolicy: TenantFinancePolicyService,
     private readonly ledger: LedgerService,
+    private readonly domainEvents: DomainEventsService,
   ) {}
 
   async listQueue(tenantId: string, status?: string) {
@@ -166,6 +170,149 @@ export class TicketRefundService {
     };
   }
 
+  /**
+   * Organizer-owned refund queue for a single event (Phase 17).
+   */
+  async listForEvent(actor: CommerceActor, eventKey: string, status?: string) {
+    const event = await this.resolveOrganizerEvent(actor, eventKey);
+    const statuses = status
+      ? [status]
+      : ['requested', 'under_review', 'approved', 'processing', 'completed', 'rejected'];
+    const { rows } = await this.pool.query(
+      `SELECT trc.id, trc.ticket_order_id, trc.status::text, trc.amount_minor::text,
+              trc.platform_fee_reversal_minor::text, trc.currency, trc.reason,
+              trc.created_at, trc.updated_at, u.email AS requester_email,
+              tord.total_minor::text AS order_total_minor
+       FROM ticket_refund_cases trc
+       INNER JOIN ticket_orders tord ON tord.id = trc.ticket_order_id
+       INNER JOIN users u ON u.id = trc.requested_by_user_id
+       WHERE trc.tenant_id = $1
+         AND tord.event_id = $2
+         AND trc.status::text = ANY($3::text[])
+       ORDER BY trc.created_at DESC
+       LIMIT 200`,
+      [actor.tenantId, event.eventId, statuses],
+    );
+    return {
+      eventId: event.eventId,
+      eventTitle: event.eventTitle,
+      items: rows.map((r) => ({
+        id: r.id,
+        ticketOrderId: r.ticket_order_id,
+        status: r.status,
+        amountMinor: r.amount_minor,
+        platformFeeReversalMinor: r.platform_fee_reversal_minor,
+        currency: r.currency,
+        reason: r.reason,
+        requesterEmail: r.requester_email,
+        orderTotalMinor: r.order_total_minor,
+        createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at,
+        updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : r.updated_at,
+      })),
+    };
+  }
+
+  /**
+   * Organizer may open a refund case against an order on their event.
+   */
+  async organizerCreateCase(
+    actor: CommerceActor,
+    eventKey: string,
+    ticketOrderId: string,
+    amountMinor: string,
+    reason: string,
+  ) {
+    const event = await this.resolveOrganizerEvent(actor, eventKey);
+    const ord = await this.pool.query<{
+      id: string;
+      subtotal_minor: string;
+      platform_fee_minor: string;
+      status: string;
+    }>(
+      `SELECT id, subtotal_minor::text, platform_fee_minor::text, status::text
+       FROM ticket_orders
+       WHERE id = $1 AND tenant_id = $2 AND event_id = $3 AND organizer_id = $4`,
+      [ticketOrderId, actor.tenantId, event.eventId, event.organizerId],
+    );
+    const order = ord.rows[0];
+    if (!order) {
+      throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Ticket order not found' });
+    }
+    if (!['fulfilled', 'confirmed'].includes(order.status)) {
+      throw new UnprocessableEntityException({
+        code: 'ORDER_NOT_REFUNDABLE',
+        message: 'Order is not eligible for refund',
+      });
+    }
+    const amount = BigInt(amountMinor);
+    const subtotal = BigInt(order.subtotal_minor);
+    if (amount <= 0n || amount > subtotal) {
+      throw new UnprocessableEntityException({ code: 'INVALID_AMOUNT', message: 'Invalid refund amount' });
+    }
+    const feeReversal = computeFeeReversalMinor(
+      Number(amount),
+      Number(order.subtotal_minor),
+      Number(order.platform_fee_minor),
+    );
+    const { rows } = await this.pool.query<{ id: string }>(
+      `INSERT INTO ticket_refund_cases (
+         tenant_id, ticket_order_id, requested_by_user_id, status,
+         amount_minor, platform_fee_reversal_minor, currency, reason, metadata
+       ) SELECT $1, $2, $3, 'requested', $4::bigint, $5::bigint, tord.currency, $6,
+                jsonb_build_object('source', 'organizer')
+         FROM ticket_orders tord WHERE tord.id = $2
+       RETURNING id`,
+      [actor.tenantId, ticketOrderId, actor.userId, amount.toString(), feeReversal.toString(), reason],
+    );
+    return { id: rows[0]!.id, status: 'requested', platformFeeReversalMinor: feeReversal.toString() };
+  }
+
+  /**
+   * Organizer approve / reject / escalate — same state machine as admin, ownership gated.
+   */
+  async organizerAction(
+    actor: CommerceActor,
+    eventKey: string,
+    caseId: string,
+    action: TicketRefundAction,
+    note?: string,
+  ) {
+    const event = await this.resolveOrganizerEvent(actor, eventKey);
+    const owned = await this.pool.query<{ id: string }>(
+      `SELECT trc.id
+       FROM ticket_refund_cases trc
+       INNER JOIN ticket_orders tord ON tord.id = trc.ticket_order_id
+       WHERE trc.id = $1 AND trc.tenant_id = $2 AND tord.event_id = $3 AND tord.organizer_id = $4`,
+      [caseId, actor.tenantId, event.eventId, event.organizerId],
+    );
+    if (!owned.rows[0]) {
+      throw new NotFoundException({ code: 'NOT_FOUND', message: 'Refund case not found' });
+    }
+    return this.adminAction(actor.tenantId, caseId, action, note);
+  }
+
+  private async resolveOrganizerEvent(actor: CommerceActor, eventKey: string) {
+    const { rows } = await this.pool.query<{
+      event_id: string;
+      title: string;
+      organizer_id: string;
+    }>(
+      `SELECT e.id AS event_id, e.title, e.organizer_id
+       FROM events e
+       INNER JOIN organizers o ON o.id = e.organizer_id AND o.tenant_id = e.tenant_id
+       WHERE e.tenant_id = $1
+         AND ${sqlOrganizerOwnerOrMember('$2')}
+         AND (e.id::text = $3 OR e.external_ref = $3 OR e.slug = $3)
+       LIMIT 1`,
+      [actor.tenantId, actor.userId, eventKey],
+    );
+    const row = rows[0];
+    if (!row) {
+      throw new NotFoundException({ code: 'EVENT_NOT_FOUND', message: 'Event not found or access denied' });
+    }
+    return { eventId: row.event_id, eventTitle: row.title, organizerId: row.organizer_id };
+  }
+
   async adminAction(tenantId: string, caseId: string, action: TicketRefundAction, note?: string) {
     const row = await this.getCase(tenantId, caseId);
     const nextStatus = this.nextStatus(row.status, action);
@@ -205,6 +352,20 @@ export class TicketRefundService {
           [caseId, tenantId, JSON.stringify({ ledger_transaction_id: ledgerTxnId })],
         );
       }
+      const org = await this.pool.query<{ organizer_id: string }>(
+        `SELECT organizer_id FROM ticket_orders WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [row.ticketOrderId, tenantId],
+      );
+      this.domainEvents.emit(DOMAIN_EVENTS.REFUND_COMPLETED, {
+        tenantId,
+        organizerId: org.rows[0]?.organizer_id,
+        entityId: caseId,
+        data: {
+          ticketOrderId: row.ticketOrderId,
+          amountMinor: row.amountMinor,
+          summary: `Refund completed for order ${row.ticketOrderId}`,
+        },
+      });
     }
 
     return { id: caseId, status: nextStatus, action };

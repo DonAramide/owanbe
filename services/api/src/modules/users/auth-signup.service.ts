@@ -395,6 +395,13 @@ export class AuthSignupService {
     displayName?: string,
   ): Promise<void> {
     const name = displayName?.trim() || user.email?.split('@')[0] || 'User';
+    const roleCode = workspace === 'client' ? 'client' : workspace;
+    await this.pool.query(
+      `INSERT INTO user_roles (user_id, role_id)
+       SELECT $1, r.id FROM roles r WHERE r.code = $2
+       ON CONFLICT DO NOTHING`,
+      [user.userId, roleCode],
+    );
     switch (workspace) {
       case 'client':
         await this.pool.query(

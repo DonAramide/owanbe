@@ -506,7 +506,7 @@ List<EventReminder> buildEventReminders(EventCommandCenterV3Snapshot snap) {
       EventReminder(
         kind: EventReminderKind.vendor,
         headline: '${openDeals.length} vendor deal${openDeals.length == 1 ? '' : 's'} still open',
-        detail: '$names$suffix — follow up or counter-offer to lock them in.',
+        detail: '$names$suffix — follow up to confirm vendor acceptance.',
         severity: EventReminderSeverity.warning,
         actionTab: EventWorkspaceTab.vendors,
         actionLabel: 'Review vendors',

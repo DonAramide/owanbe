@@ -75,13 +75,20 @@ class _IncidentCenterScreenState extends ConsumerState<IncidentCenterScreen> {
   }
 
   Future<void> _update(String id, IncidentStatus status) async {
-    // Delegates status update through the provider layer — no store access in UI.
     try {
       await ref.read(operationsApiProvider).updateIncidentStatus(widget.eventId, id, status);
       bumpOperationsRevision(ref);
-    } catch (_) {
-      // Error is surfaced by the incidents provider on next rebuild.
-      bumpOperationsRevision(ref);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Incident marked ${status.name}')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update incident: $e')),
+        );
+      }
     }
   }
 

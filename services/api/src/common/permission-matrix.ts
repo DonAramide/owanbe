@@ -41,6 +41,17 @@ export const ADMIN_FINANCE_ROLES: OwanbeRole[] = [...ADMIN_TIERS];
 /** Strict finance control surface (power actions + dashboards). */
 export const ADMIN_FINANCE_CONTROL_ROLES: OwanbeRole[] = ['admin_super', 'admin_ops'];
 
+/**
+ * Vendor pricing rules CRUD — Control Tower operators + finance admins.
+ * Includes `super_admin` so Control Tower can manage its own commerce config
+ * without broadening all ADMIN_FINANCE_CONTROL_ROLES endpoints.
+ */
+export const VENDOR_PRICING_ADMIN_ROLES: OwanbeRole[] = [
+  'super_admin',
+  'admin_super',
+  'admin_ops',
+];
+
 export const VENDOR_FINANCE_VIEW_ROLES: OwanbeRole[] = ['vendor', 'vendor_pending', ...ADMIN_TIERS];
 
 export const DISPUTE_CREATE_ROLES: OwanbeRole[] = ['client'];

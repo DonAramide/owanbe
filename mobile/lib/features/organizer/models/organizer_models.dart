@@ -5,7 +5,7 @@ enum OrganizerEventStatus { draft, published, live, completed, cancelled }
 
 enum VenueType { physical, virtual, hybrid }
 
-enum TicketTierType { regular, vip, vvip, earlyBird, group, corporate, table }
+enum TicketTierType { regular, vip, vvip, earlyBird, group, corporate, table, complimentary }
 
 enum TicketVisibility { publicListing, hidden }
 
@@ -54,6 +54,21 @@ class OrganizerEvent {
     this.venueLongitude,
     this.googlePlaceId,
     this.celebrantImageUrl,
+    this.language = 'en',
+    this.ageRestrictionMin = 0,
+    this.listingVisibility = 'invite_only',
+    this.registrationEnabled = true,
+    this.checkInEnabled = true,
+    this.themeColor = '#4B2C6F',
+    this.requiredServices = const [],
+    this.venueDeferred = false,
+    this.state = '',
+    this.lga = '',
+    this.selectedTemplateSlug = '',
+    this.reportedTicketsSold,
+    this.reportedRevenueMinor,
+    this.reportedOrdersCount,
+    this.reportedBuyersCount,
   });
 
   final String id;
@@ -90,18 +105,43 @@ class OrganizerEvent {
   final double? venueLongitude;
   final String? googlePlaceId;
   final String? celebrantImageUrl;
+  final String language;
+  final int ageRestrictionMin;
+  final String listingVisibility;
+  final bool registrationEnabled;
+  final bool checkInEnabled;
+  final String themeColor;
+  final List<String> requiredServices;
+  final bool venueDeferred;
+  final String state;
+  final String lga;
+  final String selectedTemplateSlug;
+  /// Server sales snapshot (Phase 14) — preferred over inventory-derived estimates.
+  final int? reportedTicketsSold;
+  final int? reportedRevenueMinor;
+  final int? reportedOrdersCount;
+  final int? reportedBuyersCount;
 
   bool get isPrivateCelebration => eventAccessMode == EventAccessMode.privateInvitation;
 
   bool get isPublicTicketed => eventAccessMode == EventAccessMode.publicTicketed;
 
   bool get isUpcoming =>
-      status == OrganizerEventStatus.published || status == OrganizerEventStatus.draft;
+      startsAt.isAfter(DateTime.now()) &&
+      (status == OrganizerEventStatus.draft ||
+          status == OrganizerEventStatus.published ||
+          status == OrganizerEventStatus.live);
 
-  int get ticketsSold => ticketTiers.fold(0, (sum, t) => sum + (t.capacity - t.remaining));
+  int get ticketsSold =>
+      reportedTicketsSold ?? ticketTiers.fold(0, (sum, t) => sum + (t.capacity - t.remaining));
 
   int get revenueMinor =>
+      reportedRevenueMinor ??
       ticketTiers.fold(0, (sum, t) => sum + (t.capacity - t.remaining) * t.priceMinor);
+
+  int get ordersCount => reportedOrdersCount ?? 0;
+
+  int get buyersCount => reportedBuyersCount ?? attendees.length;
 
   int get totalCapacity => ticketTiers.fold(0, (sum, t) => sum + t.capacity);
 
@@ -142,6 +182,17 @@ class OrganizerEvent {
     double? venueLongitude,
     String? googlePlaceId,
     String? celebrantImageUrl,
+    String? language,
+    int? ageRestrictionMin,
+    String? listingVisibility,
+    bool? registrationEnabled,
+    bool? checkInEnabled,
+    String? themeColor,
+    List<String>? requiredServices,
+    bool? venueDeferred,
+    String? state,
+    String? lga,
+    String? selectedTemplateSlug,
   }) {
     return OrganizerEvent(
       id: id,
@@ -178,6 +229,21 @@ class OrganizerEvent {
       venueLongitude: venueLongitude ?? this.venueLongitude,
       googlePlaceId: googlePlaceId ?? this.googlePlaceId,
       celebrantImageUrl: celebrantImageUrl ?? this.celebrantImageUrl,
+      language: language ?? this.language,
+      ageRestrictionMin: ageRestrictionMin ?? this.ageRestrictionMin,
+      listingVisibility: listingVisibility ?? this.listingVisibility,
+      registrationEnabled: registrationEnabled ?? this.registrationEnabled,
+      checkInEnabled: checkInEnabled ?? this.checkInEnabled,
+      themeColor: themeColor ?? this.themeColor,
+      requiredServices: requiredServices ?? this.requiredServices,
+      venueDeferred: venueDeferred ?? this.venueDeferred,
+      state: state ?? this.state,
+      lga: lga ?? this.lga,
+      selectedTemplateSlug: selectedTemplateSlug ?? this.selectedTemplateSlug,
+      reportedTicketsSold: reportedTicketsSold,
+      reportedRevenueMinor: reportedRevenueMinor,
+      reportedOrdersCount: reportedOrdersCount,
+      reportedBuyersCount: reportedBuyersCount,
     );
   }
 
@@ -243,6 +309,12 @@ class OrganizerTicketTier {
     this.salesWindowStart,
     this.salesWindowEnd,
     this.salesPaused = false,
+    this.archived = false,
+    this.unlimitedCapacity = false,
+    this.minQuantity = 1,
+    this.maxQuantity,
+    this.maxPerUser,
+    this.sortOrder = 0,
   });
 
   final String id;
@@ -258,6 +330,14 @@ class OrganizerTicketTier {
   final DateTime? salesWindowStart;
   final DateTime? salesWindowEnd;
   final bool salesPaused;
+  final bool archived;
+  final bool unlimitedCapacity;
+  final int minQuantity;
+  final int? maxQuantity;
+  final int? maxPerUser;
+  final int sortOrder;
+
+  bool get isSoldOut => !unlimitedCapacity && remaining <= 0;
 
   OrganizerTicketTier copyWith({
     String? name,
@@ -270,9 +350,18 @@ class OrganizerTicketTier {
     DateTime? salesWindowStart,
     DateTime? salesWindowEnd,
     bool? salesPaused,
+    bool? archived,
+    bool? unlimitedCapacity,
+    int? minQuantity,
+    int? maxQuantity,
+    int? maxPerUser,
+    int? sortOrder,
+    bool clearMaxQuantity = false,
+    bool clearMaxPerUser = false,
   }) {
     return OrganizerTicketTier(
       id: id,
+      dbTierId: dbTierId,
       name: name ?? this.name,
       description: description ?? this.description,
       priceMinor: priceMinor ?? this.priceMinor,
@@ -284,6 +373,12 @@ class OrganizerTicketTier {
       salesWindowStart: salesWindowStart ?? this.salesWindowStart,
       salesWindowEnd: salesWindowEnd ?? this.salesWindowEnd,
       salesPaused: salesPaused ?? this.salesPaused,
+      archived: archived ?? this.archived,
+      unlimitedCapacity: unlimitedCapacity ?? this.unlimitedCapacity,
+      minQuantity: minQuantity ?? this.minQuantity,
+      maxQuantity: clearMaxQuantity ? null : (maxQuantity ?? this.maxQuantity),
+      maxPerUser: clearMaxPerUser ? null : (maxPerUser ?? this.maxPerUser),
+      sortOrder: sortOrder ?? this.sortOrder,
     );
   }
 }
@@ -396,40 +491,6 @@ class OrganizerAttentionItem {
   final String severity;
 }
 
-class EventAnalyticsSnapshot {
-  const EventAnalyticsSnapshot({
-    required this.eventId,
-    required this.pageViews,
-    required this.ticketsSold,
-    required this.revenueMinor,
-    required this.checkInRate,
-    required this.registrations,
-    required this.checkIns,
-    required this.noShows,
-    required this.dailySales,
-    required this.weeklySales,
-    required this.monthlySales,
-    required this.salesTrend,
-    required this.tierBreakdown,
-    required this.tierTypeBreakdown,
-  });
-
-  final String eventId;
-  final int pageViews;
-  final int ticketsSold;
-  final int revenueMinor;
-  final double checkInRate;
-  final int registrations;
-  final int checkIns;
-  final int noShows;
-  final List<double> dailySales;
-  final List<double> weeklySales;
-  final List<double> monthlySales;
-  final List<double> salesTrend;
-  final Map<String, int> tierBreakdown;
-  final Map<TicketTierType, int> tierTypeBreakdown;
-}
-
 class EventWizardV2Draft {
   EventWizardV2Draft({
     this.categorySlug = '',
@@ -437,6 +498,7 @@ class EventWizardV2Draft {
     this.eventAccessMode = EventAccessMode.privateInvitation,
     this.title = '',
     this.tagline = '',
+    this.description = '',
     this.city = '',
     this.venueName = '',
     this.venueAddress = '',
@@ -456,6 +518,15 @@ class EventWizardV2Draft {
     this.state = '',
     this.lga = '',
     this.celebrantImageUrl,
+    this.language = 'en',
+    this.ageRestrictionMin = 0,
+    this.listingVisibility = 'invite_only',
+    this.venueType = VenueType.physical,
+    this.registrationEnabled = true,
+    this.checkInEnabled = true,
+    this.bannerLabel = 'Default banner',
+    this.themeColor = '#4B2C6F',
+    this.selectedTemplateSlug = '',
   })  : startsAt = startsAt ?? DateTime.now().add(const Duration(days: 60)),
         endsAt = endsAt ?? DateTime.now().add(const Duration(days: 60, hours: 6));
 
@@ -464,6 +535,7 @@ class EventWizardV2Draft {
   final EventAccessMode eventAccessMode;
   final String title;
   final String tagline;
+  final String description;
   final String city;
   final String venueName;
   final String venueAddress;
@@ -483,6 +555,18 @@ class EventWizardV2Draft {
   final String state;
   final String lga;
   final String? celebrantImageUrl;
+  /// BCP-47-ish language code for the event.
+  final String language;
+  /// 0 = none; otherwise minimum age.
+  final int ageRestrictionMin;
+  /// invite_only | public | hidden
+  final String listingVisibility;
+  final VenueType venueType;
+  final bool registrationEnabled;
+  final bool checkInEnabled;
+  final String bannerLabel;
+  final String themeColor;
+  final String selectedTemplateSlug;
 }
 
 class EventWizardDraft {
@@ -526,6 +610,7 @@ String ticketTierTypeLabel(TicketTierType type) => switch (type) {
       TicketTierType.group => 'Group',
       TicketTierType.corporate => 'Corporate',
       TicketTierType.table => 'Table',
+      TicketTierType.complimentary => 'Complimentary',
     };
 
 String vendorSlotStatusLabel(VendorSlotStatus status) => status.name;

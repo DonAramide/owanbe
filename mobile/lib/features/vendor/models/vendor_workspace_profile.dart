@@ -9,6 +9,7 @@ class VendorWorkspaceProfile {
     this.yearsOfExperience,
     this.businessDescription,
     this.servicesOffered = const [],
+    this.services = const [],
     this.serviceAreas = const [],
     this.portfolioImages = const [],
     this.portfolioVideos = const [],
@@ -42,6 +43,8 @@ class VendorWorkspaceProfile {
   final int? yearsOfExperience;
   final String? businessDescription;
   final List<String> servicesOffered;
+  /// First-class vendor_services entities (additive).
+  final List<VendorServiceEntity> services;
   final List<String> serviceAreas;
   final List<String> portfolioImages;
   final List<String> portfolioVideos;
@@ -76,6 +79,7 @@ class VendorWorkspaceProfile {
       yearsOfExperience: (json['yearsOfExperience'] as num?)?.toInt(),
       businessDescription: (json['businessDescription'] as String?) ?? (json['bio'] as String?),
       servicesOffered: _stringList(json['servicesOffered']),
+      services: _services(json['services']),
       serviceAreas: _stringList(json['serviceAreas']),
       portfolioImages: _stringList(json['portfolioImages']),
       portfolioVideos: _stringList(json['portfolioVideos']),
@@ -134,6 +138,41 @@ class VendorWorkspaceProfile {
         .where((d) => d.url.trim().isNotEmpty)
         .toList();
   }
+
+  static List<VendorServiceEntity> _services(dynamic raw) {
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((e) => VendorServiceEntity.fromJson(Map<String, dynamic>.from(e)))
+        .where((s) => s.id.trim().isNotEmpty)
+        .toList();
+  }
+}
+
+class VendorServiceEntity {
+  const VendorServiceEntity({
+    required this.id,
+    required this.serviceKey,
+    required this.serviceName,
+    this.serviceCode,
+    this.status = 'active',
+  });
+
+  final String id;
+  final String serviceKey;
+  final String serviceName;
+  final String? serviceCode;
+  final String status;
+
+  factory VendorServiceEntity.fromJson(Map<String, dynamic> json) {
+    return VendorServiceEntity(
+      id: json['id'] as String? ?? '',
+      serviceKey: json['serviceKey'] as String? ?? '',
+      serviceName: json['serviceName'] as String? ?? '',
+      serviceCode: json['serviceCode'] as String?,
+      status: json['status'] as String? ?? 'active',
+    );
+  }
 }
 
 class VendorVerificationDocument {
@@ -162,6 +201,7 @@ class VendorWorkspaceProfileUpdate {
     this.yearsOfExperience,
     this.businessDescription,
     this.servicesOffered,
+    this.servicePrices,
     this.serviceAreas,
     this.portfolioImages,
     this.portfolioVideos,
@@ -194,6 +234,8 @@ class VendorWorkspaceProfileUpdate {
   final int? yearsOfExperience;
   final String? businessDescription;
   final List<String>? servicesOffered;
+  /// Per-service vendor/base payouts in minor units → vendor_services.base_payout_minor.
+  final List<Map<String, dynamic>>? servicePrices;
   final List<String>? serviceAreas;
   final List<String>? portfolioImages;
   final List<String>? portfolioVideos;
@@ -226,6 +268,7 @@ class VendorWorkspaceProfileUpdate {
         if (yearsOfExperience != null) 'yearsOfExperience': yearsOfExperience,
         if (businessDescription != null) 'businessDescription': businessDescription,
         if (servicesOffered != null) 'servicesOffered': servicesOffered,
+        if (servicePrices != null) 'servicePrices': servicePrices,
         if (serviceAreas != null) 'serviceAreas': serviceAreas,
         if (portfolioImages != null) 'portfolioImages': portfolioImages,
         if (portfolioVideos != null) 'portfolioVideos': portfolioVideos,

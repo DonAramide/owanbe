@@ -6,7 +6,10 @@ import 'supabase_diagnostic.dart';
 
 /// Authoritative Supabase public configuration — single load path for Customer and Admin.
 ///
-/// Source of truth: `assets/env/supabase.env` (`SUPABASE_URL`, `SUPABASE_ANON_KEY`).
+/// Source of truth: `assets/env/owanbe_config` (`SUPABASE_URL`, `SUPABASE_ANON_KEY`).
+///
+/// Named without a `.env` suffix so Flutter Web can fetch the asset (many
+/// servers return 404 for `*.env`).
 class SupabaseConfig {
   const SupabaseConfig({
     required this.url,
@@ -16,7 +19,7 @@ class SupabaseConfig {
     required this.projectRef,
   });
 
-  static const assetFileName = 'assets/env/supabase.env';
+  static const assetFileName = 'assets/env/owanbe_config';
 
   final String url;
   final String anonKey;
@@ -66,7 +69,7 @@ class SupabaseConfig {
         SupabaseDiagnostic(
           kind: SupabaseFailureKind.missingUrl,
           title: 'Supabase configuration is invalid.',
-          message: 'SUPABASE_URL is missing from assets/env/supabase.env.',
+          message: 'SUPABASE_URL is missing from assets/env/owanbe_config.',
         ),
       );
     }
@@ -75,7 +78,7 @@ class SupabaseConfig {
         SupabaseDiagnostic(
           kind: SupabaseFailureKind.missingAnonKey,
           title: 'Supabase configuration is invalid.',
-          message: 'SUPABASE_ANON_KEY is missing from assets/env/supabase.env.',
+          message: 'SUPABASE_ANON_KEY is missing from assets/env/owanbe_config.',
           configuredUrl: urlRaw,
         ),
       );

@@ -30,8 +30,9 @@ export class SupabaseJwtStrategy extends PassportStrategy(Strategy, 'supabase-jw
       supabaseUrl.length > 0
         ? jwksRsa.passportJwtSecret({
             cache: true,
+            cacheMaxAge: 600_000,
             rateLimit: true,
-            jwksRequestsPerMinute: 10,
+            jwksRequestsPerMinute: 60,
             jwksUri: `${supabaseUrl.replace(/\/$/, '')}/auth/v1/.well-known/jwks.json`,
           })
         : null;

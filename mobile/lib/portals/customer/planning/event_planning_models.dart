@@ -56,12 +56,16 @@ class EventChecklistEntry {
     required this.done,
     required this.priority,
     this.moduleLink,
+    this.marketplaceCategory,
   });
 
   final String label;
   final bool done;
   final int priority;
   final PlanningModuleLink? moduleLink;
+
+  /// When set, opens marketplace filtered to this service category (e.g. Catering, DJ).
+  final String? marketplaceCategory;
 }
 
 class EventVendorStatusSummary {
@@ -288,6 +292,27 @@ EventFinanceStatusSummary buildFinanceStatusSummary({
   );
 }
 
+/// Maps a Smart checklist label to a marketplace service category.
+/// Returns null when the task is not a category-specific vendor booking.
+String? marketplaceCategoryForChecklistLabel(String label) {
+  final lower = label.toLowerCase();
+  if (lower.contains('cater')) return 'Catering';
+  if (lower.contains('dj') || lower.contains('entertainment') || lower.contains('music')) {
+    return 'DJ';
+  }
+  if (lower.contains('photo')) return 'Photographer';
+  if (lower.contains('decor') || lower.contains('décor') || lower.contains('styling')) {
+    return 'Decorator';
+  }
+  if (lower.contains('mc') || lower.contains('officiant')) return 'MC';
+  if (lower.contains('security')) return 'Security';
+  if (lower.contains('cake')) return 'Cake';
+  if (lower.contains('drink') || lower.contains('bar')) return 'Drinks';
+  if (lower.contains('florist') || lower.contains('floral')) return 'Florist';
+  if (lower.contains('venue') && lower.contains('book')) return 'Venue';
+  return null;
+}
+
 PlanningModuleLink? moduleLinkForChecklistLabel(String label) {
   final lower = label.toLowerCase();
   if (lower.contains('guest')) return PlanningModuleLink.guests;
@@ -295,15 +320,11 @@ PlanningModuleLink? moduleLinkForChecklistLabel(String label) {
   if (lower.contains('invitation')) return PlanningModuleLink.invitations;
   if (lower.contains('ticket') || lower.contains('rsvp')) return PlanningModuleLink.tickets;
   if (lower.contains('publish') || lower.contains('page')) return PlanningModuleLink.website;
-  if (lower.contains('cater') ||
-      lower.contains('dj') ||
-      lower.contains('photo') ||
-      lower.contains('decor') ||
-      lower.contains('mc') ||
-      lower.contains('officiant') ||
-      lower.contains('music') ||
-      lower.contains('security') ||
-      lower.contains('transport')) {
+  // Category-specific booking tasks → filtered marketplace (not the full pipeline).
+  if (marketplaceCategoryForChecklistLabel(label) != null) {
+    return PlanningModuleLink.marketplace;
+  }
+  if (lower.contains('vendor') || lower.contains('book')) {
     return PlanningModuleLink.vendors;
   }
   if (lower.contains('venue') || lower.contains('timeline') || lower.contains('program')) {
@@ -338,6 +359,7 @@ List<EventChecklistEntry> buildEventChecklist(AiPlannerPlan plan) {
         done: item.done,
         priority: item.priority,
         moduleLink: moduleLinkForChecklistLabel(item.label),
+        marketplaceCategory: marketplaceCategoryForChecklistLabel(item.label),
       ),
   ]..sort((a, b) => a.priority.compareTo(b.priority));
 }

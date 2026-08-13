@@ -131,15 +131,15 @@ class CcV3VendorPipelineChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pending = vendor.requested + vendor.negotiating;
     final bars = [
-      _FunnelStep('Requested', vendor.requested, const Color(0xFF64748B)),
-      _FunnelStep('Negotiating', vendor.negotiating, EosColors.warning),
+      _FunnelStep('Pending response', pending, EosColors.warning),
       _FunnelStep('Confirmed', vendor.confirmed, EosColors.plum),
       _FunnelStep('Completed', vendor.completed, EosColors.champagne),
     ];
     final max = math.max(
       1,
-      [vendor.requested, vendor.negotiating, vendor.confirmed, vendor.completed].reduce(math.max),
+      [pending, vendor.confirmed, vendor.completed].reduce(math.max),
     );
 
     return EosSurfaceCard(

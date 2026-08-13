@@ -10,6 +10,7 @@ void openPlanningModuleLink(
   String eventId,
   PlanningModuleLink link, {
   CustomerEvent? event,
+  String? marketplaceCategory,
 }) {
   final nav = context.eventNav;
   switch (link) {
@@ -22,7 +23,12 @@ void openPlanningModuleLink(
     case PlanningModuleLink.vendors:
       nav.openVendorPipeline(eventId);
     case PlanningModuleLink.marketplace:
-      nav.openMarketplace(eventId: eventId);
+      final category = marketplaceCategory?.trim();
+      if (category != null && category.isNotEmpty) {
+        nav.openMarketplaceCategory(category, eventId: eventId);
+      } else {
+        nav.openMarketplace(eventId: eventId);
+      }
     case PlanningModuleLink.tickets:
       if (event?.isPublicTicketed == true) {
         nav.openTicketsManage(eventId);

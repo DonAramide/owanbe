@@ -8,12 +8,13 @@ import '../models/vendor_models.dart';
 import '../providers/vendor_providers.dart';
 import '../providers/vendor_intelligence_engine.dart';
 import '../providers/vendor_inbox_integration.dart';
+import '../providers/vendor_event_workspace_nav.dart';
+import '../vendor_os_demo_mode.dart';
+import '../widgets/vendor_empty_state.dart';
+import '../widgets/vendor_incoming_requests_panel.dart';
+import 'vendor_event_360_workspace_screen.dart';
 import '../../../portals/customer/models/vendor_crm_models.dart';
 import '../../../portals/customer/providers/vendor_crm_providers.dart';
-import '../widgets/vendor_shared.dart';
-import '../../../platform/procurement/procurement_models.dart';
-import '../../../platform/procurement/procurement_engine.dart';
-import '../../../platform/procurement/contract_generator.dart';
 
 class VendorDashboardScreen extends ConsumerStatefulWidget {
   const VendorDashboardScreen({super.key});
@@ -23,19 +24,22 @@ class VendorDashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
-  late Timer _timer;
-  int _secondsLeft = 14400; // 4 hours countdown for today's event setup
+  Timer? _timer;
+  int _secondsLeft = 0;
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (mounted && _secondsLeft > 0) {
-        setState(() {
-          _secondsLeft--;
-        });
-      }
-    });
+    if (VendorOsDemoMode.isEnabled) {
+      _secondsLeft = 14400;
+      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (mounted && _secondsLeft > 0) {
+          setState(() {
+            _secondsLeft--;
+          });
+        }
+      });
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       refreshVendorCrm(ref);
     });
@@ -43,7 +47,7 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
 
   @override
   void dispose() {
-    _timer.cancel();
+    _timer?.cancel();
     super.dispose();
   }
 
@@ -58,16 +62,31 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
   Widget build(BuildContext context) {
     final intel = ref.watch(vendorIntelligenceProvider);
     final inboxAsync = ref.watch(vendorInboxSnapshotProvider);
-    final liveSnapshot = inboxAsync.valueOrNull;
-    final useLiveInbox = liveSnapshot != null;
-    final negotiations = useLiveInbox ? vendorInboxNegotiations(liveSnapshot) : intel.negotiations;
-    final notifications = useLiveInbox ? vendorInboxNotifications(liveSnapshot) : intel.notifications;
-    final insights = useLiveInbox ? vendorInboxInsights(liveSnapshot) : intel.insights;
-    final liveRequests = useLiveInbox ? liveSnapshot.items : null;
+    final notifications = inboxAsync.maybeWhen(
+      data: vendorInboxNotifications,
+      orElse: () => <String>[],
+    );
+    final insights = inboxAsync.maybeWhen(
+      data: vendorInboxInsights,
+      orElse: () => <IntelligenceInsight>[],
+    );
+    final pendingRequestCount = inboxAsync.maybeWhen(
+      data: (snap) => snap.stats.newCount + snap.stats.negotiating,
+      orElse: () => 0,
+    );
     final mergedIntel = intel.copyWith(
-      negotiations: negotiations,
       notifications: notifications,
-      insights: insights,
+      insights: insights.isEmpty
+          ? [
+              IntelligenceInsight(
+                message: inboxAsync.isLoading
+                    ? 'Loading CRM inbox…'
+                    : 'No pending vendor requests.',
+                type: 'info',
+                timestamp: DateTime.now(),
+              ),
+            ]
+          : insights,
     );
 
     final profile = ref.watch(vendorProfileProvider);
@@ -80,27 +99,29 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Business Profile block
+            // Header Business Profile block — authenticated vendor only
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Welcome to Vendor OS',
-                      style: context.eosText.labelMedium?.copyWith(color: Colors.white70),
-                    ),
-                    Text(
-                      profile.businessName,
-                      style: context.eosText.headlineMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Welcome to Vendor OS',
+                        style: context.eosText.labelMedium?.copyWith(color: Colors.white70),
                       ),
-                    ),
-                  ],
+                      Text(
+                        profile.businessName,
+                        style: context.eosText.headlineMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                EosVendorTierChip(tier: profile.tier),
+                if (profile.tier.trim().isNotEmpty) EosVendorTierChip(tier: profile.tier),
               ],
             ),
             const SizedBox(height: 20),
@@ -110,7 +131,7 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
             const SizedBox(height: 20),
 
             // 1. Executive Metrics Ribbon
-            _buildExecutiveRibbon(mergedIntel, tabController),
+            _buildExecutiveRibbon(mergedIntel, tabController, pendingRequestCount: pendingRequestCount),
             const SizedBox(height: 24),
 
             // 2. Today's Operations Center
@@ -129,8 +150,16 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // 3. Negotiation Center
-                          _buildNegotiationCenter(mergedIntel.negotiations, liveRequests: liveRequests),
+                          // 3. Incoming Requests (live CRM)
+                          inboxAsync.when(
+                            data: (snap) => VendorIncomingRequestsPanel(snapshot: snap),
+                            loading: () => const LinearProgressIndicator(),
+                            error: (e, _) => VendorEmptyState(
+                              message: 'Could not load incoming requests: $e',
+                              icon: Icons.error_outline,
+                              compact: true,
+                            ),
+                          ),
                           const SizedBox(height: 24),
 
                           // 4. Contract Command Center
@@ -263,56 +292,65 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
     );
   }
 
-  // Executive Metric Ribbon Layout
-  Widget _buildExecutiveRibbon(IntelligenceState state, VendorShellTabController tabController) {
+  // Executive Metric Ribbon Layout — N/A or ₦0 when no real activity
+  Widget _buildExecutiveRibbon(
+    IntelligenceState state,
+    VendorShellTabController tabController, {
+    required int pendingRequestCount,
+  }) {
+    final wallet = ref.watch(vendorWalletProvider).valueOrNull;
+    final availableMinor = wallet?.availableMinor ?? state.availableBalanceMinor;
+    final pendingMinor = wallet?.pendingMinor ?? state.escrowBalanceMinor;
+    final revenueMinor = wallet?.totalEarnedMinor ?? state.monthlyRevenueMinor;
+    final na = !state.metricsAvailable;
     final List<Map<String, dynamic>> metricItems = [
       {
         'label': 'Business Health',
-        'value': '${state.healthScore}%',
+        'value': na ? 'N/A' : '${state.healthScore}%',
         'icon': Icons.insights,
-        'action': () => tabController.select(6), // Analytics tab
+        'action': () => tabController.select(6),
       },
       {
         'label': 'Performance Score',
-        'value': '${state.performanceScore}',
+        'value': na ? 'N/A' : '${state.performanceScore}',
         'icon': Icons.star,
-        'action': () => tabController.select(6), // Analytics tab
+        'action': () => tabController.select(6),
       },
       {
         'label': 'SLA Compliance',
-        'value': '${state.slaCompliance}%',
+        'value': na ? 'N/A' : '${state.slaCompliance}%',
         'icon': Icons.assignment_turned_in,
-        'action': () => tabController.select(1), // Events list
+        'action': () => tabController.select(1),
       },
       {
         'label': 'Available Balance',
-        'value': '₦${(state.availableBalanceMinor / 100).toStringAsFixed(0)}',
+        'value': '₦${(availableMinor / 100).toStringAsFixed(2)}',
         'icon': Icons.account_balance_wallet,
-        'action': () => tabController.select(4), // Wallet tab
+        'action': () => tabController.select(4),
       },
       {
         'label': 'Locked Escrow',
-        'value': '₦${(state.escrowBalanceMinor / 100).toStringAsFixed(0)}',
+        'value': '₦${(pendingMinor / 100).toStringAsFixed(2)}',
         'icon': Icons.lock_outline,
-        'action': () => tabController.select(4), // Wallet tab
+        'action': () => tabController.select(4),
       },
       {
         'label': 'Active Contracts',
         'value': '${state.contracts.length}',
         'icon': Icons.handshake,
-        'action': () => tabController.select(3), // Orders/Contracts tab
+        'action': () => tabController.select(3),
       },
       {
-        'label': 'Active Negotiations',
-        'value': '${state.negotiations.where((n) => n.status.startsWith('pending')).length}',
-        'icon': Icons.question_answer_outlined,
-        'action': () => tabController.select(3), // Orders/Contracts tab
+        'label': 'Pending Requests',
+        'value': '$pendingRequestCount',
+        'icon': Icons.inbox_outlined,
+        'action': () => tabController.select(0),
       },
       {
         'label': 'Monthly Revenue',
-        'value': '₦${(state.monthlyRevenueMinor / 100).toStringAsFixed(0)}',
+        'value': '₦${(revenueMinor / 100).toStringAsFixed(2)}',
         'icon': Icons.trending_up,
-        'action': () => tabController.select(6), // Analytics
+        'action': () => tabController.select(6),
       },
     ];
 
@@ -364,8 +402,117 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
     );
   }
 
-  // Today's Operations Center
+  // Today's Operations Center — live events only; never invent a wedding
   Widget _buildTodayOperationsCenter(VendorShellTabController tabController) {
+    final liveParts = ref.watch(vendorParticipationsProvider).valueOrNull ?? const [];
+    final active = liveParts
+        .where(
+          (p) =>
+              p.status == VendorParticipationStatus.confirmed ||
+              p.status == VendorParticipationStatus.live,
+        )
+        .toList();
+    final showDemoOps = VendorOsDemoMode.isEnabled;
+
+    if (!showDemoOps && active.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.02),
+          border: Border.all(color: Colors.white10),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "TODAY'S OPERATIONS CENTER",
+              style: context.eosText.titleMedium?.copyWith(
+                color: EosColors.champagne,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const VendorEmptyState(
+              message: "You don't have any active events.",
+              icon: Icons.event_busy_outlined,
+              compact: true,
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (!showDemoOps && active.isNotEmpty) {
+      final event = active.first;
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.02),
+          border: Border.all(color: Colors.white10),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "TODAY'S OPERATIONS CENTER",
+              style: context.eosText.titleMedium?.copyWith(
+                color: EosColors.champagne,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('Current Event', style: TextStyle(color: Colors.white60, fontSize: 11)),
+            Text(
+              event.eventTitle,
+              style: context.eosText.titleMedium?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.location_on_outlined, color: EosColors.champagne, size: 16),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    [event.venue, event.city].where((s) => s.trim().isNotEmpty).join(' · '),
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () async {
+                final resolved = await resolveVendorRequestIdForWorkspace(
+                  context,
+                  ref,
+                  eventKey: event.eventId,
+                  eventUuid: event.eventUuid,
+                  eventTitle: event.eventTitle,
+                );
+                ref.read(vendorEventWorkspaceNavProvider.notifier).open(
+                      eventId: event.eventId,
+                      eventUuid: event.eventUuid,
+                      requestId: resolved,
+                      initialTabIndex: 0,
+                    );
+                tabController.select(1);
+              },
+              icon: const Icon(Icons.celebration, size: 16, color: EosColors.plumDark),
+              label: const Text(
+                'Open Event Workspace',
+                style: TextStyle(color: EosColors.plumDark, fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(backgroundColor: EosColors.champagne),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -599,711 +746,6 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
     );
   }
 
-  // Negotiation Center
-  Widget _buildNegotiationCenter(List<NegotiationItem> items, {List<VendorRequest>? liveRequests}) {
-    VendorRequest? requestFor(String id) {
-      if (liveRequests == null) return null;
-      for (final r in liveRequests) {
-        if (r.id == id) return r;
-      }
-      return null;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.02),
-        border: Border.all(color: Colors.white10),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'NEGOTIATION COMMAND CENTER',
-                style: context.eosText.titleMedium?.copyWith(
-                  color: EosColors.champagne,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const Icon(Icons.gavel_outlined, color: EosColors.champagne),
-            ],
-          ),
-          const SizedBox(height: 16),
-          for (final n in items.where((element) => element.status.startsWith('pending')))
-            Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.02),
-                border: Border.all(color: Colors.white10),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(n.clientName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: n.status == 'pending_vendor'
-                              ? Colors.amber.withOpacity(0.2)
-                              : Colors.blue.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          n.status == 'pending_vendor' ? 'Requires Action' : 'Pending Client Response',
-                          style: TextStyle(
-                            color: n.status == 'pending_vendor' ? Colors.amber : Colors.blue,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text('Event: ${n.eventName}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                  Text('Service: ${n.serviceType}', style: const TextStyle(color: Colors.white60, fontSize: 12)),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Original Quote: ₦${(n.originalQuoteMinor / 100).toStringAsFixed(0)}',
-                          style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                      Text('Counter Quote: ₦${(n.counterQuoteMinor / 100).toStringAsFixed(0)}',
-                          style: const TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold, fontSize: 12)),
-                    ],
-                  ),
-                  if (n.status == 'pending_vendor') ...[
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () async {
-                              final request = requestFor(n.id);
-                              if (request != null) {
-                                await vendorAcceptRequest(ref, request);
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Accepted ${request.eventTitle ?? 'event'}')),
-                                  );
-                                }
-                                return;
-                              }
-                              _showVendorSignatureDialog(context, n);
-                            },
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                            child: const Text('Accept', style: TextStyle(color: Colors.white, fontSize: 12)),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () async {
-                              final request = requestFor(n.id);
-                              if (request != null) {
-                                await vendorDeclineRequest(ref, request);
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Request declined')),
-                                  );
-                                }
-                                return;
-                              }
-                              ref.read(vendorIntelligenceProvider.notifier).rejectNegotiation(n.id);
-                            },
-                            style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.redAccent)),
-                            child: const Text('Decline', style: TextStyle(color: Colors.redAccent, fontSize: 12)),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          onPressed: () {
-                            final request = requestFor(n.id);
-                            if (request != null) {
-                              _openRequestMessageSheet(context, request);
-                              return;
-                            }
-                            _openDirectChat(context, n.clientName);
-                          },
-                          icon: const Icon(Icons.chat_outlined, color: EosColors.champagne),
-                          tooltip: 'Message organizer',
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          onPressed: () {
-                            final request = requestFor(n.id);
-                            if (request != null) {
-                              _openCounterQuoteDialog(context, request);
-                              return;
-                            }
-                            _triggerVoipCall(context, n.clientName);
-                          },
-                          icon: const Icon(Icons.price_change_outlined, color: EosColors.champagne),
-                          tooltip: 'Counter quote',
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  void _openCounterQuoteDialog(BuildContext context, VendorRequest request) {
-    final amountController = TextEditingController();
-    final messageController = TextEditingController(text: request.message);
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: EosColors.plumDark,
-        title: const Text('Counter quote', style: TextStyle(color: Colors.white)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: amountController,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: 'Amount (minor units)',
-                labelStyle: TextStyle(color: Colors.white70),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: messageController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: 'Message',
-                labelStyle: TextStyle(color: Colors.white70),
-              ),
-              maxLines: 3,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () async {
-              final amount = int.tryParse(amountController.text.trim());
-              if (amount == null) return;
-              Navigator.pop(ctx);
-              await vendorCounterRequest(
-                ref,
-                request,
-                amountMinor: amount,
-                message: messageController.text.trim(),
-              );
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Counter quote sent')));
-              }
-            },
-            child: const Text('Send counter'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _openRequestMessageSheet(BuildContext context, VendorRequest request) {
-    final controller = TextEditingController();
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: const Color(0xFF161129),
-      isScrollControlled: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 16,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Message ${request.organizerName ?? 'organizer'}',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-            if (request.message.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(request.message, style: const TextStyle(color: Colors.white60, fontSize: 12)),
-            ],
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                hintText: 'Write a message…',
-                hintStyle: TextStyle(color: Colors.white38),
-              ),
-              maxLines: 4,
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () async {
-                  final text = controller.text.trim();
-                  if (text.isEmpty) return;
-                  Navigator.pop(ctx);
-                  await vendorMessageOrganizer(ref, request, message: text);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Message sent')));
-                  }
-                },
-                child: const Text('Send'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _triggerVoipCall(BuildContext context, String clientName) {
-    showDialog<void>(
-      context: context,
-      builder: (callCtx) => AlertDialog(
-        backgroundColor: EosColors.plumDark,
-        title: Row(
-          children: [
-            const Icon(Icons.contact_phone, color: EosColors.champagne),
-            const SizedBox(width: 8),
-            Text('VoIP Call to $clientName', style: const TextStyle(color: Colors.white, fontSize: 16)),
-          ],
-        ),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Connecting secure VoIP Call to client...', style: TextStyle(color: Colors.white70)),
-            SizedBox(height: 12),
-            CircularProgressIndicator(color: EosColors.champagne),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(callCtx),
-            child: const Text('Hang Up', style: TextStyle(color: Colors.redAccent)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _openDirectChat(BuildContext context, String clientName) {
-    final List<Map<String, String>> messages = [
-      {'sender': 'client', 'text': 'Hi, regarding the counter-proposal... [Offer #1: ₦450,000]', 'time': '10:31 AM'},
-      {'sender': 'vendor', 'text': 'Can we negotiate the price? [Offer #2: ₦400,000]', 'time': '10:34 AM'},
-    ];
-
-    bool isLocked = false;
-    bool vendorConfirmed = false;
-    bool clientConfirmed = false;
-    bool showReview = false;
-    bool showSummary = false;
-    bool fraudFlagged = false;
-    String? fraudText;
-
-    final textController = TextEditingController();
-
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF161129),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setStateChat) {
-          return Padding(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-            child: Container(
-              height: MediaQuery.of(context).size.height * 0.85,
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                color: Color(0xFF161129),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            backgroundColor: EosColors.plum,
-                            child: Text(clientName[0], style: const TextStyle(color: Colors.white)),
-                          ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(clientName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                              Text(
-                                isLocked ? 'Status: AGREED (Locked)' : 'Status: NEGOTIATING',
-                                style: TextStyle(
-                                  color: isLocked ? Colors.greenAccent : Colors.amberAccent,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: Icon(showSummary ? Icons.analytics : Icons.analytics_outlined, color: EosColors.champagne),
-                            tooltip: 'AI Summary Panel',
-                            onPressed: () {
-                              setStateChat(() {
-                                showSummary = !showSummary;
-                              });
-                            },
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close, color: Colors.white),
-                            onPressed: () => Navigator.pop(ctx),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const Divider(color: Colors.white10),
-
-                  // Collapsible AI Negotiation Summary
-                  if (showSummary) ...[
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF241B3F),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: EosColors.champagne.withOpacity(0.3)),
-                      ),
-                      child: const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('AI NEGOTIATION ANALYTICS SUMMARY', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold, fontSize: 12)),
-                          SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('Duration: 31 minutes', style: TextStyle(color: Colors.white70, fontSize: 11)),
-                              Text('Total Offers: 3', style: TextStyle(color: Colors.white70, fontSize: 11)),
-                            ],
-                          ),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('Vendor Start: ₦450k', style: TextStyle(color: Colors.white70, fontSize: 11)),
-                              Text('Final Price: ₦425k', style: TextStyle(color: Colors.white70, fontSize: 11)),
-                            ],
-                          ),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('Savings: ₦25,000 (12%)', style: TextStyle(color: Colors.greenAccent, fontSize: 11)),
-                              Text('Risk Score: LOW', style: TextStyle(color: Colors.greenAccent, fontSize: 11)),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-
-                  // Sticky Best Offer Banner
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2E2254),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('CURRENT BEST OFFER', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold, fontSize: 11)),
-                        Text('₦425,000', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                      ],
-                    ),
-                  ),
-
-                  // Messages stream
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: messages.length,
-                      itemBuilder: (context, idx) {
-                        final msg = messages[idx];
-                        final isMe = msg['sender'] == 'vendor';
-                        final text = msg['text']!;
-                        final hasOffer = text.contains('[Offer');
-
-                        return Align(
-                          alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                          child: Column(
-                            crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                margin: const EdgeInsets.symmetric(vertical: 4),
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: hasOffer
-                                      ? const Color(0xFF3B2F63)
-                                      : (isMe ? const Color(0xFFF59E0B) : const Color(0xFF241B3F)),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: hasOffer ? Border.all(color: EosColors.champagne.withOpacity(0.5)) : null,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    if (hasOffer) ...[
-                                      const Row(
-                                        children: [
-                                          Icon(Icons.gavel, color: EosColors.champagne, size: 14),
-                                          SizedBox(width: 6),
-                                          Text('OFFER CARD', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold, fontSize: 10)),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 4),
-                                    ],
-                                    Text(
-                                      text,
-                                      style: TextStyle(
-                                        color: isMe && !hasOffer ? const Color(0xFF1A1333) : Colors.white,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.only(left: 6, right: 6, bottom: 6),
-                                child: Text(
-                                  '${msg['time'] ?? '10:40 AM'} • Delivered • Seen',
-                                  style: const TextStyle(color: Colors.white30, fontSize: 9),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-
-                  // Fraud Alert Block
-                  if (fraudFlagged) ...[
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      margin: const EdgeInsets.symmetric(vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.redAccent.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.redAccent),
-                      ),
-                      child: Text(
-                        fraudText ?? '⚠️ Off-platform transaction keywords flagged! Always use Owanbe Escrow.',
-                        style: const TextStyle(color: Colors.white, fontSize: 11),
-                      ),
-                    ),
-                  ],
-
-                  // Agreement Review Screen Overlay
-                  if (showReview) ...[
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2E2254),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.greenAccent),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('AGREEMENT REVIEW & CONTRACT SIGNING', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 12)),
-                          const SizedBox(height: 6),
-                          const Text('• Vendor: ABC Catering\n• Organizer: Wale Adebayo\n• Price: ₦425,000\n• Cancellation: 50% Refund, Commission Included', style: TextStyle(color: Colors.white70, fontSize: 11)),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: () {
-                                    setStateChat(() {
-                                      vendorConfirmed = true;
-                                      if (clientConfirmed) {
-                                        isLocked = true;
-                                        showReview = false;
-                                      }
-                                    });
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Vendor digital signature captured.')),
-                                    );
-                                  },
-                                  style: ElevatedButton.styleFrom(backgroundColor: vendorConfirmed ? Colors.grey : Colors.green),
-                                  child: Text(vendorConfirmed ? 'Signed (Vendor)' : 'Sign Agreement', style: const TextStyle(fontSize: 11)),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () {
-                                    setStateChat(() {
-                                      clientConfirmed = true;
-                                      if (vendorConfirmed) {
-                                        isLocked = true;
-                                        showReview = false;
-                                      }
-                                    });
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Organizer digital signature captured.')),
-                                    );
-                                  },
-                                  style: OutlinedButton.styleFrom(side: const BorderSide(color: EosColors.champagne)),
-                                  child: Text(clientConfirmed ? 'Signed (Client)' : 'Sign (Client Mock)', style: const TextStyle(color: EosColors.champagne, fontSize: 11)),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-
-                  // Locked Virtual Account Card
-                  if (isLocked) ...[
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E3A8A).withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.blueAccent),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('🔒 AGREEMENT IMMUTABLE & LOCKED', style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 12)),
-                          const SizedBox(height: 6),
-                          const Text('Owanbe Virtual Escrow Account generated for Client payment:', style: TextStyle(color: Colors.white70, fontSize: 11)),
-                          const SizedBox(height: 6),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Bank: Owanbe Settlement Bank', style: TextStyle(color: Colors.white, fontSize: 11)),
-                                  Text('Account: 1234567890', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                                  Text('Name: OWANBE ESCROW', style: TextStyle(color: Colors.white60, fontSize: 11)),
-                                ],
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.copy, color: EosColors.champagne),
-                                onPressed: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Virtual account details copied to clipboard.')),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-
-                  const SizedBox(height: 8),
-
-                  // Send text fields (Disabled if Locked)
-                  if (!isLocked) ...[
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: textController,
-                            decoration: const InputDecoration(
-                              hintText: 'Type message or counter price...',
-                              fillColor: Color(0xFF241B3F),
-                              filled: true,
-                              border: OutlineInputBorder(borderSide: BorderSide.none),
-                            ),
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: const Icon(Icons.send, color: Color(0xFFF59E0B)),
-                          onPressed: () {
-                            final text = textController.text.trim();
-                            if (text.isEmpty) return;
-
-                            setStateChat(() {
-                              // Fraud scanning trigger
-                              if (text.toLowerCase().contains('whatsapp') ||
-                                  text.toLowerCase().contains('gtbank') ||
-                                  text.toLowerCase().contains('opay') ||
-                                  text.toLowerCase().contains('call me')) {
-                                fraudFlagged = true;
-                                fraudText = '⚠️ External payment / contact attempt blocked! Please use Owanbe Escrow.';
-                                textController.clear();
-                                return;
-                              } else {
-                                fraudFlagged = false;
-                              }
-
-                              // Price detection trigger
-                              if (text.contains('425') || text.toLowerCase().contains('deal') || text.toLowerCase().contains('agree')) {
-                                showReview = true;
-                              }
-
-                              messages.add({
-                                'sender': 'vendor',
-                                'text': text,
-                                'time': '10:41 AM',
-                              });
-                            });
-                            textController.clear();
-                          },
-                        ),
-                      ],
-                    ),
-                  ] else ...[
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
-                        child: Text('Chat input frozen — Contract Agreement successfully signed.', style: TextStyle(color: Colors.white30, fontSize: 12)),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   // Contract Command Center
   Widget _buildContractCommandCenter(List<ContractItem> contracts, VendorShellTabController tabController) {
     return Container(
@@ -1330,7 +772,14 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          for (final c in contracts)
+          if (contracts.isEmpty)
+            const VendorEmptyState(
+              message: 'No contracts yet.',
+              icon: Icons.feed_outlined,
+              compact: true,
+            )
+          else
+            for (final c in contracts)
             InkWell(
               onTap: () => tabController.select(3), // Navigate to Orders/Contracts tab
               borderRadius: BorderRadius.circular(12),
@@ -1482,6 +931,13 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
             ),
           ),
           const SizedBox(height: 16),
+          if (!VendorOsDemoMode.isEnabled)
+            const VendorEmptyState(
+              message: 'No deliverables yet.',
+              icon: Icons.inventory_2_outlined,
+              compact: true,
+            )
+          else ...[
           const ListTile(
             leading: Icon(Icons.dining_outlined, color: EosColors.champagne),
             title: Text('Catering setup & Hot warmers', style: TextStyle(color: Colors.white)),
@@ -1494,13 +950,15 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
             subtitle: Text('Waiting for upload to Digital Asset Management (DAM)'),
             trailing: Text('PENDING', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12)),
           ),
+          ],
         ],
       ),
     );
   }
 
-  // Conversations Hub
+  // Conversations Hub — live shared Vendor Request threads (event-isolated)
   Widget _buildConversationsHub(VendorShellTabController tabController) {
+    final inbox = ref.watch(vendorInboxSnapshotProvider);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1521,23 +979,98 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const Icon(Icons.chat_bubble_outline, color: EosColors.champagne),
+              IconButton(
+                tooltip: 'Open CRM inbox',
+                icon: const Icon(Icons.chat_bubble_outline, color: EosColors.champagne),
+                onPressed: () => context.push('/vendor/crm'),
+              ),
             ],
           ),
-          const SizedBox(height: 16),
-          ListTile(
-            leading: const CircleAvatar(backgroundColor: EosColors.plum, child: Text('O', style: TextStyle(color: Colors.white))),
-            title: const Text('Segun (Organizer)', style: TextStyle(color: Colors.white)),
-            subtitle: const Text('Typing...', style: TextStyle(color: Colors.greenAccent, fontSize: 12)),
-            trailing: const Icon(Icons.chevron_right, color: Colors.white54),
-            onTap: () => context.push('/vendor/crm'),
-          ),
-          ListTile(
-            leading: const CircleAvatar(backgroundColor: Colors.blueGrey, child: Text('S', style: TextStyle(color: Colors.white))),
-            title: const Text('Platform Support Agent', style: TextStyle(color: Colors.white)),
-            subtitle: const Text('Your suspension check has been resolved', style: TextStyle(color: Colors.white54, fontSize: 12)),
-            trailing: const Icon(Icons.chevron_right, color: Colors.white54),
-            onTap: () => context.push('/vendor/crm'),
+          const SizedBox(height: 8),
+          inbox.when(
+            loading: () => const LinearProgressIndicator(minHeight: 2),
+            error: (e, _) => Text('$e', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+            data: (snap) {
+              final items = snap.items
+                  .where((r) => !['declined', 'cancelled'].contains(r.stage))
+                  .toList()
+                ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+              if (items.isEmpty) {
+                return const VendorEmptyState(
+                  message: 'No conversations yet. Marketplace requests appear here after an organizer invites you.',
+                  icon: Icons.chat_bubble_outline,
+                  compact: true,
+                );
+              }
+              return Column(
+                children: [
+                  for (final r in items.take(6))
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        backgroundColor: EosColors.plum,
+                        child: Text(
+                          ((r.organizerName ?? 'O').trim().isEmpty
+                                  ? 'O'
+                                  : (r.organizerName ?? 'O').trim()[0])
+                              .toUpperCase(),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
+                      title: Text(
+                        r.eventTitle ?? 'Event',
+                        style: const TextStyle(color: Colors.white),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        [
+                          r.organizerName ?? 'Organizer',
+                          r.serviceLabel ?? 'Service',
+                          if (r.serviceCode != null && r.serviceCode!.isNotEmpty) r.serviceCode!,
+                          vendorCrmStageLabels[r.stage] ?? r.stage,
+                        ].join(' · '),
+                        style: const TextStyle(color: Colors.white54, fontSize: 12),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (r.unreadCount > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: EosColors.champagne,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${r.unreadCount}',
+                                style: const TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          const Icon(Icons.chevron_right, color: Colors.white54),
+                        ],
+                      ),
+                      onTap: () {
+                        // Canonical path: Events shell tab → Event Ops workspace.
+                        // Do NOT push GoRouter `/vendor/events` (route does not exist).
+                        ref.read(vendorEventWorkspaceNavProvider.notifier).open(
+                              eventId: r.eventExternalRef ?? r.eventId,
+                              eventUuid: r.eventId,
+                              requestId: r.id,
+                              initialTabIndex: 3, // Conversation
+                            );
+                        tabController.select(1);
+                      },
+                    ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -1570,7 +1103,14 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          for (final c in clients)
+          if (clients.isEmpty)
+            const VendorEmptyState(
+              message: 'No CRM clients yet.',
+              icon: Icons.people_outline,
+              compact: true,
+            )
+          else
+            for (final c in clients)
             Padding(
               padding: const EdgeInsets.only(bottom: 10.0),
               child: Row(
@@ -1642,7 +1182,14 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          for (final member in team)
+          if (team.isEmpty)
+            const VendorEmptyState(
+              message: 'No team assignments yet.',
+              icon: Icons.badge_outlined,
+              compact: true,
+            )
+          else
+            for (final member in team)
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.badge, color: EosColors.champagne),
@@ -1687,7 +1234,14 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          for (final note in notifications)
+          if (notifications.isEmpty)
+            const VendorEmptyState(
+              message: 'No notifications yet.',
+              icon: Icons.notifications_none_outlined,
+              compact: true,
+            )
+          else
+            for (final note in notifications)
             Padding(
               padding: const EdgeInsets.only(bottom: 8.0),
               child: Row(
@@ -1704,76 +1258,6 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
                 ],
               ),
             ),
-        ],
-      ),
-    );
-  }
-
-  void _showVendorSignatureDialog(BuildContext context, NegotiationItem item) {
-    final proposal = ContractProposal(
-      id: 'con_90214',
-      organizerId: 'org_01',
-      vendorId: 'vend_1',
-      eventId: 'evt_wedding_01',
-      requirements: 'Provision of full buffet catering services for 300 guests, including servers and dinnerware.',
-      totalAmountMinor: item.counterQuoteMinor,
-      milestones: [
-        ContractMilestone(id: 'm1', title: 'Onboarding Deposit', amountMinor: (item.counterQuoteMinor * 0.4).round(), status: MilestoneStatus.pending, description: 'Initial mobilization payment'),
-        ContractMilestone(id: 'm2', title: 'Post-event Release', amountMinor: (item.counterQuoteMinor * 0.6).round(), status: MilestoneStatus.pending, description: 'Final quality clearance check'),
-      ],
-      signatures: [
-        ContractSignature(signerId: 'org_01', role: 'organizer', signedAt: DateTime.now().subtract(const Duration(hours: 1)), signatureHash: 'sha256_091824102_org_sig_hash'),
-      ],
-      state: ProcurementState.proposed,
-      createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-    );
-
-    final contractText = ContractGenerator.generateLegalDocument(proposal);
-
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: EosColors.plumDark,
-        title: const Text('Confirm Agreement & Sign Contract', style: TextStyle(color: Colors.white)),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('LEGAL AGREEMENT DOCUMENT:', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold, fontSize: 11)),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(8),
-                color: Colors.white10,
-                child: Text(
-                  contractText,
-                  style: const TextStyle(color: Colors.white70, fontFamily: 'monospace', fontSize: 10),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text('Dual Signatures Verification Status:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              const Text('• Organizer: SIGNED (sha256_091824102_org_sig_hash)\n• Vendor: NOT SIGNED', style: TextStyle(color: Colors.amberAccent, fontSize: 12)),
-            ],
-          ),
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              ref.read(vendorIntelligenceProvider.notifier).acceptNegotiation(item.id);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Contract signed digitally as SERVICE PROVIDER! Locked in Commerce360 Escrow.'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            },
-            child: const Text('Execute Digital Signature'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close', style: TextStyle(color: Colors.white60)),
-          ),
         ],
       ),
     );

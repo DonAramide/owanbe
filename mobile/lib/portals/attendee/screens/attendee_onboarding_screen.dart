@@ -122,7 +122,7 @@ class _AttendeeOnboardingScreenState extends ConsumerState<AttendeeOnboardingScr
     if (_isApiUnreachable(error)) {
       return 'Cannot reach Owambe API at ${OwambeApiAuth.resolveApiBase()}.\n\n'
           'USB fix: adb reverse tcp:8080 tcp:8080\n'
-          'Wi‑Fi fix: set OWANBE_API_BASE to your PC IP in supabase.env '
+          'Wi‑Fi fix: set OWANBE_API_BASE to your PC IP in owanbe_config '
           '(run ipconfig), allow port 8080 in Windows Firewall, then restart the app.';
     }
     if (error is IdentityApiException) return error.message;

@@ -159,7 +159,7 @@ class OverviewTabV3 extends ConsumerWidget {
           onTap: () => onNavigateTab?.call(EventWorkspaceTab.vendors),
           metrics: [
             CcV3MetricItem(label: 'Requested', value: '${snap.vendorHealth.requested}'),
-            CcV3MetricItem(label: 'Negotiating', value: '${snap.vendorHealth.negotiating}'),
+            CcV3MetricItem(label: 'Pending response', value: '${snap.vendorHealth.requested + snap.vendorHealth.negotiating}'),
             CcV3MetricItem(label: 'Confirmed', value: '${snap.vendorHealth.confirmed}'),
             CcV3MetricItem(label: 'Completed', value: '${snap.vendorHealth.completed}'),
           ],
@@ -207,9 +207,25 @@ class OverviewTabV3 extends ConsumerWidget {
   Widget _actionRow(BuildContext context, WidgetRef ref, EventCommandCenterV3Snapshot snap) {
     return Wrap(
       spacing: context.eos.spacing.sm,
+      runSpacing: context.eos.spacing.sm,
       children: [
         if (snap.event.status == OrganizerEventStatus.draft)
           FilledButton(onPressed: () => publishEvent(ref, eventId), child: const Text('Publish event')),
+        OutlinedButton.icon(
+          onPressed: () => onNavigateTab?.call(EventWorkspaceTab.tickets),
+          icon: const Icon(Icons.add, size: 18),
+          label: const Text('Create ticket'),
+        ),
+        OutlinedButton.icon(
+          onPressed: () => onNavigateTab?.call(EventWorkspaceTab.tickets),
+          icon: const Icon(Icons.confirmation_number_outlined, size: 18),
+          label: const Text('Manage tickets'),
+        ),
+        OutlinedButton.icon(
+          onPressed: () => onNavigateTab?.call(EventWorkspaceTab.analytics),
+          icon: const Icon(Icons.insights_outlined, size: 18),
+          label: const Text('View sales'),
+        ),
         OutlinedButton.icon(
           onPressed: () => context.push('/events/$eventId/invitations'),
           icon: const Icon(Icons.card_giftcard_outlined, size: 18),

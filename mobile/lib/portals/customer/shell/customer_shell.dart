@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../auth/auth_notifier.dart';
 import '../../../eos/eos.dart';
 import '../../../features/workspace/widgets/workspace_experience_shell.dart';
-import '../../../identity/experience_navigation.dart';
 import '../navigation/event_navigator.dart';
 import '../../../eos/widgets/owambe_logo.dart';
 import 'customer_nav_destinations.dart';
@@ -61,66 +60,55 @@ class _CustomerTopBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(authSessionProvider);
-    final scheme = Theme.of(context).colorScheme;
     final firstName = (session?.displayName ?? '').trim().split(RegExp(r'\s+')).first;
     final initial = firstName.isNotEmpty ? firstName[0].toUpperCase() : 'O';
+    final compact = EosAdaptive.isCompact(context);
 
-    return Material(
-      color: scheme.surface,
-      elevation: 0,
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: context.eosColors.outlineVariant.withValues(alpha: 0.7),
-            ),
+    return EosAdaptiveTopBarChrome(
+      leading: const OwambeLogo(size: 28),
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            title,
+            style: context.eosText.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
+          if (!compact)
+            Text(subtitle, style: context.eosText.labelSmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ],
+      ),
+      iconActions: [
+        IconButton(
+          tooltip: 'Discover events',
+          icon: const Icon(Icons.explore_outlined),
+          onPressed: () => context.eventNav.openDiscover(),
         ),
-        padding: EdgeInsets.symmetric(
-          horizontal: context.eos.spacing.lg,
-          vertical: context.eos.spacing.md,
-        ),
-        child: SafeArea(
-          bottom: false,
-          child: Row(
-            children: [
-              const OwambeLogo(size: 28),
-              SizedBox(width: context.eos.spacing.sm),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: context.eosText.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                    Text(subtitle, style: context.eosText.labelSmall),
-                  ],
-                ),
-              ),
-              IconButton(
-                tooltip: 'Discover events',
-                icon: const Icon(Icons.explore_outlined),
-                onPressed: () => context.eventNav.openDiscover(),
-              ),
-              const WorkspaceContextActions(),
-              GestureDetector(
-                onTap: () => context.eventNav.goProfile(),
-                child: Tooltip(
-                  message: session?.displayName ?? 'My profile',
-                  child: CircleAvatar(
-                    radius: 17,
-                    backgroundColor: EosColors.plum,
-                    child: Text(
-                      initial,
-                      style: context.eosText.labelMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+      ],
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const WorkspaceContextActions(),
+          GestureDetector(
+            onTap: () => context.eventNav.goProfile(),
+            child: Tooltip(
+              message: session?.displayName ?? 'My profile',
+              child: CircleAvatar(
+                radius: 17,
+                backgroundColor: EosColors.plum,
+                child: Text(
+                  initial,
+                  style: context.eosText.labelMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

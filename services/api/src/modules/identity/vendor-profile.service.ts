@@ -1,7 +1,8 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, Optional } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { PG_POOL } from '../../database/database.tokens';
 import type { UpsertVendorProfileDto } from './dto/upsert-vendor-profile.dto';
+import { VendorServicesService } from '../vendors/vendor-services.service';
 
 export interface VendorVerificationDocumentView {
   url: string;
@@ -20,6 +21,16 @@ export interface VendorWorkspaceProfileView {
   bio: string | null;
   businessDescription: string | null;
   servicesOffered: string[];
+  /** First-class vendor_services rows (additive; may be empty before sync). */
+  services: Array<{
+    id: string;
+    serviceKey: string;
+    serviceName: string;
+    serviceCode?: string;
+    status: string;
+    basePayoutMinor?: number | null;
+    currency?: string | null;
+  }>;
   serviceAreas: string[];
   portfolioImages: string[];
   portfolioVideos: string[];
@@ -48,17 +59,28 @@ export interface VendorWorkspaceProfileView {
 
 @Injectable()
 export class VendorProfileService {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    @Optional() private readonly vendorServices?: VendorServicesService,
+  ) {}
 
   async getProfile(tenantId: string, userId: string): Promise<VendorWorkspaceProfileView> {
     await this.ensureRow(tenantId, userId);
     const row = await this.loadRow(tenantId, userId);
-    return this.toView(userId, row);
+    if (row?.vendor_id && this.vendorServices) {
+      const existing = await this.vendorServices.listForVendor(tenantId, row.vendor_id);
+      const offered = this.parseStringList(row.services_offered);
+      if (existing.length === 0 && offered.length > 0) {
+        await this.vendorServices.syncFromOfferedLabels(tenantId, row.vendor_id, offered);
+      }
+    }
+    return this.toView(tenantId, userId, await this.loadRow(tenantId, userId));
   }
 
   /**
    * Upsert workspace fields on `vendor_profiles` only.
    * Never writes `users`, `attendee_profiles`, or `organizer_profiles`.
+   * When servicesOffered is provided, syncs additive vendor_services rows.
    */
   async upsertProfile(
     tenantId: string,
@@ -175,6 +197,40 @@ export class VendorProfileService {
       );
     }
 
+    if (dto.servicesOffered !== undefined && this.vendorServices) {
+      const row = await this.loadRow(tenantId, userId);
+      const vendorId = row?.vendor_id ?? null;
+      if (vendorId) {
+        const pricesByName: Record<string, number> = {};
+        for (const p of dto.servicePrices ?? []) {
+          const name = String(p.name ?? '').trim();
+          const minor = Number(p.basePayoutMinor);
+          if (name && Number.isFinite(minor) && minor > 0) {
+            pricesByName[name] = Math.floor(minor);
+          }
+        }
+        await this.vendorServices.syncFromOfferedLabels(
+          tenantId,
+          vendorId,
+          this.cleanStringList(dto.servicesOffered, 48),
+          Object.keys(pricesByName).length > 0 ? pricesByName : undefined,
+        );
+      }
+    } else if (dto.servicePrices !== undefined && this.vendorServices) {
+      const row = await this.loadRow(tenantId, userId);
+      const vendorId = row?.vendor_id ?? null;
+      if (vendorId) {
+        await this.vendorServices.applyServicePrices(
+          tenantId,
+          vendorId,
+          (dto.servicePrices ?? []).map((p) => ({
+            name: String(p.name ?? ''),
+            basePayoutMinor: Number(p.basePayoutMinor),
+          })),
+        );
+      }
+    }
+
     return this.getProfile(tenantId, userId);
   }
 
@@ -243,10 +299,24 @@ export class VendorProfileService {
     return rows[0] ?? null;
   }
 
-  private toView(
+  private async toView(
+    tenantId: string,
     userId: string,
     row: NonNullable<Awaited<ReturnType<VendorProfileService['loadRow']>>> | null,
-  ): VendorWorkspaceProfileView {
+  ): Promise<VendorWorkspaceProfileView> {
+    const services =
+      row?.vendor_id && this.vendorServices
+        ? (await this.vendorServices.listForVendor(tenantId, row.vendor_id)).map((s) => ({
+            id: s.id,
+            serviceKey: s.serviceKey,
+            serviceName: s.serviceName,
+            serviceCode: s.serviceCode,
+            status: s.status,
+            basePayoutMinor: s.basePayoutMinor,
+            currency: s.currency,
+          }))
+        : [];
+
     if (!row) {
       return {
         userId,
@@ -258,6 +328,7 @@ export class VendorProfileService {
         bio: null,
         businessDescription: null,
         servicesOffered: [],
+        services: [],
         serviceAreas: [],
         portfolioImages: [],
         portfolioVideos: [],
@@ -296,6 +367,7 @@ export class VendorProfileService {
       bio,
       businessDescription: bio,
       servicesOffered: this.parseStringList(row.services_offered),
+      services,
       serviceAreas: this.parseStringList(row.service_areas),
       portfolioImages: this.parseStringList(row.portfolio_images),
       portfolioVideos: this.parseStringList(row.portfolio_videos),

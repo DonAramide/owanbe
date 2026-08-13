@@ -1,7 +1,10 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, forwardRef } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { PG_POOL } from '../../database/database.tokens';
+import type { CommerceActor } from './commerce-auth.service';
 import { AdminFinanceDashboardService } from '../payments/admin-finance-dashboard.service';
+import { sqlOrganizerOwnerOrMember } from '../events/organizer-access.sql';
+import { EventsAccessService } from '../events/events-access.service';
 
 export type FinanceExportKind = 'transactions' | 'payouts' | 'refunds' | 'settlements' | 'organizer-payouts';
 export type FinanceExportFormat = 'csv' | 'xlsx';
@@ -11,6 +14,8 @@ export class FinanceExportService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly dashboard: AdminFinanceDashboardService,
+    @Inject(forwardRef(() => EventsAccessService))
+    private readonly access: EventsAccessService,
   ) {}
 
   private csvEscape(value: string | number | null | undefined): string {
@@ -56,6 +61,43 @@ export class FinanceExportService {
     limit = 500,
   ): Promise<{ body: string; contentType: string; filename: string }> {
     const { headers, rows } = await this.loadRows(tenantId, kind, limit);
+    return this.pack(kind, format, headers, rows);
+  }
+
+  /**
+   * Organizer-scoped event export (Phase 17) — reuses CSV/XLS packers, ownership via actor.
+   */
+  async exportForOrganizerEvent(
+    actor: CommerceActor,
+    eventKey: string,
+    kind: string,
+    format: FinanceExportFormat,
+  ): Promise<{ body: string; contentType: string; filename: string }> {
+    await this.access.assertEventCapability(actor.tenantId, actor.userId, eventKey, 'finance.read');
+    const scope = await this.resolveOrganizerEvent(actor.tenantId, actor.userId, eventKey);
+    const normalized = kind === 'summary' ? 'summary' : kind === 'orders' ? 'orders' : kind;
+    let headers: string[] = [];
+    let rows: string[][] = [];
+    if (normalized === 'summary') {
+      ({ headers, rows } = await this.loadEventSummary(actor.tenantId, scope.eventId, scope.title));
+    } else if (normalized === 'orders') {
+      ({ headers, rows } = await this.loadEventOrders(actor.tenantId, scope.eventId));
+    } else if (normalized === 'transactions') {
+      ({ headers, rows } = await this.loadEventTransactions(actor.tenantId, scope.eventId));
+    } else if (normalized === 'refunds') {
+      ({ headers, rows } = await this.loadEventRefunds(actor.tenantId, scope.eventId));
+    } else {
+      ({ headers, rows } = { headers: ['error'], rows: [['unsupported_kind']] });
+    }
+    return this.pack(`event-${normalized}`, format, headers, rows);
+  }
+
+  private pack(
+    kind: string,
+    format: FinanceExportFormat,
+    headers: string[],
+    rows: string[][],
+  ): { body: string; contentType: string; filename: string } {
     const stamp = new Date().toISOString().slice(0, 10);
     if (format === 'xlsx') {
       return {
@@ -68,6 +110,135 @@ export class FinanceExportService {
       body: this.toCsv(headers, rows),
       contentType: 'text/csv; charset=utf-8',
       filename: `owanbe-${kind}-${stamp}.csv`,
+    };
+  }
+
+  private async resolveOrganizerEvent(tenantId: string, userId: string, eventKey: string) {
+    const { rows } = await this.pool.query<{ event_id: string; title: string }>(
+      `SELECT e.id AS event_id, e.title
+       FROM events e
+       INNER JOIN organizers o ON o.id = e.organizer_id AND o.tenant_id = e.tenant_id
+       WHERE e.tenant_id = $1 AND ${sqlOrganizerOwnerOrMember('$2')}
+         AND (e.id::text = $3 OR e.external_ref = $3 OR e.slug = $3)
+       LIMIT 1`,
+      [tenantId, userId, eventKey],
+    );
+    if (!rows[0]) {
+      throw new NotFoundException({ code: 'EVENT_NOT_FOUND', message: 'Event not found or access denied' });
+    }
+    return { eventId: rows[0].event_id, title: rows[0].title };
+  }
+
+  private async loadEventSummary(tenantId: string, eventId: string, title: string) {
+    const { rows } = await this.pool.query<{
+      orders: string;
+      gross: string;
+      net: string;
+      fees: string;
+      refunded: string;
+    }>(
+      `SELECT
+         COUNT(*)::text AS orders,
+         COALESCE(SUM(total_minor), 0)::text AS gross,
+         COALESCE(SUM(subtotal_minor), 0)::text AS net,
+         COALESCE(SUM(platform_fee_minor), 0)::text AS fees,
+         COALESCE(SUM(amount_refunded_minor), 0)::text AS refunded
+       FROM ticket_orders
+       WHERE tenant_id = $1 AND event_id = $2 AND status::text IN ('fulfilled', 'confirmed')`,
+      [tenantId, eventId],
+    );
+    const r = rows[0];
+    return {
+      headers: ['event_id', 'event_title', 'orders', 'gross_minor', 'net_minor', 'fees_minor', 'refunded_minor'],
+      rows: [[
+        eventId,
+        title,
+        r?.orders ?? '0',
+        r?.gross ?? '0',
+        r?.net ?? '0',
+        r?.fees ?? '0',
+        r?.refunded ?? '0',
+      ]],
+    };
+  }
+
+  private async loadEventOrders(tenantId: string, eventId: string) {
+    const { rows } = await this.pool.query<{
+      id: string;
+      status: string;
+      total_minor: string;
+      platform_fee_minor: string;
+      amount_refunded_minor: string;
+      currency: string;
+      created_at: Date;
+    }>(
+      `SELECT id, status::text, total_minor::text, platform_fee_minor::text,
+              amount_refunded_minor::text, currency, created_at
+       FROM ticket_orders WHERE tenant_id = $1 AND event_id = $2
+       ORDER BY created_at DESC LIMIT 2000`,
+      [tenantId, eventId],
+    );
+    return {
+      headers: ['order_id', 'status', 'total_minor', 'fee_minor', 'refunded_minor', 'currency', 'created_at'],
+      rows: rows.map((r) => [
+        r.id,
+        r.status,
+        r.total_minor,
+        r.platform_fee_minor,
+        r.amount_refunded_minor,
+        r.currency,
+        r.created_at.toISOString(),
+      ]),
+    };
+  }
+
+  private async loadEventTransactions(tenantId: string, eventId: string) {
+    const { rows } = await this.pool.query<{
+      id: string;
+      reason: string;
+      created_at: Date;
+      ticket_order_id: string | null;
+    }>(
+      `SELECT lt.id::text, lt.reason, lt.created_at, lt.ticket_order_id::text
+       FROM ledger_transactions lt
+       INNER JOIN ticket_orders o ON o.id = lt.ticket_order_id
+       WHERE lt.tenant_id = $1 AND o.event_id = $2
+       ORDER BY lt.created_at DESC LIMIT 2000`,
+      [tenantId, eventId],
+    );
+    return {
+      headers: ['ledger_txn_id', 'reason', 'ticket_order_id', 'created_at'],
+      rows: rows.map((r) => [r.id, r.reason, r.ticket_order_id ?? '', r.created_at.toISOString()]),
+    };
+  }
+
+  private async loadEventRefunds(tenantId: string, eventId: string) {
+    const { rows } = await this.pool.query<{
+      id: string;
+      status: string;
+      amount_minor: string;
+      currency: string;
+      ticket_order_id: string;
+      created_at: Date;
+    }>(
+      `SELECT trc.id::text, trc.status::text, trc.amount_minor::text, trc.currency,
+              trc.ticket_order_id::text, trc.created_at
+       FROM ticket_refund_cases trc
+       INNER JOIN ticket_orders o ON o.id = trc.ticket_order_id
+       WHERE trc.tenant_id = $1 AND o.event_id = $2
+       ORDER BY trc.created_at DESC LIMIT 2000`,
+      [tenantId, eventId],
+    );
+    return {
+      headers: ['refund_id', 'status', 'amount_minor', 'currency', 'ticket_order_id', 'created_at'],
+      rows: rows.map((r) => [
+        r.id,
+        r.status,
+        r.amount_minor,
+        r.currency,
+        r.ticket_order_id,
+        r.created_at.toISOString(),
+      ]),
     };
   }
 

@@ -10,6 +10,7 @@ import '../../../eos/layout/workspace/workspace_state.dart';
 import '../../../eos/layout/workspace/workspace_widgets.dart';
 import '../../../eos/widgets/analytics/eos_time_series_chart.dart';
 import '../../../portals/customer/workspace/widgets/event_empty_state.dart';
+import '../../../core/api/control_plane_api.dart';
 import '../super_admin_providers.dart';
 
 class Tenant360WorkspaceScreen extends ConsumerStatefulWidget {
@@ -70,6 +71,10 @@ class _Tenant360WorkspaceScreenState extends ConsumerState<Tenant360WorkspaceScr
         WorkspaceTabDefinition(
           label: 'Feature Flags',
           builder: (context, id) => _FeatureFlagsTab(tenantId: id),
+        ),
+        WorkspaceTabDefinition(
+          label: 'Audit',
+          builder: (context, id) => _TenantAuditTab(tenantId: id),
         ),
       ],
     );
@@ -510,3 +515,54 @@ class _FeatureFlagsTab extends ConsumerWidget {
     );
   }
 }
+
+/// Phase 28 ? tenant audit history from control-plane Nest API.
+class _TenantAuditTab extends ConsumerWidget {
+  const _TenantAuditTab({required this.tenantId});
+  final String tenantId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final detail = ref.watch(_controlPlaneTenantProvider(tenantId));
+    return detail.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('Audit unavailable: $e')),
+      data: (d) {
+        final activity = (d['activity'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>();
+        final config = d['configuration'] as Map<String, dynamic>? ?? {};
+        final flags = (config['featureFlags'] as List<dynamic>? ?? const []);
+        return ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            Text('Tenant configuration', style: context.eosText.titleMedium),
+            const SizedBox(height: 8),
+            Text('${flags.length} feature flags � status ${(d['profile'] as Map?)?['status'] ?? ''}'),
+            const SizedBox(height: 16),
+            Text('Audit history', style: context.eosText.titleMedium),
+            const SizedBox(height: 8),
+            if (activity.isEmpty)
+              const Text('No audit events for this tenant yet')
+            else
+              EosSurfaceCard(
+                child: Column(
+                  children: [
+                    for (final a in activity.take(40))
+                      ListTile(
+                        dense: true,
+                        title: Text('${a['action']}'),
+                        subtitle: Text('${a['resourceType']} � ${a['createdAt'] ?? ''}'),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+final _controlPlaneTenantProvider =
+    FutureProvider.autoDispose.family<Map<String, dynamic>, String>((ref, id) async {
+  return ref.read(controlPlaneApiProvider).getTenant(id);
+});

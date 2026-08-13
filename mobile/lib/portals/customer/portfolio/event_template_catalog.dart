@@ -141,8 +141,10 @@ EventWizardV2Draft buildTemplateDraft(EventTemplateKind kind) {
     categorySlug: kind.categorySlug,
     categoryLabel: kind.label,
     eventAccessMode: def.eventAccessMode,
+    listingVisibility: def.eventAccessMode == EventAccessMode.publicTicketed ? 'public' : 'invite_only',
     title: '${kind.label} ${starts.year}',
     tagline: def.description,
+    description: def.description,
     city: 'Lagos',
     expectedGuests: def.expectedGuests,
     budgetMinor: def.budgetMinor,
@@ -154,6 +156,7 @@ EventWizardV2Draft buildTemplateDraft(EventTemplateKind kind) {
     venueDeferred: false,
     state: 'Lagos',
     lga: 'Eti-Osa',
+    selectedTemplateSlug: kind.categorySlug,
   );
 }
 

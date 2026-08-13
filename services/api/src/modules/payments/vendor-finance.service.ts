@@ -65,12 +65,20 @@ export class VendorFinanceService {
          INNER JOIN ledger_transactions lt ON lt.id = ll.transaction_id
          INNER JOIN scope s ON s.vendor_id = la.vendor_id
          WHERE la.tenant_id = $1 AND la.kind = 'vendor_payable'
-           AND lt.reason IN ('payment_capture_quaser','payment_refund','payment_chargeback','payout_escrow_release')
+           AND lt.reason IN (
+             'payment_capture_quaser',
+             'payment_refund',
+             'payment_chargeback',
+             'payout_escrow_release',
+             'vendor_commerce_escrow_release'
+           )
          GROUP BY la.vendor_id, ll.currency, lt.reason
        ),
        ledger_pivot AS (
          SELECT vendor_id, currency,
-                COALESCE(SUM(CASE WHEN reason = 'payment_capture_quaser' THEN amount_minor ELSE 0 END),0)::bigint AS earnings_minor,
+                COALESCE(SUM(CASE WHEN reason = 'payment_capture_quaser' THEN amount_minor ELSE 0 END),0)::bigint
+                  + COALESCE(SUM(CASE WHEN reason = 'vendor_commerce_escrow_release' THEN amount_minor ELSE 0 END),0)::bigint
+                  AS earnings_minor,
                 COALESCE(SUM(CASE WHEN reason = 'payment_refund' THEN 0 - amount_minor ELSE 0 END),0)::bigint AS refunds_minor,
                 COALESCE(SUM(CASE WHEN reason = 'payment_chargeback' THEN 0 - amount_minor ELSE 0 END),0)::bigint AS chargebacks_minor
          FROM ledger_base

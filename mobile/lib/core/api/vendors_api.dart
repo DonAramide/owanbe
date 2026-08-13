@@ -18,6 +18,50 @@ class VendorsApiException implements Exception {
   }
 }
 
+/// First-class bookable offering from `vendor_services` (+ optional package price).
+class MarketplaceVendorService {
+  const MarketplaceVendorService({
+    required this.id,
+    required this.serviceKey,
+    required this.serviceName,
+    this.description,
+    this.priceFromMinor,
+    this.currency,
+  });
+
+  final String id;
+  final String serviceKey;
+  final String serviceName;
+  final String? description;
+  final int? priceFromMinor;
+  final String? currency;
+
+  factory MarketplaceVendorService.fromJson(Map<String, dynamic> json) {
+    return MarketplaceVendorService(
+      id: (json['id'] ?? '').toString(),
+      serviceKey: (json['serviceKey'] ?? json['service_key'] ?? '').toString(),
+      serviceName: (json['serviceName'] ?? json['service_name'] ?? '').toString(),
+      description: json['description']?.toString(),
+      priceFromMinor: (json['priceFromMinor'] as num?)?.toInt(),
+      currency: json['currency']?.toString() ?? 'NGN',
+    );
+  }
+
+  bool matchesLabel(String label) {
+    final needle = label.toLowerCase().trim();
+    if (needle.isEmpty || needle == 'all') return false;
+    final name = serviceName.toLowerCase();
+    final key = serviceKey.toLowerCase();
+    final keyNeedle = needle.replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+    return name == needle ||
+        name.contains(needle) ||
+        needle.contains(name) ||
+        key == keyNeedle ||
+        key.contains(keyNeedle) ||
+        keyNeedle.contains(key);
+  }
+}
+
 class MarketplaceVendor {
   const MarketplaceVendor({
     required this.id,
@@ -34,6 +78,9 @@ class MarketplaceVendor {
     this.countryCode,
     this.imageUrl,
     this.videoPreviewUrl,
+    this.category,
+    this.servicesOffered = const [],
+    this.services = const [],
   });
 
   final String id;
@@ -50,15 +97,57 @@ class MarketplaceVendor {
   final String? countryCode;
   final String? imageUrl;
   final String? videoPreviewUrl;
+  final String? category;
+  final List<String> servicesOffered;
+  final List<MarketplaceVendorService> services;
+
+  MarketplaceVendor copyWith({
+    List<String>? servicesOffered,
+    List<MarketplaceVendorService>? services,
+    String? description,
+    double? ratingAverage,
+    int? reviewCount,
+    int? priceFromMinor,
+    int? priceToMinor,
+    String? currency,
+    String? countryCode,
+    String? imageUrl,
+    String? videoPreviewUrl,
+    String? category,
+  }) {
+    return MarketplaceVendor(
+      id: id,
+      businessName: businessName,
+      city: city,
+      status: status,
+      ratingAverage: ratingAverage ?? this.ratingAverage,
+      slug: slug,
+      description: description ?? this.description,
+      reviewCount: reviewCount ?? this.reviewCount,
+      priceFromMinor: priceFromMinor ?? this.priceFromMinor,
+      priceToMinor: priceToMinor ?? this.priceToMinor,
+      currency: currency ?? this.currency,
+      countryCode: countryCode ?? this.countryCode,
+      imageUrl: imageUrl ?? this.imageUrl,
+      videoPreviewUrl: videoPreviewUrl ?? this.videoPreviewUrl,
+      category: category ?? this.category,
+      servicesOffered: servicesOffered ?? this.servicesOffered,
+      services: services ?? this.services,
+    );
+  }
 
   bool get isVerified => status == 'active';
 
-  String get categoryLabel => _categoryFromSlug(slug ?? businessName);
+  String get categoryLabel {
+    if (category != null && category!.trim().isNotEmpty) {
+      final parts = category!.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty);
+      if (parts.isNotEmpty) return parts.first;
+    }
+    return _categoryFromSlug(slug ?? businessName);
+  }
 
-  /// Fashion & Attire subcategory when applicable.
   String? get fashionSubcategory => _fashionSubcategoryFromSlug(slug ?? businessName);
 
-  /// Rentals & Event Equipment subcategory when applicable.
   String? get rentalSubcategory => _rentalSubcategoryFromSlug(slug ?? businessName);
 
   bool get isFashionAttireVendor =>
@@ -129,20 +218,81 @@ class MarketplaceVendor {
   }
 
   bool matchesService(String serviceLabel) {
-    final needle = serviceLabel.toLowerCase();
+    final needle = serviceLabel.toLowerCase().trim();
+    if (needle.isEmpty || needle == 'all') return true;
+
+    for (final s in services) {
+      if (s.matchesLabel(serviceLabel)) return true;
+    }
+
+    for (final s in servicesOffered) {
+      if (s.toLowerCase().contains(needle) || needle.contains(s.toLowerCase())) return true;
+    }
+    if (category != null) {
+      for (final part in category!.split(',')) {
+        final c = part.trim().toLowerCase();
+        if (c.isNotEmpty && (c.contains(needle) || needle.contains(c))) return true;
+      }
+    }
+
+    final aliases = <String>{needle};
+    if (needle.contains('photo')) {
+      aliases.addAll(['photo', 'photography', 'photographer']);
+    }
+    if (needle == 'dj' || needle.contains('entertainment') || needle.contains('music')) {
+      aliases.addAll(['dj', 'entertainment', 'music', 'band']);
+    }
+    if (needle.contains('cater') || needle.contains('food') || needle.contains('jollof')) {
+      aliases.addAll(['cater', 'catering', 'food', 'jollof']);
+    }
+    if (needle.contains('decor') || needle.contains('décor') || needle.contains('styl')) {
+      aliases.addAll(['decor', 'décor', 'decorator', 'styling']);
+    }
+    if (needle == 'mc' || needle.contains('officiant') || needle.contains('host')) {
+      aliases.addAll(['mc', 'officiant', 'host']);
+    }
+
     final hay = '${slug ?? ''} ${businessName.toLowerCase()} ${categoryLabel.toLowerCase()} '
-        '${fashionSubcategory?.toLowerCase() ?? ''} ${rentalSubcategory?.toLowerCase() ?? ''}';
-    if (hay.contains(needle)) return true;
+        '${fashionSubcategory?.toLowerCase() ?? ''} ${rentalSubcategory?.toLowerCase() ?? ''} '
+        '${servicesOffered.join(' ').toLowerCase()}';
+
+    for (final a in aliases) {
+      if (hay.contains(a)) return true;
+      if (categoryLabel.toLowerCase() == a) return true;
+    }
     if (needle == 'fashion & attire' && isFashionAttireVendor) return true;
     if (needle == 'rentals & event equipment' && isRentalEquipmentVendor) return true;
     if (rentalSubcategory != null && rentalSubcategory!.toLowerCase() == needle) return true;
     if (fashionSubcategory != null && fashionSubcategory!.toLowerCase() == needle) return true;
-    return categoryLabel.toLowerCase() == needle ||
-        categoryLabel.toLowerCase().contains(needle);
+    return categoryLabel.toLowerCase().contains(needle);
   }
 }
 
 MarketplaceVendor mapMarketplaceVendor(Map<String, dynamic> json) {
+  final offered = <String>[];
+  final raw = json['servicesOffered'] ?? json['services_offered'];
+  if (raw is List) {
+    for (final e in raw) {
+      final s = e.toString().trim();
+      if (s.isNotEmpty) offered.add(s);
+    }
+  }
+  final services = <MarketplaceVendorService>[];
+  final servicesRaw = json['services'];
+  if (servicesRaw is List) {
+    for (final e in servicesRaw) {
+      if (e is Map<String, dynamic>) {
+        final s = MarketplaceVendorService.fromJson(e);
+        if (s.id.isNotEmpty && s.serviceName.isNotEmpty) services.add(s);
+      } else if (e is Map) {
+        final s = MarketplaceVendorService.fromJson(Map<String, dynamic>.from(e));
+        if (s.id.isNotEmpty && s.serviceName.isNotEmpty) services.add(s);
+      }
+    }
+  }
+  if (offered.isEmpty && services.isNotEmpty) {
+    offered.addAll(services.map((s) => s.serviceName));
+  }
   return MarketplaceVendor(
     id: (json['id'] ?? '').toString(),
     businessName: (json['businessName'] ?? json['business_name'] ?? '').toString(),
@@ -158,6 +308,9 @@ MarketplaceVendor mapMarketplaceVendor(Map<String, dynamic> json) {
     countryCode: json['countryCode']?.toString(),
     imageUrl: json['imageUrl']?.toString() ?? json['image_url']?.toString(),
     videoPreviewUrl: json['videoPreviewUrl']?.toString() ?? json['video_preview_url']?.toString(),
+    category: json['category']?.toString(),
+    servicesOffered: offered,
+    services: services,
   );
 }
 
@@ -188,11 +341,16 @@ class VendorsApi {
     }
   }
 
-  Future<List<MarketplaceVendor>> listCatalog({String? query, String? city}) async {
+  Future<List<MarketplaceVendor>> listCatalog({
+    String? query,
+    String? city,
+    String? service,
+  }) async {
     final res = await _http.get(
       _u('vendors', {
         if (query != null && query.isNotEmpty) 'q': query,
         if (city != null && city.isNotEmpty) 'city': city,
+        if (service != null && service.isNotEmpty && service != 'All') 'service': service,
       }),
       headers: OwambeApiAuth.publicHeaders(tenantId: _tenantId),
     );
@@ -200,6 +358,21 @@ class VendorsApi {
     final body = jsonDecode(res.body) as Map<String, dynamic>;
     return (body['items'] as List<dynamic>)
         .map((e) => mapMarketplaceVendor(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<List<MarketplaceVendorService>> listVendorServices(String vendorId) async {
+    final res = await _http.get(
+      _u('vendors/$vendorId/services'),
+      headers: OwambeApiAuth.publicHeaders(tenantId: _tenantId),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    final items = body['items'] as List<dynamic>? ?? const [];
+    return items
+        .whereType<Map>()
+        .map((e) => MarketplaceVendorService.fromJson(Map<String, dynamic>.from(e)))
+        .where((s) => s.id.isNotEmpty && s.serviceName.isNotEmpty)
         .toList();
   }
 

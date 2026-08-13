@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../eos/eos.dart';
+import '../../../../core/api/persistence_providers.dart';
 import '../../../../features/operations/models/operations_models.dart';
 import '../../../../features/operations/providers/operations_providers.dart';
 import '../../models/customer_guest_models.dart';
@@ -84,12 +85,20 @@ class GuestDetailDrawer extends ConsumerWidget {
             if (!guest.checkedIn)
               FilledButton.icon(
                 onPressed: () async {
-                  await performManualCheckIn(ref, eventId, guest.toOpsGuest());
-                  refreshCustomerGuests(ref);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${guest.name} checked in')),
-                    );
+                  try {
+                    await performManualCheckIn(ref, eventId, guest.toOpsGuest());
+                    refreshCustomerGuests(ref);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('${guest.name} checked in')),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('$e')),
+                      );
+                    }
                   }
                 },
                 icon: const Icon(Icons.how_to_reg_outlined),
@@ -97,13 +106,31 @@ class GuestDetailDrawer extends ConsumerWidget {
               ),
             SizedBox(height: context.eos.spacing.sm),
             OutlinedButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Invitation resent to ${guest.email}')),
-                );
-              },
+              onPressed: guest.email.trim().isEmpty
+                  ? null
+                  : () async {
+                      try {
+                        await ref.read(eventGuestsApiProvider).sendInvitations(
+                              eventId,
+                              guestIds: [guest.id],
+                              channel: 'email',
+                            );
+                        refreshCustomerGuests(ref);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Invitation sent to ${guest.email}')),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('$e')),
+                          );
+                        }
+                      }
+                    },
               icon: const Icon(Icons.mail_outline),
-              label: const Text('Resend invitation'),
+              label: const Text('Send / resend invitation'),
             ),
           ],
         ),

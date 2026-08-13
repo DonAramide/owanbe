@@ -17,8 +17,8 @@ class EventHealthScreen extends ConsumerWidget {
     final kpis = ref.watch(operationsKpisProvider(eventId));
 
     return EosPageScaffold(
-      title: 'Event health engine',
-      subtitle: 'Automated operational health scoring',
+      title: 'Event health',
+      subtitle: 'Capacity, queue, throughput, attendance',
       body: health.when(
         data: (h) => Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -64,20 +64,54 @@ class EventHealthScreen extends ConsumerWidget {
               spacing: context.eos.spacing.md,
               runSpacing: context.eos.spacing.md,
               children: [
-                _rateCard(context, 'Attendance rate', h.attendanceRate, Icons.groups_outlined),
+                _rateCard(context, 'Attendance', h.attendanceRate, Icons.groups_outlined),
+                _rateCard(context, 'Capacity fill', h.capacityRate, Icons.meeting_room_outlined),
                 _rateCard(context, 'Check-in rate', h.checkInRate, Icons.qr_code_scanner),
-                _rateCard(context, 'Vendor activity', h.vendorActivityRate, Icons.storefront_outlined),
-                _rateCard(context, 'Incident rate', h.incidentRate, Icons.report_problem_outlined,
-                    invert: true),
+                SizedBox(
+                  width: 220,
+                  child: EosKpiCard(
+                    title: 'Queue state',
+                    value: h.queueState,
+                    subtitle: '${h.checkInThroughputPerHour}/hr throughput',
+                    icon: Icons.speed,
+                    attention: h.queueState == 'heavy'
+                        ? EosKpiAttention.warning
+                        : h.queueState == 'busy'
+                            ? EosKpiAttention.info
+                            : EosKpiAttention.none,
+                  ),
+                ),
+                _rateCard(context, 'Incident load', h.incidentRate, Icons.report_problem_outlined, invert: true),
               ],
             ),
             SizedBox(height: context.eos.spacing.lg),
             kpis.when(
-              data: (k) => EosKpiCard(
-                title: 'Revenue velocity',
-                value: formatOpsMoney(h.revenueVelocityMinor),
-                subtitle: 'Per hour (estimated)',
-                icon: Icons.speed,
+              data: (k) => EosSection(
+                title: 'Attendance trend (live)',
+                child: EosSurfaceCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${k.checkedIn} inside · ${k.remainingGuests} remaining · ${k.attendancePct.toStringAsFixed(1)}%',
+                        style: context.eosText.titleSmall,
+                      ),
+                      SizedBox(height: context.eos.spacing.sm),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: LinearProgressIndicator(
+                          value: (k.attendancePct / 100).clamp(0.0, 1.0),
+                          minHeight: 10,
+                        ),
+                      ),
+                      SizedBox(height: context.eos.spacing.sm),
+                      Text(
+                        'Last 15m: ${k.checkInsLast15m} check-ins · Last 60m: ${k.checkInsLast60m}',
+                        style: context.eosText.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
               ),
               loading: () => const SizedBox.shrink(),
               error: (_, _) => const SizedBox.shrink(),
@@ -85,7 +119,13 @@ class EventHealthScreen extends ConsumerWidget {
           ],
         ),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Text('$e'),
+        error: (e, _) => EosAttentionBanner(
+          headline: 'Health unavailable',
+          message: '$e',
+          severity: 'WARNING',
+          actionLabel: 'Retry',
+          onAction: () => bumpOperationsRevision(ref),
+        ),
       ),
     );
   }
@@ -93,7 +133,11 @@ class EventHealthScreen extends ConsumerWidget {
   Widget _rateCard(BuildContext context, String title, double rate, IconData icon, {bool invert = false}) {
     final pct = (rate * 100).clamp(0, 100).toStringAsFixed(0);
     final attention = invert
-        ? (rate > 0.3 ? EosKpiAttention.critical : rate > 0.15 ? EosKpiAttention.warning : EosKpiAttention.none)
+        ? (rate > 0.3
+            ? EosKpiAttention.critical
+            : rate > 0.15
+                ? EosKpiAttention.warning
+                : EosKpiAttention.none)
         : (rate < 0.4 ? EosKpiAttention.warning : EosKpiAttention.info);
     return SizedBox(
       width: 220,

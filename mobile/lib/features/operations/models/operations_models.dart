@@ -8,21 +8,28 @@ enum IncidentStatus { open, investigating, resolved }
 
 enum FeedEventType {
   guestCheckedIn,
+  invitationArrival,
+  checkInDuplicate,
+  checkInInvalid,
   vendorJoined,
   orderPlaced,
   refundRequested,
   incidentLogged,
+  incidentUpdated,
   wallPost,
   wallPinned,
 }
 
-enum QrScanResult { valid, alreadyUsed, expired, invalid, vip, vvip }
+enum QrScanResult { valid, alreadyUsed, expired, invalid, cancelled, offline, vip, vvip }
 
 enum CheckInFilter { all, checkedIn, notCheckedIn, vip, vvip }
 
 enum VendorOpsStatus { active, idle, offline }
 
 enum GuestTier { general, vip, vvip }
+
+/// Door lifecycle derived from entitlements + event_check_ins.
+enum DoorAttendeeStatus { registered, checkedIn, inside, completed }
 
 class OpsGuest {
   const OpsGuest({
@@ -36,6 +43,8 @@ class OpsGuest {
     this.checkedInAt,
     this.qrValid = true,
     this.ticketExpired = false,
+    this.doorStatus = DoorAttendeeStatus.registered,
+    this.source,
   });
 
   final String id;
@@ -48,12 +57,23 @@ class OpsGuest {
   final DateTime? checkedInAt;
   final bool qrValid;
   final bool ticketExpired;
+  final DoorAttendeeStatus doorStatus;
+  final String? source;
+
+  String get doorStatusLabel => switch (doorStatus) {
+        DoorAttendeeStatus.registered => 'Registered',
+        DoorAttendeeStatus.checkedIn => 'Checked In',
+        DoorAttendeeStatus.inside => 'Inside Event',
+        DoorAttendeeStatus.completed => 'Completed',
+      };
 
   OpsGuest copyWith({
     bool? checkedIn,
     DateTime? checkedInAt,
     bool? qrValid,
     bool? ticketExpired,
+    DoorAttendeeStatus? doorStatus,
+    String? source,
   }) =>
       OpsGuest(
         id: id,
@@ -66,6 +86,8 @@ class OpsGuest {
         checkedInAt: checkedInAt ?? this.checkedInAt,
         qrValid: qrValid ?? this.qrValid,
         ticketExpired: ticketExpired ?? this.ticketExpired,
+        doorStatus: doorStatus ?? this.doorStatus,
+        source: source ?? this.source,
       );
 }
 
@@ -152,24 +174,58 @@ class VendorOpsSnapshot {
   final DateTime lastActivity;
 }
 
+class DoorArrival {
+  const DoorArrival({
+    required this.ticketCode,
+    required this.name,
+    required this.tierName,
+    required this.source,
+    required this.checkedInAt,
+  });
+
+  final String ticketCode;
+  final String name;
+  final String tierName;
+  final String source;
+  final DateTime checkedInAt;
+}
+
 class LiveEventKpis {
   const LiveEventKpis({
     required this.checkedIn,
     required this.remainingGuests,
+    required this.capacity,
+    required this.noShows,
+    required this.attendancePct,
+    required this.capacityPct,
     required this.vendorsActive,
     required this.ordersToday,
     required this.revenueTodayMinor,
     required this.openIncidents,
     required this.totalRegistered,
+    this.checkInsLast15m = 0,
+    this.checkInsLast60m = 0,
+    this.queueState = 'quiet',
+    this.eventStatus = 'published',
+    this.recentArrivals = const [],
   });
 
   final int checkedIn;
   final int remainingGuests;
+  final int capacity;
+  final int noShows;
+  final double attendancePct;
+  final double capacityPct;
   final int vendorsActive;
   final int ordersToday;
   final int revenueTodayMinor;
   final int openIncidents;
   final int totalRegistered;
+  final int checkInsLast15m;
+  final int checkInsLast60m;
+  final String queueState;
+  final String eventStatus;
+  final List<DoorArrival> recentArrivals;
 }
 
 class EventHealthSnapshot {
@@ -177,19 +233,25 @@ class EventHealthSnapshot {
     required this.level,
     required this.attendanceRate,
     required this.checkInRate,
+    required this.capacityRate,
     required this.vendorActivityRate,
     required this.incidentRate,
     required this.revenueVelocityMinor,
     required this.summary,
+    this.queueState = 'quiet',
+    this.checkInThroughputPerHour = 0,
   });
 
   final EventHealthLevel level;
   final double attendanceRate;
   final double checkInRate;
+  final double capacityRate;
   final double vendorActivityRate;
   final double incidentRate;
   final int revenueVelocityMinor;
   final String summary;
+  final String queueState;
+  final int checkInThroughputPerHour;
 }
 
 class QrScanResponse {
@@ -202,4 +264,16 @@ class QrScanResponse {
   final QrScanResult result;
   final String message;
   final OpsGuest? guest;
+}
+
+/// Normalize QR / pasted ticket input to a door ticket code when possible.
+String resolveDoorTicketInput(String raw) {
+  final value = raw.trim();
+  if (value.isEmpty) return value;
+  if (value.toUpperCase().startsWith('OWANBE:')) {
+    final parts = value.split(':').map((p) => p.trim()).where((p) => p.isNotEmpty).toList();
+    if (parts.length >= 4) return parts.last;
+    if (parts.length == 3) return parts[2];
+  }
+  return value;
 }

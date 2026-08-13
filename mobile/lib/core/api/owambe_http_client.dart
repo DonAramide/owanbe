@@ -3,7 +3,8 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 
 /// Default timeout for Owambe REST calls — avoids infinite loading when API is down.
-const Duration kOwambeHttpTimeout = Duration(seconds: 12);
+/// Profile upserts / media can exceed 12s under JWKS or storage latency.
+const Duration kOwambeHttpTimeout = Duration(seconds: 45);
 
 http.Client createOwambeHttpClient() => _TimeoutClient(http.Client(), kOwambeHttpTimeout);
 

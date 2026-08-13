@@ -13,7 +13,8 @@ import 'workspace_models.dart';
 
 /// Workspace state for a single experience (from loaded identity).
 final workspaceStateProvider = Provider.family<WorkspaceState?, ExperienceWorkspace>((ref, ws) {
-  final identity = ref.watch(userIdentityProvider).value;
+  // valueOrNull: AsyncError must not throw into the widget tree (API down / Failed to fetch).
+  final identity = ref.watch(userIdentityProvider).valueOrNull;
   if (identity == null) return null;
   return identity.workspaceState(ws);
 });
@@ -21,7 +22,7 @@ final workspaceStateProvider = Provider.family<WorkspaceState?, ExperienceWorksp
 /// True when the user has an active (fully onboarded) workspace.
 final hasActiveWorkspaceProvider = Provider.family<bool, ExperienceWorkspace>((ref, ws) {
   if (OwanbeIdentityConfig.identityV2) {
-    final identity = ref.watch(userIdentityProvider).value;
+    final identity = ref.watch(userIdentityProvider).valueOrNull;
     if (identity != null) return identity.canAccess(ws);
     return _legacyRoleMatches(ref.watch(authSessionProvider), ws);
   }
@@ -31,7 +32,7 @@ final hasActiveWorkspaceProvider = Provider.family<bool, ExperienceWorkspace>((r
 /// True when user may open workspace routes (active or onboarding in progress).
 final canEnterWorkspaceProvider = Provider.family<bool, ExperienceWorkspace>((ref, ws) {
   if (OwanbeIdentityConfig.identityV2) {
-    final identity = ref.watch(userIdentityProvider).value;
+    final identity = ref.watch(userIdentityProvider).valueOrNull;
     if (identity != null) return identity.canEnter(ws);
     return _sessionHasRoleCode(ref.watch(authSessionProvider), ws.apiCode);
   }
@@ -83,13 +84,13 @@ UserRole resolveUniversalSessionRole({
 
 /// Count of activated workspaces (for switcher UI).
 final activatedWorkspaceCountProvider = Provider<int>((ref) {
-  final identity = ref.watch(userIdentityProvider).value;
+  final identity = ref.watch(userIdentityProvider).valueOrNull;
   if (identity == null) return 0;
   return ExperienceWorkspace.values.where((ws) => identity.canAccess(ws)).length;
 });
 
 /// True when the user has an active (fully onboarded) workspace.
 final canAccessWorkspaceProvider = Provider.family<bool, ExperienceWorkspace>((ref, ws) {
-  final identity = ref.watch(userIdentityProvider).value;
+  final identity = ref.watch(userIdentityProvider).valueOrNull;
   return identity?.canAccess(ws) ?? false;
 });

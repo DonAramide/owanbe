@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 
 import '../../../../eos/eos.dart';
+import '../../models/vendor_crm_models.dart';
 
 class VendorStageBadge extends StatelessWidget {
-  const VendorStageBadge({super.key, required this.stage});
+  const VendorStageBadge({
+    super.key,
+    required this.stage,
+    this.forVendor = false,
+  });
 
   final String stage;
+  /// When true, pending shows as NEW (vendor inbox); organizer sees Pending Vendor Response.
+  final bool forVendor;
 
   Color _color(BuildContext context) => switch (stage) {
         'negotiating' => EosColors.plum,
@@ -20,17 +27,8 @@ class VendorStageBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _color(context);
-    final label = switch (stage) {
-      'new' => 'New',
-      'negotiating' => 'Negotiating',
-      'accepted' => 'Accepted',
-      'scheduled' => 'Scheduled',
-      'arrived' => 'Arrived',
-      'completed' => 'Completed',
-      'declined' => 'Declined',
-      'cancelled' => 'Cancelled',
-      _ => stage,
-    };
+    final labels = forVendor ? vendorCrmVendorStageLabels : vendorCrmStageLabels;
+    final label = labels[stage] ?? stage;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(

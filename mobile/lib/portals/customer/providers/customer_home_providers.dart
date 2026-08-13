@@ -63,19 +63,17 @@ final customerTicketInvitationsProvider = FutureProvider.autoDispose<List<Custom
   }
 });
 
-List<MarketplaceVendor> _mockVendors() => const [
-      MarketplaceVendor(id: 'v1', businessName: 'Golden Pot Catering', city: 'Lagos', ratingAverage: 4.9, slug: 'catering', priceFromMinor: 150000000),
-      MarketplaceVendor(id: 'v2', businessName: 'DJ Kola Live', city: 'Lagos', ratingAverage: 4.8, slug: 'dj', priceFromMinor: 25000000),
-      MarketplaceVendor(id: 'v3', businessName: 'Lumière Photography', city: 'Abuja', ratingAverage: 4.7, slug: 'photography', priceFromMinor: 40000000),
-      MarketplaceVendor(id: 'v4', businessName: 'Royal Décor Studio', city: 'Lagos', ratingAverage: 4.6, slug: 'decorator', priceFromMinor: 50000000),
-      MarketplaceVendor(id: 'v5', businessName: 'Eko Grand Ballroom', city: 'Lagos', ratingAverage: 4.8, slug: 'venue', priceFromMinor: 175000000),
-      MarketplaceVendor(id: 'v6', businessName: 'MC Tunde Celebrations', city: 'Lagos', ratingAverage: 4.9, slug: 'mc', priceFromMinor: 15000000),
-      MarketplaceVendor(id: 'v7', businessName: 'SafeGuard Events', city: 'Lagos', ratingAverage: 4.5, slug: 'security', priceFromMinor: 8000000),
-      MarketplaceVendor(id: 'v8', businessName: 'Sweet Layers Cake', city: 'Lagos', ratingAverage: 4.9, slug: 'cake', priceFromMinor: 12000000),
-      MarketplaceVendor(id: 'v9', businessName: 'Chilled & Co Drinks', city: 'Lagos', ratingAverage: 4.7, slug: 'drinks', priceFromMinor: 35000000),
-      MarketplaceVendor(id: 'v10', businessName: 'Graceful Ushers NG', city: 'Lagos', ratingAverage: 4.6, slug: 'ushers', priceFromMinor: 5000000),
-      MarketplaceVendor(id: 'v11', businessName: 'Afro Fusion Live Band', city: 'Abuja', ratingAverage: 4.8, slug: 'live-band', priceFromMinor: 45000000),
-      MarketplaceVendor(id: VendorIdentity.canonicalDevVendorId, businessName: 'Jollof & Co', city: 'Lagos', ratingAverage: 4.9, slug: 'catering', priceFromMinor: 95000000),
+List<MarketplaceVendor> _seedBackedDemoVendors() => const [
+      // Sole demo listing: seeded vendors row owned by vendor@owanbe.dev
+      // (infra/db/029_identity_dev_seed.sql). Never emit orphan ids (v1…v11).
+      MarketplaceVendor(
+        id: VendorIdentity.seedDemoVendorId,
+        businessName: 'Jollof & Co',
+        city: 'Lagos',
+        ratingAverage: 4.9,
+        slug: 'catering',
+        priceFromMinor: 95000000,
+      ),
     ];
 
 final customerMarketplaceVendorsProvider = FutureProvider.autoDispose<List<MarketplaceVendor>>((ref) async {
@@ -86,7 +84,7 @@ final customerMarketplaceVendorsProvider = FutureProvider.autoDispose<List<Marke
   } catch (_) {
     if (!allowMockPersistenceFallback()) rethrow;
   }
-  if (allowMockPersistenceFallback()) return _mockVendors();
+  if (allowMockPersistenceFallback()) return _seedBackedDemoVendors();
   return const [];
 });
 

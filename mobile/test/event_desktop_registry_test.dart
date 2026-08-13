@@ -104,6 +104,14 @@ void main() {
         '/vendors/ven_1?eventId=evt_phase2',
       );
       expect(
+        EventRouteRegistry.vendorDetailForEvent(
+          'ven_1',
+          eventId: eventId,
+          service: 'Catering',
+        ),
+        '/vendors/ven_1?eventId=evt_phase2&service=Catering',
+      );
+      expect(
         EventRouteRegistry.marketplaceEventIdFromLocation(
           EventRouteRegistry.vendorsForEvent(eventId),
         ),

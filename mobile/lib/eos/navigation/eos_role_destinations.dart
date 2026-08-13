@@ -23,6 +23,7 @@ abstract final class EosRoleDestinations {
     EosNavDestination(label: 'Audit', icon: Icons.history_outlined),
     EosNavDestination(label: 'Analytics', icon: Icons.insights_outlined),
     EosNavDestination(label: 'Security', icon: Icons.security_outlined),
+    EosNavDestination(label: 'Commerce Configuration', icon: Icons.sell_outlined, selectedIcon: Icons.sell),
     EosNavDestination(label: 'Platform Admin', icon: Icons.admin_panel_settings_outlined),
   ];
 
@@ -44,6 +45,9 @@ abstract final class EosRoleDestinations {
     EosNavDestination(label: 'Attendees', icon: Icons.people_outline),
     EosNavDestination(label: 'Analytics', icon: Icons.insights_outlined),
     EosNavDestination(label: 'Live Ops', icon: Icons.sensors_outlined, selectedIcon: Icons.sensors),
+    EosNavDestination(label: 'Team', icon: Icons.groups_outlined, selectedIcon: Icons.groups),
+    EosNavDestination(label: 'Automations', icon: Icons.bolt_outlined, selectedIcon: Icons.bolt),
+    EosNavDestination(label: 'Marketing', icon: Icons.campaign_outlined, selectedIcon: Icons.campaign),
   ];
 
   static const vendor = [

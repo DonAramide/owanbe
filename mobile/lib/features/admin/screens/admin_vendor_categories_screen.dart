@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/api/event_config_api.dart';
 import '../../../core/api/owambe_http_client.dart';
@@ -28,6 +29,19 @@ class AdminVendorCategoriesScreen extends ConsumerWidget {
     return AdminPageLayout(
       title: 'Vendor service categories',
       subtitle: 'Services used in marketplace filters and the event creation wizard',
+      actions: [
+        TextButton.icon(
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/super-admin');
+            }
+          },
+          icon: const Icon(Icons.arrow_back, size: 18),
+          label: const Text('Back'),
+        ),
+      ],
       body: categories.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Text('Could not load vendor categories: $e'),

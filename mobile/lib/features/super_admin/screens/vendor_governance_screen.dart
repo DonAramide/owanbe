@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/api/control_plane_api.dart';
 import '../../../eos/eos.dart';
-import '../../../platform/governance/governance_models.dart';
-import '../../../platform/governance/governance_engine.dart';
 
+/// Phase 28 — Nest-backed Vendor Governance (canonical vendors.status).
 class VendorGovernanceScreen extends ConsumerStatefulWidget {
   const VendorGovernanceScreen({super.key});
 
@@ -12,337 +12,202 @@ class VendorGovernanceScreen extends ConsumerStatefulWidget {
   ConsumerState<VendorGovernanceScreen> createState() => _VendorGovernanceScreenState();
 }
 
-class _VendorGovernanceScreenState extends ConsumerState<VendorGovernanceScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  final _engine = GovernanceEngine();
+class _VendorGovernanceScreenState extends ConsumerState<VendorGovernanceScreen> {
+  String _query = '';
+  String _status = 'all';
 
-  // Mock State
-  final List<Map<String, dynamic>> _mockVendors = [
-    {
-      'id': 'v_01',
-      'name': 'Gold Event Catering',
-      'category': 'Catering',
-      'status': VendorLifecycleState.active,
-      'trustScore': 94,
-      'riskScore': RiskLevel.low,
-      'walletFrozen': false,
-      'commsDisabled': false,
-    },
-    {
-      'id': 'v_02',
-      'name': 'Lumina Decor & Lights',
-      'category': 'Decoration',
-      'status': VendorLifecycleState.restricted,
-      'trustScore': 68,
-      'riskScore': RiskLevel.medium,
-      'walletFrozen': true,
-      'commsDisabled': false,
-    },
-    {
-      'id': 'v_03',
-      'name': 'Aso Ebi Premium Hub',
-      'category': 'Fashion',
-      'status': VendorLifecycleState.suspended,
-      'trustScore': 35,
-      'riskScore': RiskLevel.high,
-      'walletFrozen': true,
-      'commsDisabled': true,
-    },
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+  Future<void> _refresh() async {
+    ref.invalidate(controlPlaneVendorsProvider(_query));
+    ref.invalidate(controlPlaneDashboardProvider);
+    ref.invalidate(controlPlaneActivityProvider);
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  Future<void> _snack(String msg, {bool error = false}) async {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: error ? Colors.red.shade800 : null),
+    );
+  }
+
+  Future<void> _transition(Map<String, dynamic> v, String action) async {
+    String? reason;
+    if (action == 'suspend' || action == 'reject') {
+      reason = await _prompt('Reason for $action');
+      if (reason == null) return;
+    }
+    try {
+      await ref.read(controlPlaneApiProvider).transitionVendor(
+            tenantId: v['tenantId'].toString(),
+            vendorId: v['id'].toString(),
+            action: action,
+            reason: reason,
+          );
+      await _refresh();
+      await _snack('Vendor $action completed');
+    } catch (e) {
+      await _snack(e.toString(), error: true);
+    }
+  }
+
+  Future<String?> _prompt(String title) async {
+    final c = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: TextField(controller: c, autofocus: true),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, c.text), child: const Text('OK')),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF161129),
-        cardColor: const Color(0xFF221A3C),
-      ),
-      child: Scaffold(
-        backgroundColor: const Color(0xFF161129),
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: Text(
-            'Vendor Governance OS',
-            style: context.eosText.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-          bottom: TabBar(
-            controller: _tabController,
-            indicatorColor: EosColors.champagne,
-            labelColor: EosColors.champagne,
-            unselectedLabelColor: Colors.white60,
-            tabs: const [
-              Tab(text: 'Control Tower'),
-              Tab(text: 'Lifecycle & KYC'),
-              Tab(text: 'Policies & Comms'),
-              Tab(text: 'Broadcasts'),
-            ],
-          ),
-        ),
-        body: TabBarView(
-          controller: _tabController,
-          children: [
-            _buildControlTowerTab(),
-            _buildLifecycleTab(),
-            _buildPoliciesTab(),
-            _buildBroadcastsTab(),
-          ],
-        ),
-      ),
-    );
-  }
+    final vendors = ref.watch(controlPlaneVendorsProvider(_query));
+    final dash = ref.watch(controlPlaneDashboardProvider);
+    final activity = ref.watch(controlPlaneActivityProvider);
 
-  // 1. Control Tower Dashboard
-  Widget _buildControlTowerTab() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // Summary Cards Grid
-        GridView.count(
-          crossAxisCount: 4,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: 1.5,
-          children: [
-            _buildSummaryCard('Total Vendors', '1,248', Icons.people, Colors.blueAccent),
-            _buildSummaryCard('KYC Pending', '14', Icons.assignment_late, Colors.amberAccent),
-            _buildSummaryCard('Suspended', '8', Icons.block, Colors.redAccent),
-            _buildSummaryCard('Avg Trust Score', '91.2%', Icons.favorite, Colors.greenAccent),
-          ],
-        ),
-        const SizedBox(height: 24),
-
-        // High Risk Watchlist
-        const Text('HIGH RISK MONITOR & WATCHLIST', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold, fontSize: 13)),
-        const SizedBox(height: 12),
-        for (final v in _mockVendors.where((v) => v['riskScore'] == RiskLevel.high || v['riskScore'] == RiskLevel.medium))
-          EosSurfaceCard(
-            child: ListTile(
-              leading: Icon(
-                v['riskScore'] == RiskLevel.high ? Icons.warning_amber : Icons.info_outline,
-                color: v['riskScore'] == RiskLevel.high ? Colors.redAccent : Colors.orangeAccent,
-              ),
-              title: Text(v['name'] as String, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              subtitle: Text('Category: ${v['category']} • Risk Index: ${v['riskScore'].toString().split('.').last.toUpperCase()}', style: const TextStyle(color: Colors.white70)),
-              trailing: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'Trust: ${v['trustScore']}%',
-                  style: const TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  // 2. Lifecycle & Compliance Documents
-  Widget _buildLifecycleTab() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        const Text('COMPLIANCE INSPECTOR & ONBOARDING LIFECYCLE', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 12),
-        for (final v in _mockVendors)
-          EosSurfaceCard(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(v['name'] as String, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: EosColors.plum,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          v['status'].toString().split('.').last.toUpperCase(),
-                          style: const TextStyle(color: EosColors.champagne, fontSize: 10, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  const Text('Verification ID: CAC-2026-90214\nDocuments Tracked: CAC Incorporation, NIN Certificate', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      ElevatedButton(
-                        onPressed: () {
-                          setState(() {
-                            v['status'] = VendorLifecycleState.active;
-                          });
-                          _engine.vendorGovernance.transitionVendorState(
-                            vendorId: v['id'] as String,
-                            adminUserId: 'admin_01',
-                            targetState: VendorLifecycleState.active,
-                            reason: 'KYC Document verification approved.',
-                          );
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Vendor approved and marked Active.')),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                        child: const Text('Approve KYC', style: TextStyle(color: Colors.white, fontSize: 11)),
-                      ),
-                      const SizedBox(width: 8),
-                      OutlinedButton(
-                        onPressed: () {
-                          setState(() {
-                            v['status'] = VendorLifecycleState.suspended;
-                            v['commsDisabled'] = true;
-                            v['walletFrozen'] = true;
-                          });
-                          _engine.vendorGovernance.transitionVendorState(
-                            vendorId: v['id'] as String,
-                            adminUserId: 'admin_01',
-                            targetState: VendorLifecycleState.suspended,
-                            reason: 'Manual suspension triggered by Risk Management.',
-                          );
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Vendor suspended. Communication & Wallet frozen.')),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.redAccent)),
-                        child: const Text('Suspend Vendor', style: TextStyle(color: Colors.redAccent, fontSize: 11)),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  // 3. Policies & Comms
-  Widget _buildPoliciesTab() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        const Text('CASCADING COMMUNICATION POLICY', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 12),
-        EosSurfaceCard(
-          child: Column(
-            children: [
-              CheckboxListTile(
-                value: true,
-                onChanged: (v) {},
-                title: const Text('Enable Chat Messaging (Organizer ⇄ Vendor)', style: TextStyle(color: Colors.white)),
-                activeColor: EosColors.champagne,
-                checkColor: EosColors.plumDark,
-              ),
-              CheckboxListTile(
-                value: true,
-                onChanged: (v) {},
-                title: const Text('Enable Voice Calling (VoIP System)', style: TextStyle(color: Colors.white)),
-                activeColor: EosColors.champagne,
-                checkColor: EosColors.plumDark,
-              ),
-              CheckboxListTile(
-                value: false,
-                onChanged: (v) {},
-                title: const Text('Enable Screen Sharing (Platform Restrictive)', style: TextStyle(color: Colors.white)),
-                activeColor: EosColors.champagne,
-                checkColor: EosColors.plumDark,
-              ),
-              CheckboxListTile(
-                value: true,
-                onChanged: (v) {},
-                title: const Text('Enforce Read Receipts & Presence Tracking', style: TextStyle(color: Colors.white)),
-                activeColor: EosColors.champagne,
-                checkColor: EosColors.plumDark,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // 4. Broadcasts
-  Widget _buildBroadcastsTab() {
-    final msgController = TextEditingController();
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        const Text('GOVERNANCE BROADCAST CENTER', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 12),
-        TextField(
-          controller: msgController,
-          decoration: const InputDecoration(
-            hintText: 'Enter compliance announcement or policy alert message...',
-            fillColor: Colors.white10,
-            filled: true,
-            border: OutlineInputBorder(borderSide: BorderSide.none),
-          ),
-          style: const TextStyle(color: Colors.white),
-          maxLines: 4,
-        ),
-        const SizedBox(height: 16),
-        ElevatedButton.icon(
-          onPressed: () {
-            if (msgController.text.trim().isEmpty) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Broadcast queued successfully to all Photography & Catering vendor categories!'),
-                backgroundColor: Colors.green,
-              ),
-            );
-            msgController.clear();
-          },
-          icon: const Icon(Icons.send, color: Colors.white),
-          label: const Text('Publish Broadcast Notification', style: TextStyle(color: Colors.white)),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSummaryCard(String title, String value, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.02),
-        border: Border.all(color: Colors.white10),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
+    return EosPageScaffold(
+      title: 'Vendor Governance',
+      subtitle: 'Canonical vendor standing from Nest — not mock engines',
+      floatingHeader: Row(
         children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(height: 4),
-          Text(title, style: const TextStyle(color: Colors.white60, fontSize: 11)),
-          Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+          Expanded(
+            child: EosSearchField(
+              hint: 'Search vendors…',
+              onChanged: (v) => setState(() => _query = v),
+            ),
+          ),
+          const SizedBox(width: 12),
+          DropdownButton<String>(
+            value: _status,
+            items: const [
+              DropdownMenuItem(value: 'all', child: Text('All statuses')),
+              DropdownMenuItem(value: 'active', child: Text('Active')),
+              DropdownMenuItem(value: 'pending_review', child: Text('Pending')),
+              DropdownMenuItem(value: 'suspended', child: Text('Suspended')),
+              DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
+            ],
+            onChanged: (v) => setState(() => _status = v ?? 'all'),
+          ),
+          const SizedBox(width: 12),
+          IconButton(onPressed: _refresh, icon: const Icon(Icons.refresh)),
+        ],
+      ),
+      body: ListView(
+        children: [
+          dash.when(
+            loading: () => const LinearProgressIndicator(),
+            error: (e, _) => Text('Dashboard unavailable: $e'),
+            data: (d) {
+              final by = d['vendorsByStatus'] as Map<String, dynamic>? ?? {};
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  for (final e in by.entries)
+                    Chip(label: Text('${e.key}: ${e.value}')),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+          Text('Vendors', style: context.eosText.titleMedium),
+          const SizedBox(height: 8),
+          vendors.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => EosSurfaceCard(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text('Vendor governance unavailable: $e'),
+              ),
+            ),
+            data: (items) {
+              final filtered = _status == 'all'
+                  ? items
+                  : items.where((v) => v['status'] == _status).toList();
+              if (filtered.isEmpty) {
+                return const EosSurfaceCard(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('No vendors match this filter.'),
+                  ),
+                );
+              }
+              return EosSurfaceCard(
+                elevated: true,
+                child: Column(
+                  children: [
+                    for (final v in filtered)
+                      ListTile(
+                        title: Text('${v['businessName'] ?? ''}'),
+                        subtitle: Text(
+                          '${v['tenantSlug'] ?? ''} · ${v['status']} · ${v['complianceState'] ?? ''}'
+                          '${v['suspendedReason'] != null ? '\n${v['suspendedReason']}' : ''}',
+                        ),
+                        isThreeLine: v['suspendedReason'] != null,
+                        trailing: Wrap(
+                          spacing: 4,
+                          children: [
+                            if (v['status'] == 'pending_review' || v['status'] == 'draft')
+                              TextButton(
+                                onPressed: () => _transition(v, 'approve'),
+                                child: const Text('Approve'),
+                              ),
+                            if (v['status'] != 'suspended')
+                              TextButton(
+                                onPressed: () => _transition(v, 'suspend'),
+                                child: const Text('Suspend'),
+                              ),
+                            if (v['status'] == 'suspended')
+                              TextButton(
+                                onPressed: () => _transition(v, 'reactivate'),
+                                child: const Text('Reactivate'),
+                              ),
+                            if (v['status'] != 'rejected')
+                              TextButton(
+                                onPressed: () => _transition(v, 'reject'),
+                                child: const Text('Reject'),
+                              ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 24),
+          Text('Governance activity', style: context.eosText.titleMedium),
+          const SizedBox(height: 8),
+          activity.when(
+            loading: () => const LinearProgressIndicator(),
+            error: (e, _) => Text('$e'),
+            data: (items) {
+              final vendorActs = items
+                  .where((a) => (a['action']?.toString() ?? '').contains('vendor'))
+                  .take(20)
+                  .toList();
+              if (vendorActs.isEmpty) {
+                return const Text('No control_plane.vendor_* audit events yet');
+              }
+              return EosSurfaceCard(
+                child: Column(
+                  children: [
+                    for (final a in vendorActs)
+                      ListTile(
+                        dense: true,
+                        title: Text('${a['action']}'),
+                        subtitle: Text('${a['resourceId']} · ${a['createdAt'] ?? ''}'),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
         ],
       ),
     );

@@ -1,31 +1,70 @@
 import '../../organizer/data/organizer_event_store.dart';
 import '../models/vendor_models.dart';
 import '../vendor_identity.dart';
+import '../vendor_os_demo_mode.dart';
 
 /// In-memory vendor merchant store — local until full workflow is complete.
+///
+/// Default: empty workspace. Demo seed content loads only when
+/// [VendorOsDemoMode.isEnabled] is explicitly true.
 class VendorStore {
-  VendorStore._();
+  VendorStore._() {
+    if (VendorOsDemoMode.isEnabled) {
+      _loadDemoSeed();
+    }
+  }
   static final VendorStore instance = VendorStore._();
 
-  static const demoVendorId = VendorIdentity.canonicalDevVendorId;
+  static const demoVendorId = VendorIdentity.seedDemoVendorId;
 
-  final VendorProfile profile = const VendorProfile(
-    id: demoVendorId,
-    businessName: 'Jollof & Co',
-    category: 'Catering',
+  /// Display branding for mock/demo only. Production UI must prefer
+  /// [vendorWorkspaceProfileProvider] / authenticated vendor identity.
+  VendorProfile profile = const VendorProfile(
+    id: '',
+    businessName: '',
+    category: '',
     vendorType: VendorCatalogType.catering,
-    tier: 'premium',
-    city: 'Lagos',
-    tagline: 'Premium West African catering for celebrations',
-    rating: 4.8,
-    completedEvents: 24,
+    tier: '',
+    city: '',
+    tagline: '',
+    rating: 0,
+    completedEvents: 0,
   );
 
-  final List<VendorEventParticipation> _participations = _seedParticipations();
-  final List<VendorCatalogItem> _catalog = _seedCatalog();
-  final List<VendorOrder> _orders = _seedOrders();
-  final List<VendorWalletEntry> _walletEntries = _seedWallet();
-  final List<VendorPayoutRequest> _payouts = _seedPayouts();
+  final List<VendorEventParticipation> _participations = [];
+  final List<VendorCatalogItem> _catalog = [];
+  final List<VendorOrder> _orders = [];
+  final List<VendorWalletEntry> _walletEntries = [];
+  final List<VendorPayoutRequest> _payouts = [];
+
+  void _loadDemoSeed() {
+    profile = const VendorProfile(
+      id: demoVendorId,
+      businessName: 'Jollof & Co',
+      category: 'Catering',
+      vendorType: VendorCatalogType.catering,
+      tier: 'premium',
+      city: 'Lagos',
+      tagline: 'Premium West African catering for celebrations',
+      rating: 4.8,
+      completedEvents: 24,
+    );
+    _participations
+      ..clear()
+      ..addAll(_seedParticipations());
+    _catalog
+      ..clear()
+      ..addAll(_seedCatalog());
+    _orders
+      ..clear()
+      ..addAll(_seedOrders());
+    _walletEntries
+      ..clear()
+      ..addAll(_seedWallet());
+    _payouts
+      ..clear()
+      ..addAll(_seedPayouts());
+  }
 
   List<VendorEventParticipation> get participations => List.unmodifiable(_participations);
   List<VendorCatalogItem> get catalog => List.unmodifiable(_catalog);

@@ -71,6 +71,7 @@ Future<OrganizerEvent> createEventFromV2Draft(
   final body = <String, dynamic>{
     'title': draft.title,
     'tagline': draft.tagline,
+    'description': draft.description,
     'city': draft.city,
     'venue': draft.venueName,
     'category': draft.categoryLabel,
@@ -80,6 +81,7 @@ Future<OrganizerEvent> createEventFromV2Draft(
     'expectedGuests': draft.expectedGuests,
     'venueName': draft.venueName,
     'venueAddress': draft.venueAddress,
+    'venueType': draft.venueType.name,
     if (draft.venueLatitude != null) 'venueLatitude': draft.venueLatitude,
     if (draft.venueLongitude != null) 'venueLongitude': draft.venueLongitude,
     if (draft.googlePlaceId != null) 'googlePlaceId': draft.googlePlaceId,
@@ -92,6 +94,17 @@ Future<OrganizerEvent> createEventFromV2Draft(
     if (draft.state.isNotEmpty) 'state': draft.state,
     if (draft.lga.isNotEmpty) 'lga': draft.lga,
     if (celebrantImageUrl != null) 'celebrantImageUrl': celebrantImageUrl,
+    if (draft.celebrantImageUrl != null && celebrantImageUrl == null)
+      'celebrantImageUrl': draft.celebrantImageUrl,
+    'language': draft.language,
+    'ageRestrictionMin': draft.ageRestrictionMin,
+    'listingVisibility': draft.listingVisibility,
+    'registrationEnabled': draft.registrationEnabled,
+    'checkInEnabled': draft.checkInEnabled,
+    'bannerLabel': draft.bannerLabel,
+    'themeColor': draft.themeColor,
+    if (draft.selectedTemplateSlug.isNotEmpty) 'selectedTemplateSlug': draft.selectedTemplateSlug,
+    if (draft.preferredVendorIds.isNotEmpty) 'preferredVendorIds': draft.preferredVendorIds,
   };
   if (draft.eventAccessMode == EventAccessMode.publicTicketed && draft.ticketTiers.isNotEmpty) {
     body['ticketTiers'] = draft.ticketTiers
@@ -146,6 +159,97 @@ Future<OrganizerEvent> createEventFromV2Draft(
       message: _userFacingError(e, 'Could not create event. Please try again.'),
       cause: e,
     );
+  }
+}
+
+Map<String, dynamic> v2DraftToApiBody(EventWizardV2Draft draft, {String? celebrantImageUrl}) {
+  return {
+    'title': draft.title,
+    'tagline': draft.tagline,
+    'description': draft.description,
+    'city': draft.city,
+    'venue': draft.venueName,
+    'category': draft.categoryLabel,
+    'categorySlug': draft.categorySlug,
+    'eventAccessMode': draft.eventAccessMode.apiValue,
+    'budgetMinor': draft.budgetMinor,
+    'expectedGuests': draft.expectedGuests,
+    'venueName': draft.venueName,
+    'venueAddress': draft.venueAddress,
+    'venueType': draft.venueType.name,
+    if (draft.venueLatitude != null) 'venueLatitude': draft.venueLatitude,
+    if (draft.venueLongitude != null) 'venueLongitude': draft.venueLongitude,
+    if (draft.googlePlaceId != null) 'googlePlaceId': draft.googlePlaceId,
+    'tags': draft.tags,
+    'startsAt': draft.startsAt.toIso8601String(),
+    'endsAt': draft.endsAt.toIso8601String(),
+    'budgetAllocation': draft.budgetAllocation,
+    'requiredServices': draft.requiredServices,
+    'venueDeferred': draft.venueDeferred,
+    if (draft.state.isNotEmpty) 'state': draft.state,
+    if (draft.lga.isNotEmpty) 'lga': draft.lga,
+    if (celebrantImageUrl != null) 'celebrantImageUrl': celebrantImageUrl,
+    if (draft.celebrantImageUrl != null) 'celebrantImageUrl': draft.celebrantImageUrl,
+    'language': draft.language,
+    'ageRestrictionMin': draft.ageRestrictionMin,
+    'listingVisibility': draft.listingVisibility,
+    'registrationEnabled': draft.registrationEnabled,
+    'checkInEnabled': draft.checkInEnabled,
+    'bannerLabel': draft.bannerLabel,
+    'themeColor': draft.themeColor,
+    if (draft.selectedTemplateSlug.isNotEmpty) 'selectedTemplateSlug': draft.selectedTemplateSlug,
+    'ticketTiers': draft.ticketTiers
+        .map((t) => {
+              'id': t.id,
+              'name': t.name,
+              'description': t.description,
+              'priceMinor': t.priceMinor,
+              'currency': t.currency,
+              'capacity': t.capacity,
+              'remaining': t.remaining,
+              'tierType': t.tierType.name,
+              'visibility': t.visibility.name,
+            })
+        .toList(),
+  };
+}
+
+/// Soft-cancels a mid-wizard server draft so it leaves normal organizer views.
+Future<void> discardServerDraft(WidgetRef ref, String eventId) async {
+  try {
+    await ref.read(eventsApiProvider).discardEvent(eventId);
+    bumpOrganizerRevision(ref);
+  } catch (e) {
+    if (!allowOfflineMockPersistence()) {
+      throw EventCreationException(
+        stage: EventCreationStage.create,
+        message: _userFacingError(e, 'Could not discard draft. Please try again.'),
+        cause: e,
+      );
+    }
+  }
+}
+
+Future<OrganizerEvent> patchEventFromV2Draft(
+  WidgetRef ref,
+  String eventId,
+  EventWizardV2Draft draft,
+) async {
+  try {
+    final event = await ref.read(eventsApiProvider).patchEvent(eventId, v2DraftToApiBody(draft));
+    bumpOrganizerRevision(ref);
+    return event;
+  } catch (e) {
+    if (!allowOfflineMockPersistence()) {
+      throw EventCreationException(
+        stage: EventCreationStage.create,
+        message: _userFacingError(e, 'Could not save draft. Please try again.'),
+        cause: e,
+      );
+    }
+    bumpOrganizerRevision(ref);
+    return (await ref.read(eventsApiProvider).getOrganizerEvent(eventId)) ??
+        OrganizerEventStore.instance.byId(eventId)!;
   }
 }
 
@@ -228,13 +332,18 @@ Future<OrganizerTicketTier> addTicketTier(WidgetRef ref, String eventId, Organiz
       'description': tier.description,
       'priceMinor': tier.priceMinor,
       'currency': tier.currency,
-      'capacity': tier.capacity,
-      'remaining': tier.remaining,
+      'capacity': tier.unlimitedCapacity ? 0 : tier.capacity,
+      'remaining': tier.unlimitedCapacity ? 0 : tier.remaining,
       'tierType': tier.tierType.name,
       'visibility': tier.visibility.name,
       if (tier.salesWindowStart != null) 'salesStartAt': tier.salesWindowStart!.toIso8601String(),
       if (tier.salesWindowEnd != null) 'salesEndAt': tier.salesWindowEnd!.toIso8601String(),
       'salesPaused': tier.salesPaused,
+      'unlimitedCapacity': tier.unlimitedCapacity,
+      'minQuantity': tier.minQuantity,
+      if (tier.maxQuantity != null) 'maxQuantity': tier.maxQuantity,
+      if (tier.maxPerUser != null) 'maxPerUser': tier.maxPerUser,
+      'sortOrder': tier.sortOrder,
     });
     bumpOrganizerRevision(ref);
     return created;
@@ -260,13 +369,19 @@ Future<void> updateTicketTier(
         'name': updated.name,
         'description': updated.description,
         'priceMinor': updated.priceMinor,
-        'capacity': updated.capacity,
-        'remaining': updated.remaining,
+        'capacity': updated.unlimitedCapacity ? 0 : updated.capacity,
+        'remaining': updated.unlimitedCapacity ? 0 : updated.remaining,
         'tierType': updated.tierType.name,
         'visibility': updated.visibility.name,
         if (updated.salesWindowStart != null) 'salesStartAt': updated.salesWindowStart!.toIso8601String(),
         if (updated.salesWindowEnd != null) 'salesEndAt': updated.salesWindowEnd!.toIso8601String(),
         'salesPaused': updated.salesPaused,
+        'unlimitedCapacity': updated.unlimitedCapacity,
+        'minQuantity': updated.minQuantity,
+        'maxQuantity': updated.maxQuantity,
+        'maxPerUser': updated.maxPerUser,
+        'sortOrder': updated.sortOrder,
+        'archived': updated.archived,
       });
       bumpOrganizerRevision(ref);
       return;
@@ -275,6 +390,34 @@ Future<void> updateTicketTier(
     }
   }
   OrganizerEventStore.instance.updateTicketTier(eventId, tier.id, fn);
+  bumpOrganizerRevision(ref);
+}
+
+Future<void> deleteTicketTier(WidgetRef ref, OrganizerTicketTier tier) async {
+  final dbId = tier.dbTierId;
+  if (dbId == null) {
+    throw StateError('Missing tier database id');
+  }
+  await ref.read(eventsApiProvider).deleteTier(dbId);
+  bumpOrganizerRevision(ref);
+}
+
+Future<void> archiveTicketTier(WidgetRef ref, OrganizerTicketTier tier) async {
+  final dbId = tier.dbTierId;
+  if (dbId == null) throw StateError('Missing tier database id');
+  await ref.read(eventsApiProvider).archiveTier(dbId);
+  bumpOrganizerRevision(ref);
+}
+
+Future<void> duplicateTicketTier(WidgetRef ref, OrganizerTicketTier tier) async {
+  final dbId = tier.dbTierId;
+  if (dbId == null) throw StateError('Missing tier database id');
+  await ref.read(eventsApiProvider).duplicateTier(dbId);
+  bumpOrganizerRevision(ref);
+}
+
+Future<void> reorderTicketTiers(WidgetRef ref, String eventId, List<OrganizerTicketTier> ordered) async {
+  await ref.read(eventsApiProvider).reorderTiers(eventId, [for (final t in ordered) t.id]);
   bumpOrganizerRevision(ref);
 }
 
@@ -295,12 +438,17 @@ Future<void> inviteVendor(
   MarketplaceVendor vendor, {
   String? message,
   String? serviceLabel,
+  String? serviceKey,
+  String? vendorServiceId,
 }) async {
   try {
     await ref.read(vendorCrmApiProvider).createRequest(eventId, {
       'vendorId': VendorIdentity.resolveMarketplaceVendorId(vendor.id),
       'message': message ?? '',
-      if (serviceLabel != null) 'serviceLabel': serviceLabel,
+      if (serviceLabel != null && serviceLabel.trim().isNotEmpty) 'serviceLabel': serviceLabel.trim(),
+      if (serviceKey != null && serviceKey.trim().isNotEmpty) 'serviceKey': serviceKey.trim(),
+      if (vendorServiceId != null && vendorServiceId.trim().isNotEmpty)
+        'vendorServiceId': vendorServiceId.trim(),
       'source': 'marketplace',
     });
     bumpOrganizerRevision(ref);

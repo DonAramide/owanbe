@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../auth/auth_notifier.dart';
 import '../../auth/user_role.dart';
+import '../../core/api/identity_security_api.dart';
 import '../../core/config/enterprise_brand_config.dart';
 import '../../eos/eos.dart';
 import '../../platform/identity/identity_mfa_provider.dart';
@@ -99,46 +100,6 @@ class _EnterpriseAuthenticationShellState extends ConsumerState<EnterpriseAuthen
       }
     }
 
-    final mfaState = ref.read(identityMfaProvider);
-    final userConfig = mfaState.configs.values.firstWhere(
-      (c) => c.email == email,
-      orElse: () => UserMfaConfig(
-        userId: email.split('@')[0],
-        email: email,
-        isMfaEnabled: false,
-        mfaFactor: 'none',
-        recoveryCodes: const [],
-        trustedDevicesCount: 0,
-        activeSessionsCount: 0,
-        failedLoginAttempts: 0,
-        isLocked: false,
-      ),
-    );
-
-    // If first time login (MFA is disabled), show the 2FA enrollment page directly
-    if (!userConfig.isMfaEnabled) {
-      setState(() {
-        _bootState = EnterpriseBootState.none;
-        _show2faEnrollment = true;
-        _errorMessage = null;
-      });
-      return;
-    }
-
-    // Mock policy requirement: if MFA field is visible but empty, prompt for it
-    if (!_showMfaInput) {
-      setState(() {
-        _showMfaInput = true;
-        _errorMessage = 'Multi-Factor Authentication (MFA) token requested.';
-      });
-      return;
-    }
-
-    if (_mfaController.text.trim().isEmpty) {
-      setState(() => _errorMessage = 'Security policy requires a valid MFA token.');
-      return;
-    }
-
     setState(() {
       _bootState = EnterpriseBootState.authenticating;
       _errorMessage = null;
@@ -162,6 +123,51 @@ class _EnterpriseAuthenticationShellState extends ConsumerState<EnterpriseAuthen
           _errorMessage = 'Access Denied: This portal requires administrative privileges.';
         });
         return;
+      }
+
+      // Phase 29 — real MFA status from Nest/Supabase (no seeded configs).
+      await ref.read(identityMfaProvider.notifier).refresh();
+      final mfa = ref.read(identityMfaProvider);
+      final enrolled = mfa.rawStatus?['enrolled'] == true;
+      final mfaAvailable = mfa.rawStatus?['available'] != false;
+
+      if (isAdminRole && mfaAvailable && !enrolled && !_show2faEnrollment) {
+        setState(() {
+          _bootState = EnterpriseBootState.none;
+          _show2faEnrollment = true;
+          _errorMessage = null;
+        });
+        await ref.read(identityMfaProvider.notifier).beginEnrollment();
+        return;
+      }
+
+      if (isAdminRole && enrolled && !_showMfaInput) {
+        setState(() {
+          _bootState = EnterpriseBootState.none;
+          _showMfaInput = true;
+          _errorMessage = 'Enter your authenticator MFA code to continue.';
+        });
+        return;
+      }
+
+      if (isAdminRole && enrolled && _showMfaInput) {
+        final code = _mfaController.text.trim();
+        if (code.isEmpty) {
+          setState(() {
+            _bootState = EnterpriseBootState.none;
+            _errorMessage = 'Security policy requires a valid MFA token.';
+          });
+          return;
+        }
+        final factors = (mfa.rawStatus?['factors'] as List<dynamic>? ?? const [])
+            .cast<Map<String, dynamic>>();
+        final verified = factors.where((f) => f['status'] == 'verified').toList();
+        if (verified.isNotEmpty) {
+          await ref.read(identitySecurityApiProvider).verifyTotpLogin(
+                factorId: verified.first['id'].toString(),
+                code: code,
+              );
+        }
       }
       
       // Post-login transition: Start control tower boot sequence
@@ -199,7 +205,7 @@ class _EnterpriseAuthenticationShellState extends ConsumerState<EnterpriseAuthen
     final destination = switch (widget.role) {
       UserRole.admin => ExperienceRoutes.adminHome,
       UserRole.superAdmin => ExperienceRoutes.adminHome,
-      UserRole.organizer => '/home',
+        UserRole.organizer => '/organizer',
       UserRole.vendor => '/vendor',
       _ => '/attendee',
     };
@@ -705,6 +711,9 @@ class _EnterpriseAuthenticationShellState extends ConsumerState<EnterpriseAuthen
   }
 
   Widget _build2faEnrollmentForm(UserMfaConfig userConfig) {
+    final mfa = ref.watch(identityMfaProvider);
+    final qrData = mfa.pendingQrUri;
+    final secret = mfa.pendingSecret;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -726,35 +735,51 @@ class _EnterpriseAuthenticationShellState extends ConsumerState<EnterpriseAuthen
         ),
         const SizedBox(height: 8),
         const Text(
-          'First-time administrative access requires enrolling this account in a cryptographically signed Authenticator App.',
+          'Administrative access uses Supabase Auth TOTP factors — the same identity provider as login. No parallel identity store.',
           style: TextStyle(color: Colors.white60, fontSize: 13),
         ),
         const SizedBox(height: 20),
-        Center(
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Image.network(
-              'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=otpauth%3A%2F%2Ftotp%2FOwanbe%3Aadmin%40owanbe.dev%3Fsecret%3DJBSWY3DPEHPK3PXP%26issuer%3DOwanbe',
-              width: 140,
-              height: 140,
-              errorBuilder: (context, error, stackTrace) => const Icon(
-                Icons.qr_code_2,
-                size: 140,
-                color: Colors.black,
+        if (qrData == null || qrData.isEmpty)
+          const Text(
+            'MFA enrollment Unavailable — sign in first, then retry. Service may need Supabase MFA enabled.',
+            style: TextStyle(color: Colors.orangeAccent, fontSize: 12),
+          )
+        else
+          Center(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
               ),
+              child: qrData.startsWith('data:') || qrData.startsWith('http')
+                  ? Image.network(
+                      qrData.startsWith('http')
+                          ? 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${Uri.encodeComponent(qrData)}'
+                          : qrData,
+                      width: 140,
+                      height: 140,
+                      errorBuilder: (_, __, ___) => const Icon(Icons.qr_code_2, size: 140, color: Colors.black),
+                    )
+                  : Image.network(
+                      'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${Uri.encodeComponent(qrData)}',
+                      width: 140,
+                      height: 140,
+                      errorBuilder: (_, __, ___) => SelectableText(
+                        secret ?? qrData,
+                        style: const TextStyle(color: Colors.black, fontSize: 10),
+                      ),
+                    ),
             ),
           ),
-        ),
-        const SizedBox(height: 12),
-        const Text(
-          'Scan the QR code above or use the secret key to enroll, then enter your 6-digit TOTP validation token.',
-          style: TextStyle(color: Colors.white30, fontSize: 11),
-          textAlign: TextAlign.center,
-        ),
+        if (secret != null && secret.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          SelectableText(
+            'Secret: $secret',
+            style: const TextStyle(color: Colors.white54, fontSize: 11),
+            textAlign: TextAlign.center,
+          ),
+        ],
         const SizedBox(height: 20),
         TextField(
           controller: _mfaController,
@@ -781,17 +806,27 @@ class _EnterpriseAuthenticationShellState extends ConsumerState<EnterpriseAuthen
         ),
         const SizedBox(height: 20),
         FilledButton(
-          onPressed: () {
+          onPressed: () async {
             if (_mfaController.text.trim().isEmpty) {
               setState(() => _errorMessage = 'Please input the validation token.');
               return;
             }
-            ref.read(identityMfaProvider.notifier).enrollMfa(userConfig.userId, 'totp');
-            setState(() {
-              _show2faEnrollment = false;
-              _showMfaInput = true;
-            });
-            _handleSignIn();
+            try {
+              await ref.read(identityMfaProvider.notifier).completeEnrollment(_mfaController.text.trim());
+              setState(() {
+                _show2faEnrollment = false;
+                _showMfaInput = false;
+                _errorMessage = null;
+              });
+              setState(() {
+                _bootState = EnterpriseBootState.booting;
+                _visibleLogs.clear();
+                _bootLogIndex = 0;
+              });
+              _runBootSequence();
+            } catch (e) {
+              setState(() => _errorMessage = e.toString());
+            }
           },
           style: FilledButton.styleFrom(
             backgroundColor: EosColors.champagne,

@@ -5,7 +5,7 @@ import type { Pool } from 'pg';
 function mockContext(headers: Record<string, string>): ExecutionContext {
   return {
     switchToHttp: () => ({
-      getRequest: () => ({ headers }),
+      getRequest: () => ({ headers, query: {} }),
     }),
   } as ExecutionContext;
 }
@@ -14,7 +14,7 @@ describe('GovernanceGuard Tests', () => {
   it('should allow active vendors without restrictions', async () => {
     const mockPool = {
       query: jest.fn().mockResolvedValue({
-        rows: [{ state: 'open', risk_score: 'low' }],
+        rows: [{ status: 'active', business_name: 'Active Vendor' }],
       }),
     } as unknown as Pool;
 
@@ -23,10 +23,10 @@ describe('GovernanceGuard Tests', () => {
     expect(result).toBe(true);
   });
 
-  it('should block suspended or blocked vendors with ForbiddenException', async () => {
+  it('should block suspended or rejected vendors with ForbiddenException', async () => {
     const mockPool = {
       query: jest.fn().mockResolvedValue({
-        rows: [{ state: 'suspended', risk_score: 'high' }],
+        rows: [{ status: 'suspended', business_name: 'Suspended Vendor' }],
       }),
     } as unknown as Pool;
 

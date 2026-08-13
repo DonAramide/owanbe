@@ -292,8 +292,22 @@ export class IdentityService {
   }
 
   async resolveVendorId(tenantId: string, userId: string): Promise<string | null> {
+    // Canonical chain: User → vendor_profiles.vendor_id → vendors.id (owner, active)
     const { rows } = await this.pool.query<{ id: string }>(
-      `SELECT id FROM vendors WHERE tenant_id = $1 AND owner_user_id = $2 LIMIT 1`,
+      `SELECT COALESCE(
+         (
+           SELECT vp.vendor_id
+           FROM vendor_profiles vp
+           WHERE vp.tenant_id = $1 AND vp.user_id = $2 AND vp.vendor_id IS NOT NULL
+           LIMIT 1
+         ),
+         (
+           SELECT v.id
+           FROM vendors v
+           WHERE v.tenant_id = $1 AND v.owner_user_id = $2 AND v.status = 'active'
+           LIMIT 1
+         )
+       ) AS id`,
       [tenantId, userId],
     );
     return rows[0]?.id ?? null;

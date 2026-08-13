@@ -23,7 +23,7 @@ abstract final class ExperienceRoutes {
 
   static String workspaceHomeFor(ExperienceWorkspace ws) => switch (ws) {
         ExperienceWorkspace.attendee => '/attendee',
-        ExperienceWorkspace.organizer => '/home',
+        ExperienceWorkspace.organizer => '/organizer',
         ExperienceWorkspace.vendor => '/vendor',
       };
 

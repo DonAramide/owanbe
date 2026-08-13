@@ -7,6 +7,7 @@ import '../../../eos/eos.dart';
 import '../../../portals/customer/router/customer_routes.dart';
 import '../models/organizer_models.dart';
 import '../providers/organizer_providers.dart';
+import 'organizer_command_center.dart';
 
 export '../../../core/utils/money.dart' show formatRevenue;
 
@@ -46,20 +47,28 @@ class OrganizerEventPicker extends ConsumerWidget {
 
     return events.when(
       data: (list) {
-        if (list.isEmpty) {
+        final seen = <String>{};
+        final unique = <OrganizerEvent>[
+          for (final e in list)
+            if (seen.add(e.id)) e,
+        ];
+        if (unique.isEmpty) {
           return EosSurfaceCard(child: Text('Create an event to get started', style: context.eosText.bodyMedium));
         }
-        final value = selected ?? list.first.id;
-        if (selected == null) {
+        final selectedInList = selected != null && unique.any((e) => e.id == selected);
+        final value = selectedInList ? selected! : unique.first.id;
+        if (selected != value) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            ref.read(selectedOrganizerEventIdProvider.notifier).state = list.first.id;
+            if (ref.read(selectedOrganizerEventIdProvider) != value) {
+              ref.read(selectedOrganizerEventIdProvider.notifier).state = value;
+            }
           });
         }
         return EosSelectField<String>(
           label: 'Active event',
           value: value,
           items: [
-            for (final e in list)
+            for (final e in unique)
               DropdownMenuItem(value: e.id, child: Text(e.title, overflow: TextOverflow.ellipsis)),
           ],
           onChanged: (id) {
@@ -169,6 +178,11 @@ class OrganizerQuickActions extends ConsumerWidget {
           onPressed: () => context.push('/organizer/events/new'),
           icon: const Icon(Icons.add, size: 18),
           label: const Text('Create event'),
+        ),
+        OutlinedButton.icon(
+          onPressed: () => showOrganizerTemplatePicker(context, ref),
+          icon: const Icon(Icons.dashboard_customize_outlined, size: 18),
+          label: const Text('Templates'),
         ),
         OutlinedButton.icon(
           onPressed: () {

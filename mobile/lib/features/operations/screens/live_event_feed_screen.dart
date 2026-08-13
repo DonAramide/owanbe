@@ -12,21 +12,38 @@ class LiveEventFeedScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final feed = ref.watch(operationsFeedProvider(eventId));
+    final feed = ref.watch(operationsLiveFeedProvider(eventId));
 
     return EosPageScaffold(
       title: 'Live event feed',
-      subtitle: 'Real-time operational timeline',
+      subtitle: 'SSE stream · check-ins, duplicates, invalid attempts',
       floatingHeader: const Row(
         children: [
           EosLiveIndicator(compact: true, label: 'Streaming'),
         ],
       ),
+      actions: [
+        IconButton(
+          tooltip: 'Refresh',
+          onPressed: () => bumpOperationsRevision(ref),
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
       body: feed.when(
         data: (items) {
           if (items.isEmpty) {
             return EosSurfaceCard(
-              child: Text('Waiting for event activity…', style: context.eosText.bodyMedium),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Waiting for event activity…', style: context.eosText.titleSmall),
+                  SizedBox(height: context.eos.spacing.xs),
+                  Text(
+                    'Check-ins, invitation arrivals, duplicate/invalid attempts, and incidents appear here in near real time.',
+                    style: context.eosText.bodySmall,
+                  ),
+                ],
+              ),
             );
           }
           return Column(
@@ -45,8 +62,24 @@ class LiveEventFeedScreen extends ConsumerWidget {
             ],
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Text('$e'),
+        loading: () => Column(
+          children: [
+            for (var i = 0; i < 4; i++)
+              Padding(
+                padding: EdgeInsets.only(bottom: context.eos.spacing.sm),
+                child: EosSurfaceCard(
+                  child: SizedBox(height: 48, child: Center(child: LinearProgressIndicator(minHeight: 2))),
+                ),
+              ),
+          ],
+        ),
+        error: (e, _) => EosAttentionBanner(
+          headline: 'Feed unavailable',
+          message: '$e',
+          severity: 'WARNING',
+          actionLabel: 'Retry',
+          onAction: () => bumpOperationsRevision(ref),
+        ),
       ),
     );
   }

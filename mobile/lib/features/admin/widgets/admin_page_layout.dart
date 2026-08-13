@@ -21,50 +21,54 @@ class AdminPageLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(EosSpacing.lg, EosSpacing.lg, EosSpacing.lg, EosSpacing.md),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(title, style: context.eosText.headlineMedium?.copyWith(fontWeight: FontWeight.w700)),
-                          if (subtitle != null) ...[
-                            SizedBox(height: context.eos.spacing.xs),
-                            Text(
-                              subtitle!,
-                              style: context.eosText.bodyLarge?.copyWith(
-                                color: context.eosColors.onSurfaceVariant,
+    // Scaffold provides Material for ListTile / InkWell when this layout is
+    // opened as a standalone route (Control Tower push) outside AdminShell.
+    return Scaffold(
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(EosSpacing.lg, EosSpacing.lg, EosSpacing.lg, EosSpacing.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(title, style: context.eosText.headlineMedium?.copyWith(fontWeight: FontWeight.w700)),
+                            if (subtitle != null) ...[
+                              SizedBox(height: context.eos.spacing.xs),
+                              Text(
+                                subtitle!,
+                                style: context.eosText.bodyLarge?.copyWith(
+                                  color: context.eosColors.onSurfaceVariant,
+                                ),
                               ),
-                            ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                    if (actions != null) ...actions!,
+                      if (actions != null) ...actions!,
+                    ],
+                  ),
+                  if (header != null) ...[
+                    SizedBox(height: context.eos.spacing.lg),
+                    header!,
                   ],
-                ),
-                if (header != null) ...[
-                  SizedBox(height: context.eos.spacing.lg),
-                  header!,
                 ],
-              ],
+              ),
             ),
           ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(EosSpacing.lg, 0, EosSpacing.lg, EosSpacing.xxl),
-          sliver: SliverToBoxAdapter(child: body),
-        ),
-      ],
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(EosSpacing.lg, 0, EosSpacing.lg, EosSpacing.xxl),
+            sliver: SliverToBoxAdapter(child: body),
+          ),
+        ],
+      ),
     );
   }
 }

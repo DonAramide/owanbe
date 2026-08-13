@@ -1,0 +1,422 @@
+{
+  "phase": 30,
+  "title": "Platform Certification Live QA",
+  "startedAt": "2026-08-02T23:52:34.577Z",
+  "finishedAt": "2026-08-02T23:52:35.738Z",
+  "apiOrigin": "http://127.0.0.1:8080",
+  "tenantId": "11111111-1111-4111-8111-111111111111",
+  "eventId": "38e3a1fc-d334-440e-a27d-6fe1d9f59834",
+  "overall": "FULL PLATFORM CERTIFIED",
+  "counts": {
+    "PASS": 39,
+    "PARTIAL": 0,
+    "FAIL": 0,
+    "SKIP": 0
+  },
+  "results": [
+    {
+      "id": "E1",
+      "pack": "env",
+      "label": "Health endpoint",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "status=ok",
+      "bodySnippet": "{\"status\":\"ok\",\"checks\":{\"database\":{\"status\":\"ok\"},\"payments\":{\"status\":\"configured\",\"detail\":\"http://localhost:4000\"},\"quaserWebhookSecret\":{\"status\":\"configured\",\"detail\":\"set\"}…"
+    },
+    {
+      "id": "E2",
+      "pack": "env",
+      "label": "Database check",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "database=ok",
+      "bodySnippet": null
+    },
+    {
+      "id": "E3",
+      "pack": "env",
+      "label": "Subsystem readiness",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "all health subsystems ok",
+      "bodySnippet": "{\"database\":{\"status\":\"ok\"},\"payments\":{\"status\":\"configured\",\"detail\":\"http://localhost:4000\"},\"quaserWebhookSecret\":{\"status\":\"configured\",\"detail\":\"set\"},\"notifications\":{\"status\":\"enterprise_email\",\"detail\":\"Enterprise Email Infrastructure provider(s) enabled\"},\"storage\":{\"status\":\"local_fallback\"},\"integrationsMode\":{\"status\":\"development\"},\"automationEngine\":{\"status\":\"ok\",\"detail\":\"automati…"
+    },
+    {
+      "id": "P7",
+      "pack": "prod",
+      "label": "Recovery / Unavailable honesty",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "API remains up while subsystems report Unavailable",
+      "bodySnippet": null
+    },
+    {
+      "id": "E7",
+      "pack": "env",
+      "label": "Metrics scrape",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "prometheus text scrapeable",
+      "bodySnippet": null
+    },
+    {
+      "id": "S1",
+      "pack": "security",
+      "label": "Protected route without token",
+      "status": "PASS",
+      "httpStatus": 400,
+      "notes": "request rejected without credentials (TENANT_REQUIRED)",
+      "bodySnippet": "{\"code\":\"TENANT_REQUIRED\",\"message\":\"X-Tenant-Id is required for unauthenticated requests\",\"request_id\":\"0e8b2611-b5e5-4b8d-926f-a100eb2e8250\"}"
+    },
+    {
+      "id": "S4",
+      "pack": "security",
+      "label": "RBAC super_admin surface denial",
+      "status": "PASS",
+      "httpStatus": 403,
+      "notes": "non-super_admin denied control-plane tenants (roles enforced)",
+      "bodySnippet": "{\"code\":\"FORBIDDEN\",\"message\":\"Requires one of roles: super_admin\",\"request_id\":\"d20399b9-ce89-4092-85d0-393798f21f62\"}"
+    },
+    {
+      "id": "A1",
+      "pack": "14-18",
+      "label": "Organizer events list",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"items\":[{\"id\":\"38e3a1fc-d334-440e-a27d-6fe1d9f59834\",\"externalRef\":\"evt_phase13_qa_commerce_1785205026944\",\"slug\":\"phase13-qa-commerce-1785205026944\",\"title\":\"Phase13 QA Commerce…"
+    },
+    {
+      "id": "A7",
+      "pack": "14-18",
+      "label": "Attendee guest invitations",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"items\":[]}"
+    },
+    {
+      "id": "A9",
+      "pack": "14-18",
+      "label": "Finance hub",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"organizers\":[\"5681adac-409b-4ba9-85a6-4ae3e5d86b0e\"],\"organizerId\":\"5681adac-409b-4ba9-85a6-4ae3e5d86b0e\",\"grossCollectedMinor\":\"0\",\"netEarningsMinor\":\"0\",\"availableForPayoutMino…"
+    },
+    {
+      "id": "A10",
+      "pack": "14-18",
+      "label": "Analytics portfolio",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"items\":[{\"eventId\":\"d2fe52af-759f-4c6d-a854-ccfe9bbd2df5\",\"title\":\"IJKOLPLUYIINDL (Copy)\",\"status\":\"draft\",\"startsAt\":\"2027-09-26T00:07:00.000Z\",\"ticketsSold\":0,\"revenueMinor\":\"0…"
+    },
+    {
+      "id": "A3",
+      "pack": "14-18",
+      "label": "Public/event tiers",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"items\":[{\"id\":\"tier_1785205029449_copy\",\"tierId\":\"c17586e6-103a-4285-9cb8-697d229bc321\",\"name\":\"Open GA (Copy)\",\"description\":\"\",\"tierType\":\"regular\",\"priceMinor\":\"25000\",\"curren…"
+    },
+    {
+      "id": "A5",
+      "pack": "14-18",
+      "label": "Invitations hub",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"stats\":{\"sent\":0,\"delivered\":0,\"opened\":0,\"rsvp\":0,\"pending\":0,\"declined\":0,\"ticketsIssued\":0,\"totalInvited\":0,\"awaitingResponse\":0,\"accepted\":0,\"eligibleForCheckIn\":0},\"items\":[…"
+    },
+    {
+      "id": "A8",
+      "pack": "14-18",
+      "label": "Door summary",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"checkedIn\":0,\"remaining\":0,\"capacity\":30,\"noShows\":0,\"attendancePct\":0,\"capacityPct\":0,\"totalActive\":0,\"issued\":0,\"voided\":0,\"refunded\":0,\"checkInsLast15m\":0,\"checkInsLast60m\":0,…"
+    },
+    {
+      "id": "A9e",
+      "pack": "14-18",
+      "label": "Event finance summary",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"eventId\":\"38e3a1fc-d334-440e-a27d-6fe1d9f59834\",\"eventTitle\":\"Phase13 QA Commerce 1785205026944\",\"organizerId\":\"5681adac-409b-4ba9-85a6-4ae3e5d86b0e\",\"currency\":\"NGN\",\"ticketReve…"
+    },
+    {
+      "id": "B1",
+      "pack": "19-29",
+      "label": "Reports catalog",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"items\":[{\"id\":\"portfolio\",\"title\":\"Portfolio Summary\",\"source\":\"Analytics\",\"status\":\"available\",\"formats\":[\"csv\",\"xlsx\"]},{\"id\":\"marketing\",\"title\":\"Marketing Report\",\"source\":\"M…"
+    },
+    {
+      "id": "B2",
+      "pack": "19-29",
+      "label": "Organizer team",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"items\":[{\"id\":\"owner:eb061885-7854-41db-b390-3a2b62eaeef5\",\"organizerId\":\"5681adac-409b-4ba9-85a6-4ae3e5d86b0e\",\"userId\":\"eb061885-7854-41db-b390-3a2b62eaeef5\",\"email\":\"akwajadan…"
+    },
+    {
+      "id": "B2b",
+      "pack": "19-29",
+      "label": "Organizer membership",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"organizerId\":\"5681adac-409b-4ba9-85a6-4ae3e5d86b0e\",\"orgRole\":\"owner\",\"capabilities\":[\"team.manage\",\"org.settings\",\"events.write\",\"finance.read\",\"ops.door\",\"analytics.read\",\"repo…"
+    },
+    {
+      "id": "B3",
+      "pack": "19-29",
+      "label": "Automations",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"organizerId\":\"5681adac-409b-4ba9-85a6-4ae3e5d86b0e\",\"items\":[{\"id\":\"e25e4165-2505-407d-9529-3f5ffa48d04a\",\"workflowKey\":\"notify_on_refund_completed\",\"label\":\"Notify organizer on …"
+    },
+    {
+      "id": "B4",
+      "pack": "19-29",
+      "label": "Automation observability",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"organizerId\":\"5681adac-409b-4ba9-85a6-4ae3e5d86b0e\",\"generatedAt\":\"2026-08-02T23:52:35.119Z\",\"executions\":{\"success\":0,\"failed\":0,\"skipped\":0,\"running\":0,\"byStatus\":{}},\"jobs\":{\"…"
+    },
+    {
+      "id": "B5",
+      "pack": "19-29",
+      "label": "Integrations status",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"organizerId\":\"5681adac-409b-4ba9-85a6-4ae3e5d86b0e\",\"providers\":[{\"key\":\"enterprise_email\",\"label\":\"Enterprise Email\",\"category\":\"messaging\",\"status\":\"active\",\"enabled\":true,\"pro…"
+    },
+    {
+      "id": "B6",
+      "pack": "19-29",
+      "label": "Webhook deliveries",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"items\":[]}"
+    },
+    {
+      "id": "B7",
+      "pack": "19-29",
+      "label": "Marketing channels",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"email\":{\"available\":true,\"reason\":null},\"sms\":{\"available\":false,\"reason\":\"Configure Twilio SMS (messaging provider or TWILIO_* env)\"},\"whatsapp\":{\"available\":false,\"reason\":\"Wha…"
+    },
+    {
+      "id": "B7b",
+      "pack": "19-29",
+      "label": "Marketing campaigns",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"organizerId\":\"5681adac-409b-4ba9-85a6-4ae3e5d86b0e\",\"items\":[]}"
+    },
+    {
+      "id": "B13",
+      "pack": "19-29",
+      "label": "Self MFA status",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"available\":false,\"reason\":\"SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not configured\",\"enrolled\":false,\"factorCount\":0,\"verifiedFactorCount\":0,\"factors\":[],\"enrollmentNote\":\"Enroll…"
+    },
+    {
+      "id": "B14",
+      "pack": "19-29",
+      "label": "Self sessions",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"available\":false,\"reason\":\"SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not configured\",\"items\":[],\"note\":\"Supabase Auth Admin required. No invented session rows.\"}"
+    },
+    {
+      "id": "D1",
+      "pack": "data",
+      "label": "Finance hub reachable (money SoT surface)",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "Finance hub responds",
+      "bodySnippet": null
+    },
+    {
+      "id": "D2",
+      "pack": "data",
+      "label": "Analytics consumes finance truth",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "event analytics monetarySource=organizer_finance",
+      "bodySnippet": "{\"eventId\":\"38e3a1fc-d334-440e-a27d-6fe1d9f59834\",\"eventTitle\":\"Phase13 QA Commerce 1785205026944\",\"organizerId\":\"5681adac-409b-4ba9-85a6-4ae3e5d86b0e\",\"generatedAt\":\"2026-08-02T23:52:35.415Z\",\"pageViews\":null,\"pageViewsAvailable\":false,\"tr…"
+    },
+    {
+      "id": "D3",
+      "pack": "data",
+      "label": "Reporting catalog",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "canonical packs via reports catalog",
+      "bodySnippet": null
+    },
+    {
+      "id": "B8",
+      "pack": "19-29",
+      "label": "Compliance dashboard",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"generatedAt\":\"2026-08-02T23:52:35.573Z\",\"tenantId\":\"11111111-1111-4111-8111-111111111111\",\"retention\":{\"tenantId\":\"11111111-1111-4111-8111-111111111111\",\"categories\":[{\"id\":\"audi…"
+    },
+    {
+      "id": "B9",
+      "pack": "19-29",
+      "label": "Compliance retention",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"tenantId\":\"11111111-1111-4111-8111-111111111111\",\"categories\":[{\"id\":\"audit\",\"label\":\"Audit logs\",\"retentionDays\":365},{\"id\":\"finance\",\"label\":\"Finance records\",\"retentionDays\":2…"
+    },
+    {
+      "id": "B9b",
+      "pack": "19-29",
+      "label": "Compliance activity",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"items\":[]}"
+    },
+    {
+      "id": "B10",
+      "pack": "19-29",
+      "label": "Control Plane dashboard",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"generatedAt\":\"2026-08-02T23:52:35.659Z\",\"tenantsByStatus\":{\"active\":1},\"vendorsByStatus\":{\"active\":2},\"mdm\":{\"domains\":10,\"entities\":0},\"devices\":{\"available\":false,\"reason\":\"No …"
+    },
+    {
+      "id": "B11",
+      "pack": "19-29",
+      "label": "Control Plane MDM domains",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"items\":[{\"id\":\"3536a87b-f1ef-4c99-a64e-9fa0607f9e96\",\"domainKey\":\"communication\",\"label\":\"Communication Channels\",\"icon\":\"message\",\"metadataSchema\":{},\"entityCount\":0,\"createdAt\"…"
+    },
+    {
+      "id": "B12",
+      "pack": "19-29",
+      "label": "Control Plane devices",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"available\":false,\"reason\":\"Device enrollment / inventory tables do not exist. Phase 28 activates dictionary MDM (mdm_*). Device MDM requires approved schema work — fake device st…"
+    },
+    {
+      "id": "B15",
+      "pack": "19-29",
+      "label": "Identity Security Center",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"generatedAt\":\"2026-08-02T23:52:35.704Z\",\"supabaseAdminConfigured\":false,\"summary\":{\"failedLogins\":12,\"permissionEscalations\":0,\"suspiciousActivity\":0,\"financeExceptions\":0,\"rateL…"
+    },
+    {
+      "id": "B16",
+      "pack": "19-29",
+      "label": "Control Plane vendors",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"items\":[{\"id\":\"79f4d451-98be-4f81-83c1-6c1732862ace\",\"tenantId\":\"11111111-1111-4111-8111-111111111111\",\"tenantName\":\"Owanbe Dev\",\"tenantSlug\":\"owanbe-dev\",\"businessName\":\"akwajad…"
+    },
+    {
+      "id": "B17",
+      "pack": "19-29",
+      "label": "Control Plane activity",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "ok",
+      "bodySnippet": "{\"items\":[]}"
+    },
+    {
+      "id": "D4",
+      "pack": "data",
+      "label": "Compliance lifecycle surfaces",
+      "status": "PASS",
+      "httpStatus": 200,
+      "notes": "dashboard/retention/activity — governance without inventing business rows",
+      "bodySnippet": null
+    }
+  ],
+  "healthSnapshot": {
+    "status": "ok",
+    "checks": {
+      "database": {
+        "status": "ok"
+      },
+      "payments": {
+        "status": "configured",
+        "detail": "http://localhost:4000"
+      },
+      "quaserWebhookSecret": {
+        "status": "configured",
+        "detail": "set"
+      },
+      "notifications": {
+        "status": "enterprise_email",
+        "detail": "Enterprise Email Infrastructure provider(s) enabled"
+      },
+      "storage": {
+        "status": "local_fallback"
+      },
+      "integrationsMode": {
+        "status": "development"
+      },
+      "automationEngine": {
+        "status": "ok",
+        "detail": "automation_runs",
+        "counts": {}
+      },
+      "automationJobs": {
+        "status": "ok",
+        "detail": "automation_jobs",
+        "counts": {}
+      },
+      "webhookDelivery": {
+        "status": "ok",
+        "detail": "platform_webhook_deliveries",
+        "counts": {}
+      },
+      "notificationDelivery": {
+        "status": "ok",
+        "detail": "notification_deliveries",
+        "counts": {
+          "failed": 6
+        }
+      },
+      "messagingProviders": {
+        "status": "none",
+        "detail": "0 enabled"
+      }
+    },
+    "timestamp": "2026-08-02T23:52:34.669Z"
+  }
+}

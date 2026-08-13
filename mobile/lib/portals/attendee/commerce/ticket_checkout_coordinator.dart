@@ -75,6 +75,23 @@ class TicketCheckoutCoordinator {
       );
     }
 
+    // Phase 14: free / complimentary — entitlements already issued at order create.
+    final total = int.tryParse(order.totalMinor) ?? -1;
+    final freeFulfilled =
+        total == 0 && (order.status == 'fulfilled' || order.status == 'confirmed');
+    if (freeFulfilled) {
+      await refreshEntitlementsAfterSuccess(session);
+      ref.read(cartProvider.notifier).clear();
+      await _notifySuccess(session, order.orderId, order.lines.fold<int>(0, (s, l) => s + l.quantity));
+      return TicketCheckoutResult(
+        phase: TicketCheckoutPhase.captured,
+        orderId: order.orderId,
+        paymentId: 'free_${order.orderId}',
+        idempotencyKey: orderIdem,
+        message: 'Free registration complete',
+      );
+    }
+
     final payment = await api.createTicketPayment(
       session: session,
       orderId: order.orderId,

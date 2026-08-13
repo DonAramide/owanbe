@@ -28,8 +28,7 @@ class AttendeeRegistrationsScreen extends ConsumerWidget {
       onBack: () => context.canPop() ? context.pop() : context.go(AttendeeRoutes.dashboard),
       body: RefreshIndicator(
         onRefresh: () async {
-          ref.invalidate(attendeeTicketsSyncProvider);
-          ref.invalidate(attendeeGuestInvitationsProvider);
+          invalidateAttendeePassesAfterRsvp(ref);
           ref.invalidate(attendeePendingTicketInvitationsProvider);
           await Future.wait([
             ref.read(attendeeEventsProvider.future),
@@ -186,7 +185,7 @@ class _RsvpCardState extends ConsumerState<_RsvpCard> {
             guestId: widget.item.id,
             status: status,
           );
-      ref.invalidate(attendeeGuestInvitationsProvider);
+      invalidateAttendeePassesAfterRsvp(ref);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(status == 'confirmed' ? 'RSVP confirmed' : 'RSVP declined')),

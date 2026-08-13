@@ -171,7 +171,7 @@ AuthErrorMessage formatAuthError(
         body: 'We could not connect to the Owanbe API at $apiBase.',
         steps: [
           'Confirm the API server is running.',
-          'On a physical device, set OWANBE_API_BASE in mobile/assets/env/supabase.env to your PC IP or use adb reverse.',
+          'On a physical device, set OWANBE_API_BASE in mobile/assets/env/owanbe_config to your PC IP or use adb reverse.',
           'Hot restart the app after changing environment variables.',
         ],
       );

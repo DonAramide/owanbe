@@ -106,8 +106,14 @@ class EventNavigator {
   void openRentalsMarketplace({String? eventId}) =>
       context.push(EventRouteRegistry.rentalsMarketplace(eventId: eventId));
 
-  void openVendorDetail(String vendorId, {String? eventId}) =>
-      context.push(EventRouteRegistry.vendorDetailForEvent(vendorId, eventId: eventId));
+  void openVendorDetail(String vendorId, {String? eventId, String? service}) =>
+      context.push(
+        EventRouteRegistry.vendorDetailForEvent(
+          vendorId,
+          eventId: eventId,
+          service: service,
+        ),
+      );
 
   void openPublicEvent(String eventId) => context.push(EventRouteRegistry.event(eventId));
 }

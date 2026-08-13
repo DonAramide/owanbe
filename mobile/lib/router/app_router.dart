@@ -9,6 +9,7 @@ import '../features/super_admin/screens/platform_configuration_screen.dart';
 import '../features/super_admin/screens/vendor_governance_screen.dart';
 import '../features/super_admin/super_admin_home_screen.dart';
 import '../features/admin/admin_home_screen.dart';
+import '../features/admin/screens/admin_vendor_pricing_screen.dart';
 import '../portals/attendee/navigation/attendee_commerce_routes.dart';
 import '../features/public/screens/attendee_dashboard_screen.dart';
 import '../features/public/screens/checkout_screen.dart';
@@ -19,6 +20,7 @@ import '../portals/customer/screens/marketplace_screen.dart';
 import '../portals/customer/screens/marketplace_vendor_detail_screen.dart';
 import '../portals/customer/screens/customer_event_guests_screen.dart';
 import '../portals/customer/screens/customer_event_invitations_screen.dart';
+import '../portals/customer/screens/event_rsvp_screen.dart';
 import '../portals/customer/screens/customer_event_route_screen.dart';
 import '../portals/customer/screens/customer_event_day_screen.dart';
 import '../portals/customer/screens/customer_event_website_screen.dart';
@@ -48,6 +50,7 @@ import '../features/public/screens/walkthrough_screen.dart';
 import '../features/public/screens/payment_success_screen.dart';
 import '../features/public/screens/ticket_select_screen.dart';
 import '../features/identity/screens/organizer_onboarding_screen.dart';
+import '../features/organizer/screens/organizer_home_screen.dart';
 import '../features/organizer/wizard_v2/event_create_wizard_v2_screen.dart';
 import '../features/organizer/screens/event_workspace_screen.dart';
 import '../features/vendor/vendor_home_screen.dart';
@@ -264,6 +267,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 ),
               ),
               GoRoute(
+                path: 'rsvp',
+                builder: (context, state) => EventRsvpScreen(
+                  eventId: state.pathParameters['id']!,
+                  token: state.uri.queryParameters['token'],
+                ),
+              ),
+              GoRoute(
                 path: 'ai-planner',
                 builder: (context, state) => CustomerEventAiPlannerScreen(
                   eventId: state.pathParameters['id']!,
@@ -388,6 +398,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: '/vendors',
         builder: (context, state) => MarketplaceScreen(
           eventId: state.uri.queryParameters['eventId'],
+          initialCategory: state.uri.queryParameters['category'],
         ),
         routes: [
           GoRoute(
@@ -401,6 +412,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => MarketplaceVendorDetailScreen(
               vendorId: state.pathParameters['vendorId']!,
               eventId: state.uri.queryParameters['eventId'],
+              initialService: state.uri.queryParameters['service'],
             ),
           ),
         ],
@@ -476,6 +488,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/admin', builder: (context, state) => const AdminHomeScreen()),
       GoRoute(path: '/super-admin', builder: (context, state) => const SuperAdminHomeScreen()),
       GoRoute(
+        path: '/super-admin/commerce/vendor-pricing',
+        builder: (context, state) => const AdminVendorPricingScreen(),
+      ),
+      GoRoute(
         path: '/super-admin/platform-config',
         builder: (context, state) => const PlatformConfigurationScreen(),
       ),
@@ -485,10 +501,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/organizer',
-        redirect: (context, state) {
-          if (state.uri.path == '/organizer') return '/home';
-          return null;
-        },
+        builder: (context, state) => const OrganizerHomeScreen(),
         routes: [
           GoRoute(
             path: 'onboarding',

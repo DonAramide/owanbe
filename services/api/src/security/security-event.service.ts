@@ -8,7 +8,12 @@ export type SecurityEventType =
   | 'suspicious_activity'
   | 'finance_exception'
   | 'rate_limit_violation'
-  | 'session_abuse';
+  | 'session_abuse'
+  | 'mfa_enrolled'
+  | 'mfa_verified'
+  | 'mfa_disabled'
+  | 'mfa_recovery'
+  | 'account_lifecycle';
 
 export type SecuritySeverity = 'info' | 'warning' | 'critical';
 

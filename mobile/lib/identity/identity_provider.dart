@@ -44,6 +44,7 @@ class UserIdentityNotifier extends AsyncNotifier<OwanbeUserIdentity?> {
       return identity;
     } catch (e, st) {
       state = AsyncError(e, st);
+      // Keep AsyncError for UI; callers that need the value still get the throw.
       rethrow;
     }
   }

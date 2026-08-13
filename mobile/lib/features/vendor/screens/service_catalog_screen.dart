@@ -5,7 +5,9 @@ import '../../../core/api/persistence_providers.dart';
 import '../../../eos/eos.dart';
 import '../models/vendor_models.dart';
 import '../providers/vendor_providers.dart';
+import '../vendor_os_demo_mode.dart';
 import '../widgets/vendor_shared.dart';
+import '../widgets/vendor_empty_state.dart';
 
 class ServiceCatalogScreen extends ConsumerStatefulWidget {
   const ServiceCatalogScreen({super.key});
@@ -17,8 +19,23 @@ class ServiceCatalogScreen extends ConsumerStatefulWidget {
 class _ServiceCatalogScreenState extends ConsumerState<ServiceCatalogScreen> {
   int _activeTab = 0;
 
-  // Local state mocks for full marketplace features
-  final List<Map<String, dynamic>> _customProducts = [
+  // Local UI lists — empty by default; demo seed only when Demo Mode is on.
+  late final List<Map<String, dynamic>> _customProducts =
+      VendorOsDemoMode.isEnabled ? _demoProducts() : <Map<String, dynamic>>[];
+  late final List<Map<String, dynamic>> _variants =
+      VendorOsDemoMode.isEnabled ? _demoVariants() : <Map<String, dynamic>>[];
+  late final List<String> _damGallery =
+      VendorOsDemoMode.isEnabled ? ['wedding_feast_luxury.jpg', 'dj_rig_setup.jpg'] : <String>[];
+  late final List<String> _blackoutDates =
+      VendorOsDemoMode.isEnabled ? ['2026-07-15', '2026-07-20'] : <String>[];
+  late final List<String> _versionHistory = VendorOsDemoMode.isEnabled
+      ? [
+          'v1.4 (Today) - Updated Luxury Wedding Catering Package SEO meta descriptions.',
+          'v1.3 (Yesterday) - Adjusted variant prices for Deluxe Buffet.',
+        ]
+      : <String>[];
+
+  static List<Map<String, dynamic>> _demoProducts() => [
     {
       'id': 'prod_1',
       'name': 'Luxury Wedding Catering Package',
@@ -49,7 +66,7 @@ class _ServiceCatalogScreenState extends ConsumerState<ServiceCatalogScreen> {
     },
   ];
 
-  final List<Map<String, dynamic>> _variants = [
+  static List<Map<String, dynamic>> _demoVariants() => [
     {
       'name': 'Deluxe Buffet Catering',
       'sku': 'CAT-DLX-01',
@@ -66,13 +83,6 @@ class _ServiceCatalogScreenState extends ConsumerState<ServiceCatalogScreen> {
       'status': 'Active',
       'updated': '2026-07-02',
     },
-  ];
-
-  final List<String> _damGallery = ['wedding_feast_luxury.jpg', 'dj_rig_setup.jpg'];
-  final List<String> _blackoutDates = ['2026-07-15', '2026-07-20'];
-  final List<String> _versionHistory = [
-    'v1.4 (Today) - Updated Luxury Wedding Catering Package SEO meta descriptions.',
-    'v1.3 (Yesterday) - Adjusted variant prices for Deluxe Buffet.',
   ];
 
   final _nameController = TextEditingController();
@@ -269,7 +279,13 @@ class _ServiceCatalogScreenState extends ConsumerState<ServiceCatalogScreen> {
           ],
         ),
         const SizedBox(height: 16),
-        for (final p in _customProducts)
+        if (_customProducts.isEmpty)
+          const VendorEmptyState(
+            message: 'Add your first service to begin receiving bookings.',
+            icon: Icons.inventory_2_outlined,
+          )
+        else
+          for (final p in _customProducts)
           Card(
             color: const Color(0xFF241B3F),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.white10)),

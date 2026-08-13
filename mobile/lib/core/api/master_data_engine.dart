@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+/// @Deprecated Phase 28 — Master data truth is Nest `/control-plane/mdm/*`.
+/// Kept only for type compatibility; do not use as source of truth.
 class MdmDomain {
   final String key;
   final String label;

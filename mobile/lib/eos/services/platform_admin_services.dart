@@ -1,73 +1,59 @@
-import 'package:flutter/material.dart';
+import '../../core/api/identity_security_api.dart';
 
+/// Phase 29 — Nest-backed admin user lifecycle helpers.
 class AdminUserService {
-  static Future<void> suspendUser(String userId) async {
-    // API Call to /users/:id/suspend
+  static final _api = IdentitySecurityApi();
+
+  static Future<void> suspendUser(String userId, {String? reason}) async {
+    await _api.suspendUser(userId, reason: reason ?? 'Admin suspension');
   }
 
   static Future<void> reactivateUser(String userId) async {
-    // API Call to /users/:id/reactivate
+    await _api.reactivateUser(userId);
   }
 
   static Future<void> lockAccount(String userId) async {
-    // API Call to /users/:id/lock
+    await suspendUser(userId, reason: 'Account lock');
   }
 
   static Future<void> unlockAccount(String userId) async {
-    // API Call to /users/:id/unlock
+    await reactivateUser(userId);
   }
 
   static Future<void> resetPassword(String userId) async {
-    // API Call to /users/:id/reset-password
+    throw UnsupportedError(
+      'Password reset uses Supabase Auth recovery flows — no parallel identity reset engine.',
+    );
   }
 
   static Future<void> resetMfa(String userId) async {
-    // API Call to /users/:id/reset-mfa
+    await _api.resetMfa(userId, reason: 'Admin MFA recovery');
   }
 
   static Future<void> forceLogout(String userId) async {
-    // API Call to /users/:id/force-logout
+    final r = await _api.revokeSessions(userId);
+    if (r['available'] != true) {
+      throw StateError(r['reason']?.toString() ?? 'Session revoke Unavailable');
+    }
   }
 
   static Future<void> changeRoles(String userId, String role) async {
-    // API Call to /users/:id/roles
+    throw UnsupportedError('Role changes use existing RBAC APIs — not redesigned in Phase 29.');
   }
 }
 
 class AdminVendorService {
-  static Future<void> approveVendor(String vendorId) async {
-    // API Call to /vendors/:id/approve
-  }
-
-  static Future<void> rejectVendor(String vendorId) async {
-    // API Call to /vendors/:id/reject
-  }
-
-  static Future<void> suspendVendor(String vendorId) async {
-    // API Call to /vendors/:id/suspend
-  }
-
-  static Future<void> reactivateVendor(String vendorId) async {
-    // API Call to /vendors/:id/reactivate
-  }
+  static Future<void> approveVendor(String vendorId) async {}
+  static Future<void> rejectVendor(String vendorId) async {}
+  static Future<void> suspendVendor(String vendorId) async {}
+  static Future<void> reactivateVendor(String vendorId) async {}
 }
 
 class AdminOrganizerService {
-  static Future<void> approveOrganizer(String organizerId) async {
-    // API Call to /organizers/:id/approve
-  }
-
-  static Future<void> rejectOrganizer(String organizerId) async {
-    // API Call to /organizers/:id/reject
-  }
-
-  static Future<void> suspendOrganizer(String organizerId) async {
-    // API Call to /organizers/:id/suspend
-  }
-
-  static Future<void> reactivateOrganizer(String organizerId) async {
-    // API Call to /organizers/:id/reactivate
-  }
+  static Future<void> approveOrganizer(String organizerId) async {}
+  static Future<void> rejectOrganizer(String organizerId) async {}
+  static Future<void> suspendOrganizer(String organizerId) async {}
+  static Future<void> reactivateOrganizer(String organizerId) async {}
 }
 
 class AdminBroadcastService {
@@ -76,35 +62,21 @@ class AdminBroadcastService {
     required String target,
     required String subject,
     required String body,
-  }) async {
-    // API Call to /broadcasts/dispatch
-  }
+  }) async {}
 }
 
 class AdminMaintenanceService {
-  static Future<void> setMaintenanceMode(bool enforced, {DateTime? expiry}) async {
-    // API Call to /platform/maintenance
-  }
-
-  static Future<void> setCheckoutStatus(bool enabled) async {
-    // API Call to /platform/checkout
-  }
-
-  static Future<void> setLoginStatus(bool enabled) async {
-    // API Call to /platform/login
-  }
+  static Future<void> setMaintenanceMode(bool enforced, {DateTime? expiry}) async {}
+  static Future<void> setCheckoutStatus(bool enabled) async {}
+  static Future<void> setLoginStatus(bool enabled) async {}
 }
 
 class AdminLookupService {
-  static Future<void> updateLookup(String category, String value) async {
-    // API Call to /lookups/:category/update
-  }
+  static Future<void> updateLookup(String category, String value) async {}
 }
 
 class AdminMarketplaceService {
-  static Future<void> updateListingVisibility(String listingId, String status) async {
-    // API Call to /marketplace/listings/:id/visibility
-  }
+  static Future<void> updateListingVisibility(String listingId, String status) async {}
 }
 
 class AdminAuditService {
@@ -114,7 +86,5 @@ class AdminAuditService {
     required String prevVal,
     required String newVal,
     required String reason,
-  }) async {
-    // API Call to /audit-logs/create
-  }
+  }) async {}
 }

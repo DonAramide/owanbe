@@ -13,31 +13,27 @@ class ExecutiveKpiStrip extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Wrap(
-      spacing: context.eos.spacing.md,
-      runSpacing: context.eos.spacing.md,
+    return EosAdaptiveKpiGrid(
+      minCardWidth: 200,
       children: [
         for (final k in kpis)
-          SizedBox(
-            width: 220,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                EosKpiCard(
-                  title: k.title,
-                  value: k.formatAsMoney ? formatRevenue(k.current.toInt()) : '${k.current}',
-                  subtitle: 'Prev: ${k.formatAsMoney ? formatRevenue(k.previous.toInt()) : k.previous}',
-                  icon: k.icon,
-                  trend: EosTrendBadge(deltaPercent: k.growthPercent, invertColors: k.invertTrend),
-                  onTap: k.tabIndex == null ? null : () => ref.read(superAdminShellTabProvider.notifier).select(k.tabIndex!),
-                  actionLabel: k.tabIndex != null ? 'View details' : null,
-                ),
-                Padding(
-                  padding: EdgeInsets.only(top: context.eos.spacing.xs),
-                  child: EosSparkline(values: k.sparkline, height: 32),
-                ),
-              ],
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              EosKpiCard(
+                title: k.title,
+                value: k.formatAsMoney ? formatRevenue(k.current.toInt()) : '${k.current}',
+                subtitle: 'Prev: ${k.formatAsMoney ? formatRevenue(k.previous.toInt()) : k.previous}',
+                icon: k.icon,
+                trend: EosTrendBadge(deltaPercent: k.growthPercent, invertColors: k.invertTrend),
+                onTap: k.tabIndex == null ? null : () => ref.read(superAdminShellTabProvider.notifier).select(k.tabIndex!),
+                actionLabel: k.tabIndex != null ? 'View details' : null,
+              ),
+              Padding(
+                padding: EdgeInsets.only(top: context.eos.spacing.xs),
+                child: EosSparkline(values: k.sparkline, height: 32),
+              ),
+            ],
           ),
       ],
     );

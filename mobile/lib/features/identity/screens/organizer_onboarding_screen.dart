@@ -134,7 +134,7 @@ class _OrganizerOnboardingScreenState extends ConsumerState<OrganizerOnboardingS
       if (OwanbeIdentityConfig.identityV2) {
         context.go(ExperienceNavigation.workspaceHome(ExperienceWorkspace.organizer));
       } else {
-        context.go(EventRouteRegistry.home);
+        context.go('/organizer');
       }
     } catch (e) {
       setState(() => _error = '$e');

@@ -15,10 +15,14 @@ class CommandActivityFeed extends StatelessWidget {
 
   IconData _iconFor(FeedEventType type) => switch (type) {
         FeedEventType.guestCheckedIn => Icons.how_to_reg_outlined,
+        FeedEventType.invitationArrival => Icons.mail_outline,
+        FeedEventType.checkInDuplicate => Icons.copy_all_outlined,
+        FeedEventType.checkInInvalid => Icons.block,
         FeedEventType.vendorJoined => Icons.storefront_outlined,
         FeedEventType.orderPlaced => Icons.receipt_long_outlined,
         FeedEventType.refundRequested => Icons.undo_outlined,
         FeedEventType.incidentLogged => Icons.warning_amber_outlined,
+        FeedEventType.incidentUpdated => Icons.update,
         FeedEventType.wallPost => Icons.forum_outlined,
         FeedEventType.wallPinned => Icons.push_pin_outlined,
       };

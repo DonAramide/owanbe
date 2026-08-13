@@ -63,13 +63,18 @@ export class OrganizerPortalService {
     const stats = await this.pool.query<{
       active_events: string;
       upcoming_events: string;
+      draft_events: string;
+      live_events: string;
+      completed_events: string;
       tickets_sold: string;
       revenue_minor: string;
       vendor_count: string;
       attendee_count: string;
+      registrations: string;
+      check_ins: string;
     }>(
       `WITH ev AS (
-         SELECT id, status::text FROM events WHERE tenant_id = $1 AND organizer_id = $2
+         SELECT id, status::text, starts_at FROM events WHERE tenant_id = $1 AND organizer_id = $2
        ),
        sales AS (
          SELECT COALESCE(SUM(tol.quantity), 0)::text AS tickets_sold,
@@ -90,24 +95,46 @@ export class OrganizerPortalService {
          SELECT COUNT(*)::text AS attendee_count FROM ticket_entitlements te
          INNER JOIN ev ON ev.id = te.event_id
          WHERE te.tenant_id = $1 AND te.status IN ('issued', 'checked_in')
+       ),
+       reg AS (
+         SELECT COUNT(*)::text AS registrations FROM ticket_entitlements te
+         INNER JOIN ev ON ev.id = te.event_id
+         WHERE te.tenant_id = $1 AND te.status IN ('issued', 'checked_in')
+       ),
+       chk AS (
+         SELECT COUNT(*)::text AS check_ins FROM ticket_entitlements te
+         INNER JOIN ev ON ev.id = te.event_id
+         WHERE te.tenant_id = $1 AND te.status = 'checked_in'
        )
        SELECT
          (SELECT COUNT(*)::text FROM ev WHERE status IN ('published', 'live')) AS active_events,
-         (SELECT COUNT(*)::text FROM ev WHERE status IN ('draft', 'published')) AS upcoming_events,
+         (SELECT COUNT(*)::text FROM ev
+            WHERE status IN ('draft', 'published', 'live')
+              AND starts_at > NOW()) AS upcoming_events,
+         (SELECT COUNT(*)::text FROM ev WHERE status = 'draft') AS draft_events,
+         (SELECT COUNT(*)::text FROM ev WHERE status = 'live') AS live_events,
+         (SELECT COUNT(*)::text FROM ev WHERE status = 'completed') AS completed_events,
          (SELECT tickets_sold FROM sales),
          (SELECT revenue_minor FROM sales),
          (SELECT vendor_count FROM parts),
-         (SELECT attendee_count FROM att)`,
+         (SELECT attendee_count FROM att),
+         (SELECT registrations FROM reg),
+         (SELECT check_ins FROM chk)`,
       [actor.tenantId, organizerId],
     );
     const s = stats.rows[0]!;
     return {
       activeEvents: Number(s.active_events),
       upcomingEvents: Number(s.upcoming_events),
+      draftEvents: Number(s.draft_events),
+      liveEvents: Number(s.live_events),
+      completedEvents: Number(s.completed_events),
       ticketsSold: Number(s.tickets_sold),
       revenueMinor: s.revenue_minor,
       vendorCount: Number(s.vendor_count),
       attendeeCount: Number(s.attendee_count),
+      registrations: Number(s.registrations),
+      checkIns: Number(s.check_ins),
     };
   }
 }

@@ -50,7 +50,7 @@ class SupabaseDiagnostic {
     if (steps.isNotEmpty) return steps;
     if (isConfigurationError) {
       return const [
-        'Fix SUPABASE_URL / SUPABASE_ANON_KEY in mobile/assets/env/supabase.env.',
+        'Fix SUPABASE_URL / SUPABASE_ANON_KEY in mobile/assets/env/owanbe_config.',
         'Ensure both Customer and Admin use the same env asset.',
         'Rebuild or hot-restart the app after changes.',
       ];
@@ -63,7 +63,7 @@ class SupabaseDiagnostic {
         ],
       SupabaseFailureKind.dnsFailure => const [
           'Confirm the device has working DNS (try opening a website in the browser).',
-          'Verify SUPABASE_URL hostname in assets/env/supabase.env.',
+          'Verify SUPABASE_URL hostname in assets/env/owanbe_config.',
           'Hot restart the app after fixing network or configuration.',
         ],
       SupabaseFailureKind.tlsFailure => const [

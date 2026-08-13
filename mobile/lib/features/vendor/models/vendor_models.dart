@@ -70,10 +70,13 @@ class VendorEventParticipation {
     required this.boothLabel,
     this.organizerName = 'Event organizer',
     this.expectedPayoutMinor = 0,
+    this.eventUuid,
   });
 
   final String id;
   final String eventId;
+  /// Canonical events.id when API provides it (CRM joins use this).
+  final String? eventUuid;
   final String eventTitle;
   final String city;
   final String venue;

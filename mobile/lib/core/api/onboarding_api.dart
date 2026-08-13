@@ -35,7 +35,7 @@ class VendorApplication {
 class OnboardingApi {
   OnboardingApi({http.Client? client}) : _http = client ?? http.Client();
   final http.Client _http;
-  static const devVendorId = '55555555-5555-4555-8555-555555555555';
+  static const devVendorId = '55555555-5555-4555-8555-555555555555'; // seed: vendor@owanbe.dev only
 
   String get _base => OwambeApiAuth.resolveApiBase();
   String get _tenantId => OwambeApiAuth.resolveTenantId(EventsApi.devTenantId);

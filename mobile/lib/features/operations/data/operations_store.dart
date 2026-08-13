@@ -216,14 +216,21 @@ class _EventOpsState {
 
   LiveEventKpis kpis() {
     final checkedIn = guests.where((g) => g.checkedIn).length;
+    final remaining = guests.length - checkedIn;
+    final total = guests.length;
+    final attendancePct = total == 0 ? 0.0 : (checkedIn / total) * 100;
     return LiveEventKpis(
       checkedIn: checkedIn,
-      remainingGuests: guests.length - checkedIn,
+      remainingGuests: remaining,
+      capacity: total,
+      noShows: remaining,
+      attendancePct: attendancePct,
+      capacityPct: attendancePct,
       vendorsActive: vendors.where((v) => v.status == VendorOpsStatus.active).length,
       ordersToday: ordersToday,
       revenueTodayMinor: revenueTodayMinor,
       openIncidents: incidents.where((i) => i.status != IncidentStatus.resolved).length,
-      totalRegistered: guests.length,
+      totalRegistered: total,
     );
   }
 
@@ -241,6 +248,7 @@ class _EventOpsState {
       level: level,
       attendanceRate: attendanceRate,
       checkInRate: checkInRate,
+      capacityRate: checkInRate,
       vendorActivityRate: vendorActivityRate,
       incidentRate: incidentRate,
       revenueVelocityMinor: revenueTodayMinor ~/ 8,

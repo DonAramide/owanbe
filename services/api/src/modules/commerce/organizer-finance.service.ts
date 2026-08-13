@@ -3,10 +3,13 @@ import {
   Injectable,
   Inject,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { PG_POOL } from '../../database/database.tokens';
 import type { CommerceActor } from './commerce-auth.service';
+import { sqlOrganizerOwnerOrMember } from '../events/organizer-access.sql';
+import { EventsAccessService } from '../events/events-access.service';
 
 export interface OrganizerEventFinanceSummary {
   eventId: string;
@@ -24,6 +27,15 @@ export interface OrganizerEventFinanceSummary {
   fulfilledOrderCount: number;
   payoutEligible: boolean;
   payoutEligibilityReason: string | null;
+  /** Phase 17 enrichments */
+  complimentaryTicketCount: number;
+  complimentaryValueMinor: string;
+  ticketsSold: number;
+  refundedTotalMinor: string;
+  refundCompletedCount: number;
+  refundRatePct: number;
+  settlementStatus: 'clear' | 'in_escrow' | 'partial' | 'none';
+  earliestEscrowReleaseAt: string | null;
 }
 
 export interface OrganizerFinanceTransaction {
@@ -40,7 +52,11 @@ export interface OrganizerFinanceTransaction {
 
 @Injectable()
 export class OrganizerFinanceService {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    @Inject(forwardRef(() => EventsAccessService))
+    private readonly access: EventsAccessService,
+  ) {}
 
   private async resolveEventScope(
     tenantId: string,
@@ -56,7 +72,7 @@ export class OrganizerFinanceService {
        FROM events e
        INNER JOIN organizers o ON o.id = e.organizer_id AND o.tenant_id = e.tenant_id
        WHERE e.tenant_id = $1
-         AND o.owner_user_id = $2
+         AND ${sqlOrganizerOwnerOrMember('$2')}
          AND (e.id::text = $3 OR e.external_ref = $3 OR e.slug = $3)
        LIMIT 1`,
       [tenantId, userId, eventKey],
@@ -70,15 +86,41 @@ export class OrganizerFinanceService {
 
   private async managedOrganizerIds(tenantId: string, userId: string): Promise<string[]> {
     const { rows } = await this.pool.query<{ id: string }>(
-      `SELECT id FROM organizers WHERE tenant_id = $1 AND owner_user_id = $2 AND status = 'active'`,
+      `SELECT id FROM organizers o
+       WHERE o.tenant_id = $1 AND o.status = 'active'
+         AND ${sqlOrganizerOwnerOrMember('$2')}`,
       [tenantId, userId],
     );
     return rows.map((r) => r.id);
   }
 
   async getEventSummary(actor: CommerceActor, eventKey: string): Promise<OrganizerEventFinanceSummary> {
-    const scope = await this.resolveEventScope(actor.tenantId, actor.userId, eventKey);
+    const event = await this.access.assertEventCapability(
+      actor.tenantId,
+      actor.userId,
+      eventKey,
+      'finance.read',
+    );
+    return this.buildEventSummary(actor.tenantId, {
+      eventId: event.id,
+      eventTitle: event.title,
+      organizerId: event.organizer_id,
+    });
+  }
 
+  /**
+   * Phase 25 — monetary truth for Analytics/Reports consumers.
+   * Caller must already enforce analytics.read / reports.read (not finance.read).
+   */
+  async getEventMonetaryTruth(actor: CommerceActor, eventKey: string): Promise<OrganizerEventFinanceSummary> {
+    const scope = await this.resolveEventScope(actor.tenantId, actor.userId, eventKey);
+    return this.buildEventSummary(actor.tenantId, scope);
+  }
+
+  private async buildEventSummary(
+    tenantId: string,
+    scope: { eventId: string; eventTitle: string; organizerId: string },
+  ): Promise<OrganizerEventFinanceSummary> {
     const orderAgg = await this.pool.query<{
       ticket_revenue_minor: string;
       platform_fee_minor: string;
@@ -109,7 +151,7 @@ export class OrganizerFinanceService {
        WHERE tord.tenant_id = $1
          AND tord.event_id = $2
          AND tord.status IN ('fulfilled', 'confirmed')`,
-      [actor.tenantId, scope.eventId],
+      [tenantId, scope.eventId],
     );
     const orders = orderAgg.rows[0] ?? {
       ticket_revenue_minor: '0',
@@ -133,7 +175,7 @@ export class OrganizerFinanceService {
          AND la.kind = 'organizer_payable'
          AND la.organizer_id = $2
          AND lt.reason IN ('payment_capture_ticket', 'payment_refund_ticket', 'payout_organizer_release')`,
-      [actor.tenantId, scope.organizerId],
+      [tenantId, scope.organizerId],
     );
     const netOrganizerPayable = BigInt(ledgerBal.rows[0]?.net_organizer_payable_minor ?? '0');
 
@@ -141,7 +183,7 @@ export class OrganizerFinanceService {
       `SELECT COALESCE(SUM(amount_minor), 0)::text AS pending_minor
        FROM organizer_payouts
        WHERE tenant_id = $1 AND organizer_id = $2 AND status::text IN ('pending', 'processing')`,
-      [actor.tenantId, scope.organizerId],
+      [tenantId, scope.organizerId],
     );
     const pendingPayoutMinor = BigInt(pendingPayout.rows[0]?.pending_minor ?? '0');
 
@@ -156,7 +198,86 @@ export class OrganizerFinanceService {
        WHERE trc.tenant_id = $1
          AND tord.event_id = $2
          AND trc.status::text IN ('requested', 'under_review', 'approved', 'processing')`,
-      [actor.tenantId, scope.eventId],
+      [tenantId, scope.eventId],
+    );
+
+    const extras = await this.pool.query<{
+      complimentary_count: string;
+      complimentary_value: string;
+      tickets_sold: string;
+      refunded_total: string;
+      refund_completed: string;
+      earliest_release: Date | null;
+    }>(
+      `SELECT
+         (
+           SELECT COUNT(*)::text FROM ticket_entitlements te
+           WHERE te.tenant_id = $1 AND te.event_id = $2
+             AND te.status::text IN ('issued', 'checked_in')
+             AND (
+               COALESCE((te.metadata->>'source'), '') IN ('invitation', 'complimentary', 'comp')
+               OR EXISTS (
+                 SELECT 1 FROM ticket_orders o
+                 WHERE o.id = te.ticket_order_id AND o.tenant_id = te.tenant_id
+                   AND o.total_minor = 0 AND o.status::text IN ('fulfilled', 'confirmed')
+               )
+             )
+         ) AS complimentary_count,
+         (
+           SELECT COALESCE(SUM(COALESCE((te.metadata->>'face_value_minor')::bigint, 0)), 0)::text
+           FROM ticket_entitlements te
+           WHERE te.tenant_id = $1 AND te.event_id = $2
+             AND te.status::text IN ('issued', 'checked_in')
+             AND (
+               COALESCE((te.metadata->>'source'), '') IN ('invitation', 'complimentary', 'comp')
+               OR EXISTS (
+                 SELECT 1 FROM ticket_orders o
+                 WHERE o.id = te.ticket_order_id AND o.tenant_id = te.tenant_id
+                   AND o.total_minor = 0 AND o.status::text IN ('fulfilled', 'confirmed')
+               )
+             )
+         ) AS complimentary_value,
+         (
+           SELECT COUNT(*)::text FROM ticket_entitlements te
+           WHERE te.tenant_id = $1 AND te.event_id = $2
+             AND te.status::text IN ('issued', 'checked_in', 'refunded')
+         ) AS tickets_sold,
+         (
+           SELECT COALESCE(SUM(trc.amount_minor), 0)::text
+           FROM ticket_refund_cases trc
+           INNER JOIN ticket_orders tord ON tord.id = trc.ticket_order_id
+           WHERE trc.tenant_id = $1 AND tord.event_id = $2
+             AND trc.status::text IN ('completed', 'approved', 'processing')
+         ) AS refunded_total,
+         (
+           SELECT COUNT(*)::text
+           FROM ticket_refund_cases trc
+           INNER JOIN ticket_orders tord ON tord.id = trc.ticket_order_id
+           WHERE trc.tenant_id = $1 AND tord.event_id = $2 AND trc.status::text = 'completed'
+         ) AS refund_completed,
+         (
+           SELECT MIN(
+             COALESCE(
+               tord.escrow_release_not_before,
+               COALESCE(tord.completed_at, tord.updated_at)
+                 + (COALESCE(tfs.escrow_release_delay_hours, 48) || ' hours')::interval
+             )
+           )
+           FROM ticket_orders tord
+           LEFT JOIN tenant_finance_settings tfs ON tfs.tenant_id = tord.tenant_id
+           WHERE tord.tenant_id = $1 AND tord.event_id = $2
+             AND tord.status IN ('fulfilled', 'confirmed')
+             AND tord.subtotal_minor > 0
+             AND (
+               (tord.escrow_release_not_before IS NOT NULL AND tord.escrow_release_not_before > now())
+               OR (
+                 tord.escrow_release_not_before IS NULL
+                 AND COALESCE(tord.completed_at, tord.updated_at)
+                   + (COALESCE(tfs.escrow_release_delay_hours, 48) || ' hours')::interval > now()
+               )
+             )
+         ) AS earliest_release`,
+      [tenantId, scope.eventId],
     );
 
     const payoutEligible = availableClamped > 0n;
@@ -167,6 +288,18 @@ export class OrganizerFinanceService {
         : pendingPayoutMinor >= netOrganizerPayable
           ? 'Pending payout in progress'
           : 'No available balance';
+
+    const ticketRevenue = BigInt(orders.ticket_revenue_minor);
+    const refundedTotal = BigInt(extras.rows[0]?.refunded_total ?? '0');
+    const refundRatePct =
+      ticketRevenue <= 0n
+        ? 0
+        : Math.round(Number((refundedTotal * 1000n) / ticketRevenue)) / 10;
+
+    let settlementStatus: OrganizerEventFinanceSummary['settlementStatus'] = 'none';
+    if (heldMinor > 0n && availableClamped > 0n) settlementStatus = 'partial';
+    else if (heldMinor > 0n) settlementStatus = 'in_escrow';
+    else if (ticketRevenue > 0n || availableClamped > 0n || pendingPayoutMinor > 0n) settlementStatus = 'clear';
 
     return {
       eventId: scope.eventId,
@@ -184,6 +317,16 @@ export class OrganizerFinanceService {
       fulfilledOrderCount: parseInt(orders.order_count, 10),
       payoutEligible,
       payoutEligibilityReason,
+      complimentaryTicketCount: parseInt(extras.rows[0]?.complimentary_count ?? '0', 10),
+      complimentaryValueMinor: extras.rows[0]?.complimentary_value ?? '0',
+      ticketsSold: parseInt(extras.rows[0]?.tickets_sold ?? '0', 10),
+      refundedTotalMinor: extras.rows[0]?.refunded_total ?? '0',
+      refundCompletedCount: parseInt(extras.rows[0]?.refund_completed ?? '0', 10),
+      refundRatePct,
+      settlementStatus,
+      earliestEscrowReleaseAt: extras.rows[0]?.earliest_release
+        ? extras.rows[0].earliest_release.toISOString()
+        : null,
     };
   }
 
@@ -192,6 +335,7 @@ export class OrganizerFinanceService {
     eventKey: string,
     limit = 100,
   ): Promise<{ items: OrganizerFinanceTransaction[] }> {
+    await this.access.assertEventCapability(actor.tenantId, actor.userId, eventKey, 'finance.read');
     const scope = await this.resolveEventScope(actor.tenantId, actor.userId, eventKey);
     const n = Math.min(200, Math.max(1, limit));
 
@@ -247,12 +391,19 @@ export class OrganizerFinanceService {
                 op.ticket_order_id,
                 CASE
                   WHEN op.status::text = 'pending' THEN 'Organizer payout queued'
+                  WHEN op.status::text = 'processing' THEN 'Payout scheduled / processing'
+                  WHEN op.status::text = 'completed' THEN 'Payout paid'
+                  WHEN op.status::text = 'failed' THEN COALESCE(op.failure_message, 'Payout failed')
                   WHEN op.under_review THEN 'Payout under review'
                   ELSE NULL
                 END AS event_reason
          FROM organizer_payouts op
-         INNER JOIN event_orders eo ON eo.id = op.ticket_order_id
          WHERE op.tenant_id = $1
+           AND op.organizer_id = $4
+           AND (
+             op.ticket_order_id IS NULL
+             OR op.ticket_order_id IN (SELECT id FROM event_orders)
+           )
        ),
        refund_rows AS (
          SELECT trc.created_at AS occurred_at,
@@ -265,6 +416,24 @@ export class OrganizerFinanceService {
          FROM ticket_refund_cases trc
          INNER JOIN event_orders eo ON eo.id = trc.ticket_order_id
          WHERE trc.tenant_id = $1
+       ),
+       complimentary_rows AS (
+         SELECT te.issued_at AS occurred_at,
+                'complimentary_issue'::text AS type,
+                te.status::text AS status,
+                0::bigint AS amount_minor,
+                'NGN'::text AS currency,
+                te.ticket_order_id,
+                COALESCE(te.metadata->>'tier_name', 'Complimentary') AS event_reason
+         FROM ticket_entitlements te
+         WHERE te.tenant_id = $1 AND te.event_id = $2
+           AND (
+             COALESCE((te.metadata->>'source'), '') IN ('invitation', 'complimentary', 'comp')
+             OR EXISTS (
+               SELECT 1 FROM ticket_orders o
+               WHERE o.id = te.ticket_order_id AND o.tenant_id = te.tenant_id AND o.total_minor = 0
+             )
+           )
        )
        SELECT x.occurred_at, x.type, x.status, x.amount_minor::text, x.currency,
               x.ticket_order_id, tord.id::text AS order_ref, x.event_reason
@@ -273,11 +442,12 @@ export class OrganizerFinanceService {
          UNION ALL SELECT * FROM fee_rows
          UNION ALL SELECT * FROM payout_rows
          UNION ALL SELECT * FROM refund_rows
+         UNION ALL SELECT * FROM complimentary_rows
        ) x
        LEFT JOIN ticket_orders tord ON tord.id = x.ticket_order_id
        ORDER BY x.occurred_at DESC
        LIMIT $3`,
-      [actor.tenantId, scope.eventId, n],
+      [actor.tenantId, scope.eventId, n, scope.organizerId],
     );
 
     return {
@@ -293,6 +463,122 @@ export class OrganizerFinanceService {
         timestampMs: r.occurred_at.getTime(),
       })),
     };
+  }
+
+  async listEventPayouts(actor: CommerceActor, eventKey: string) {
+    await this.access.assertEventCapability(actor.tenantId, actor.userId, eventKey, 'finance.read');
+    const scope = await this.resolveEventScope(actor.tenantId, actor.userId, eventKey);
+    const { rows } = await this.pool.query<{
+      id: string;
+      status: string;
+      amount_minor: string;
+      currency: string;
+      ticket_order_id: string | null;
+      failure_message: string | null;
+      under_review: boolean;
+      created_at: Date;
+      updated_at: Date;
+    }>(
+      `SELECT id, status::text, amount_minor::text, currency, ticket_order_id::text,
+              failure_message, under_review, created_at, updated_at
+       FROM organizer_payouts
+       WHERE tenant_id = $1 AND organizer_id = $2
+         AND (
+           ticket_order_id IS NULL
+           OR ticket_order_id IN (
+             SELECT id FROM ticket_orders WHERE tenant_id = $1 AND event_id = $3
+           )
+         )
+       ORDER BY created_at DESC
+       LIMIT 100`,
+      [actor.tenantId, scope.organizerId, scope.eventId],
+    );
+    return {
+      eventId: scope.eventId,
+      organizerId: scope.organizerId,
+      items: rows.map((r) => ({
+        id: r.id,
+        status: r.status,
+        amountMinor: r.amount_minor,
+        currency: r.currency,
+        ticketOrderId: r.ticket_order_id,
+        failureMessage: r.failure_message,
+        underReview: r.under_review,
+        createdAt: r.created_at.toISOString(),
+        updatedAt: r.updated_at.toISOString(),
+        label: this.payoutLabel(r.status, r.under_review),
+      })),
+    };
+  }
+
+  async getOrganizerHub(actor: CommerceActor) {
+    const organizerId = await this.access.resolveOrganizerId(actor.tenantId, actor.userId);
+    await this.access.assertOrgCapability(actor.tenantId, actor.userId, organizerId, 'finance.read');
+    const ids = await this.managedOrganizerIds(actor.tenantId, actor.userId);
+    if (ids.length === 0) {
+      return {
+        organizers: [],
+        grossCollectedMinor: '0',
+        netEarningsMinor: '0',
+        availableForPayoutMinor: '0',
+        pendingPayoutMinor: '0',
+        heldInEscrowMinor: '0',
+        openRefundRequests: 0,
+        currency: 'NGN',
+      };
+    }
+
+    const bal = await this.getOrganizerBalance(actor.tenantId, ids[0]!);
+    const refunds = await this.pool.query<{ n: string }>(
+      `SELECT COUNT(*)::text AS n
+       FROM ticket_refund_cases trc
+       INNER JOIN ticket_orders tord ON tord.id = trc.ticket_order_id
+       WHERE trc.tenant_id = $1
+         AND tord.organizer_id = ANY($2::uuid[])
+         AND trc.status::text IN ('requested', 'under_review', 'approved', 'processing')`,
+      [actor.tenantId, ids],
+    );
+    const sales = await this.pool.query<{
+      gross: string;
+      net: string;
+      currency: string;
+    }>(
+      `SELECT COALESCE(SUM(total_minor), 0)::text AS gross,
+              COALESCE(SUM(subtotal_minor), 0)::text AS net,
+              COALESCE(MAX(currency), 'NGN') AS currency
+       FROM ticket_orders
+       WHERE tenant_id = $1 AND organizer_id = ANY($2::uuid[])
+         AND status IN ('fulfilled', 'confirmed')`,
+      [actor.tenantId, ids],
+    );
+
+    return {
+      organizers: ids,
+      organizerId: ids[0],
+      grossCollectedMinor: sales.rows[0]?.gross ?? '0',
+      netEarningsMinor: sales.rows[0]?.net ?? '0',
+      availableForPayoutMinor: bal.availableForPayoutMinor,
+      pendingPayoutMinor: bal.pendingPayoutMinor,
+      heldInEscrowMinor: bal.heldInEscrowMinor,
+      openRefundRequests: parseInt(refunds.rows[0]?.n ?? '0', 10),
+      currency: sales.rows[0]?.currency ?? 'NGN',
+    };
+  }
+
+  private payoutLabel(status: string, underReview: boolean): string {
+    if (underReview) return 'Under review';
+    switch (status) {
+      case 'pending':
+        return 'Pending';
+      case 'processing':
+        return 'Scheduled';
+      case 'completed':
+        return 'Paid';
+      case 'failed':
+        return 'Failed';
+      default:
+        return status;
+    }
   }
 
   async getOrganizerBalance(tenantId: string, organizerId: string) {

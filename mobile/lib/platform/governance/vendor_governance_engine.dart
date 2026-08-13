@@ -1,6 +1,8 @@
 import 'governance_models.dart';
 import 'governance_audit_service.dart';
 
+/// @Deprecated Phase 28 — Vendor standing is Nest `/control-plane/vendors` over `vendors.status`.
+/// Do not use as source of truth.
 class VendorGovernanceEngine {
   final GovernanceAuditService auditService;
   final Map<String, VendorLifecycleState> _vendorStates = {};

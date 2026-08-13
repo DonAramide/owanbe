@@ -42,12 +42,17 @@ VALUES (
   '2026-08-15 18:00:00+00',
   '2026-08-15 23:30:00+00',
   'evt_lagos_owanbe_2026',
-  '{"city":"Lagos","venue":"Eko Atlantic Waterfront"}'::jsonb
+  '{"city":"Lagos","venue":"Eko Atlantic Waterfront","eventAccessMode":"PUBLIC_TICKETED","listingVisibility":"public"}'::jsonb
 )
 ON CONFLICT (id) DO UPDATE SET
   status = EXCLUDED.status,
   external_ref = EXCLUDED.external_ref,
-  metadata = jsonb_build_object('city', 'Lagos', 'venue', 'Eko Atlantic Waterfront'),
+  metadata = jsonb_build_object(
+    'city', 'Lagos',
+    'venue', 'Eko Atlantic Waterfront',
+    'eventAccessMode', 'PUBLIC_TICKETED',
+    'listingVisibility', 'public'
+  ) || COALESCE(events.metadata, '{}'::jsonb),
   updated_at = now();
 
 INSERT INTO event_ticket_tiers (

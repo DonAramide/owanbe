@@ -5,7 +5,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../eos/eos.dart';
 import '../providers/vendor_providers.dart';
 import '../providers/vendor_intelligence_engine.dart';
+import '../vendor_os_demo_mode.dart';
 import '../widgets/vendor_shared.dart';
+import '../widgets/vendor_empty_state.dart';
 import '../../../platform/governance/governance_enforcement_engine.dart';
 
 class VendorWalletScreen extends ConsumerStatefulWidget {
@@ -18,26 +20,28 @@ class VendorWalletScreen extends ConsumerStatefulWidget {
 class _VendorWalletScreenState extends ConsumerState<VendorWalletScreen> {
   int _activeTab = 0;
 
-  final List<Map<String, dynamic>> _mockLedger = [
-    {
-      'date': '2026-07-02',
-      'ref': 'TXN-90214-OR',
-      'desc': 'Escrow Release - Wale & Shade Wedding',
-      'amountMinor': 85000000,
-      'type': 'credit',
-      'feeMinor': 4250000, // 5% fee
-      'taxMinor': 850000,  // 1% tax
-    },
-    {
-      'date': '2026-06-28',
-      'ref': 'TXN-88124-CR',
-      'desc': 'Refund Debit - Equipment Damage Claim',
-      'amountMinor': -15000000,
-      'type': 'debit',
-      'feeMinor': 0,
-      'taxMinor': 0,
-    },
-  ];
+  late final List<Map<String, dynamic>> _mockLedger = VendorOsDemoMode.isEnabled
+      ? [
+          {
+            'date': '2026-07-02',
+            'ref': 'TXN-90214-OR',
+            'desc': 'Escrow Release - Wale & Shade Wedding',
+            'amountMinor': 85000000,
+            'type': 'credit',
+            'feeMinor': 4250000,
+            'taxMinor': 850000,
+          },
+          {
+            'date': '2026-06-28',
+            'ref': 'TXN-88124-CR',
+            'desc': 'Refund Debit - Equipment Damage Claim',
+            'amountMinor': -15000000,
+            'type': 'debit',
+            'feeMinor': 0,
+            'taxMinor': 0,
+          },
+        ]
+      : <Map<String, dynamic>>[];
 
   Future<void> _downloadFile() async {
     final uri = Uri.parse('https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf');
@@ -120,17 +124,21 @@ class _VendorWalletScreenState extends ConsumerState<VendorWalletScreen> {
   }
 
   Widget _buildBalancesTab(IntelligenceState state) {
+    final wallet = ref.watch(vendorWalletProvider).valueOrNull;
+    final available = wallet?.availableMinor ?? state.availableBalanceMinor;
+    final escrow = wallet?.pendingMinor ?? state.escrowBalanceMinor;
+    final released = wallet?.totalEarnedMinor ?? state.releasedFundsMinor;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             Expanded(
-              child: _buildBalanceCard('Available Balance', state.availableBalanceMinor, Colors.greenAccent),
+              child: _buildBalanceCard('Available Balance', available, Colors.greenAccent),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildBalanceCard('Locked Escrow', state.escrowBalanceMinor, Colors.amberAccent),
+              child: _buildBalanceCard('Locked Escrow', escrow, Colors.amberAccent),
             ),
           ],
         ),
@@ -138,11 +146,11 @@ class _VendorWalletScreenState extends ConsumerState<VendorWalletScreen> {
         Row(
           children: [
             Expanded(
-              child: _buildBalanceCard('Released Funds', state.releasedFundsMinor, Colors.blueAccent),
+              child: _buildBalanceCard('Released Funds', released, Colors.blueAccent),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildBalanceCard('Pending Payouts', 4500000, Colors.purpleAccent),
+              child: _buildBalanceCard('Pending Payouts', 0, Colors.purpleAccent),
             ),
           ],
         ),
@@ -288,6 +296,13 @@ class _VendorWalletScreenState extends ConsumerState<VendorWalletScreen> {
           ],
         ),
         const SizedBox(height: 12),
+        if (_mockLedger.isEmpty)
+          const VendorEmptyState(
+            message: 'No transactions yet.',
+            icon: Icons.receipt_long_outlined,
+            compact: true,
+          )
+        else
         for (final item in _mockLedger)
           Card(
             color: Colors.white.withOpacity(0.02),
@@ -321,17 +336,20 @@ class _VendorWalletScreenState extends ConsumerState<VendorWalletScreen> {
         Card(
           color: Colors.white.withOpacity(0.04),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: EosColors.champagne)),
-          child: const Padding(
-            padding: EdgeInsets.all(16.0),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Wema Bank Virtual Account', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
-                SizedBox(height: 12),
-                Text('Account Number: 9901824102', style: TextStyle(fontSize: 18, letterSpacing: 1.2, color: EosColors.champagne)),
-                Text('Account Name: Owanbe Pay - Jollof & Co', style: TextStyle(color: Colors.white70)),
-                SizedBox(height: 8),
-                Text('Use this virtual account for settlement. Funds received lock automatically into Escrow.', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                const Text('Wema Bank Virtual Account', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                const SizedBox(height: 12),
+                const Text('Account Number: 9901824102', style: TextStyle(fontSize: 18, letterSpacing: 1.2, color: EosColors.champagne)),
+                Text(
+                  'Account Name: Owanbe Pay - ${ref.watch(vendorProfileProvider).businessName}',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 8),
+                const Text('Use this virtual account for settlement. Funds received lock automatically into Escrow.', style: TextStyle(color: Colors.white54, fontSize: 11)),
               ],
             ),
           ),

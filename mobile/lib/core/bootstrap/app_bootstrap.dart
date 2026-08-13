@@ -63,7 +63,7 @@ class AppBootstrapNotifier extends Notifier<AppBootSnapshot> {
             kind: SupabaseFailureKind.configMissing,
             title: 'Supabase configuration is invalid.',
             message:
-                'Supabase was not initialized. Restart the app after fixing assets/env/supabase.env.',
+                'Supabase was not initialized. Restart the app after fixing assets/env/owanbe_config.',
           ),
         );
         return;

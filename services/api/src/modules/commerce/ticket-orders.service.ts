@@ -11,7 +11,19 @@ import { TenantFinancePolicyService } from './tenant-finance-policy.service';
 import { computePlatformFeeMinor } from './commerce.types';
 import type { CreateTicketOrderDto } from './dto/create-ticket-order.dto';
 import type { CommerceActor } from './commerce-auth.service';
-import { randomUUID } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
+import {
+  assertQuantityRules,
+  assertTierPurchasable,
+  parseTierMeta,
+} from './ticket-tier-rules';
+import {
+  assertEventPurchaseEligible,
+  requiresInvitationForPurchase,
+} from './event-visibility-rules';
+
+/** Pending payment orders older than this are cancelled and inventory restored. */
+const ABANDONED_ORDER_TTL_MS = 30 * 60 * 1000;
 
 export interface TicketOrderResult {
   order: {
@@ -43,6 +55,89 @@ export class TicketOrdersService {
     private readonly financePolicy: TenantFinancePolicyService,
   ) {}
 
+  /**
+   * Cancel abandoned pending_payment orders and restore inventory.
+   * Safe to call frequently (createOrder / list).
+   */
+  async releaseAbandonedOrders(
+    tenantId?: string,
+    ttlMs: number = ABANDONED_ORDER_TTL_MS,
+  ): Promise<{ released: number }> {
+    const cutoff = new Date(Date.now() - ttlMs);
+    const client = await this.pool.connect();
+    let released = 0;
+    try {
+      await client.query('BEGIN');
+      const params: unknown[] = [cutoff.toISOString()];
+      let tenantClause = '';
+      if (tenantId) {
+        params.push(tenantId);
+        tenantClause = ` AND tenant_id = $${params.length}`;
+      }
+      const { rows: orders } = await client.query<{
+        id: string;
+        tenant_id: string;
+      }>(
+        `SELECT id, tenant_id FROM ticket_orders
+         WHERE status = 'pending_payment'
+           AND created_at < $1::timestamptz
+           ${tenantClause}
+         FOR UPDATE SKIP LOCKED
+         LIMIT 100`,
+        params,
+      );
+
+      for (const order of orders) {
+        const lines = await client.query<{
+          tier_id: string;
+          quantity: number;
+        }>(
+          `SELECT tier_id, quantity FROM ticket_order_lines
+           WHERE ticket_order_id = $1 AND tenant_id = $2`,
+          [order.id, order.tenant_id],
+        );
+
+        for (const line of lines.rows) {
+          // Only restore when tier is not unlimited (unlimited never decremented).
+          await client.query(
+            `UPDATE event_ticket_tiers t
+             SET remaining = LEAST(t.capacity, t.remaining + $3),
+                 updated_at = now()
+             WHERE t.tenant_id = $1
+               AND t.external_tier_id = $2
+               AND COALESCE((t.metadata->>'unlimitedCapacity')::boolean, false) = false`,
+            [order.tenant_id, line.tier_id, line.quantity],
+          );
+        }
+
+        await client.query(
+          `UPDATE ticket_orders
+           SET status = 'cancelled',
+               metadata = metadata || $3::jsonb,
+               updated_at = now()
+           WHERE id = $1 AND tenant_id = $2 AND status = 'pending_payment'`,
+          [
+            order.id,
+            order.tenant_id,
+            JSON.stringify({
+              cancelledReason: 'abandoned_checkout',
+              cancelledAt: new Date().toISOString(),
+            }),
+          ],
+        );
+        released += 1;
+      }
+
+      await client.query('COMMIT');
+      return { released };
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
   async createOrder(
     eventKey: string,
     dto: CreateTicketOrderDto,
@@ -50,7 +145,17 @@ export class TicketOrdersService {
     idempotencyKey?: string,
   ): Promise<TicketOrderResult> {
     if (dto.attendeeId && dto.attendeeId !== actor.userId) {
-      throw new BadRequestException({ code: 'ATTENDEE_MISMATCH', message: 'attendeeId must match authenticated user' });
+      throw new BadRequestException({
+        code: 'ATTENDEE_MISMATCH',
+        message: 'attendeeId must match authenticated user',
+      });
+    }
+
+    // Best-effort inventory recovery before allocating new holds.
+    try {
+      await this.releaseAbandonedOrders(actor.tenantId);
+    } catch {
+      // Non-fatal — order path continues.
     }
 
     const client = await this.pool.connect();
@@ -61,8 +166,29 @@ export class TicketOrdersService {
       if (!event) {
         throw new NotFoundException({ code: 'EVENT_NOT_FOUND', message: 'Event not found' });
       }
-      if (!['published', 'live'].includes(event.status)) {
-        throw new UnprocessableEntityException({ code: 'EVENT_NOT_SALEABLE', message: 'Event not open for ticket sales' });
+
+      const eventGate = assertEventPurchaseEligible({
+        status: event.status,
+        metadata: event.metadata,
+      });
+      if (eventGate) {
+        throw new UnprocessableEntityException(eventGate);
+      }
+
+      if (requiresInvitationForPurchase(event.metadata)) {
+        const invited = await this.buyerHasInvitation(
+          client,
+          actor.tenantId,
+          event.id,
+          actor.email,
+          actor.userId,
+        );
+        if (!invited) {
+          throw new UnprocessableEntityException({
+            code: 'INVITATION_REQUIRED',
+            message: 'An invitation is required to purchase tickets for this event',
+          });
+        }
       }
 
       const idem =
@@ -89,6 +215,7 @@ export class TicketOrdersService {
         qty: number;
         lineSubtotal: bigint;
         dbTierId: string;
+        unlimited: boolean;
       }> = [];
 
       for (const item of dto.items) {
@@ -101,8 +228,10 @@ export class TicketOrdersService {
           remaining: number;
           sales_paused: boolean;
           currency: string;
+          metadata: Record<string, unknown>;
         }>(
-          `SELECT id, external_tier_id, name, tier_type, price_minor::text, remaining, sales_paused, currency
+          `SELECT id, external_tier_id, name, tier_type, price_minor::text, remaining, sales_paused,
+                  currency, metadata
            FROM event_ticket_tiers
            WHERE tenant_id = $1 AND event_id = $2 AND external_tier_id = $3
            FOR UPDATE`,
@@ -112,15 +241,51 @@ export class TicketOrdersService {
         if (!t) {
           throw new NotFoundException({ code: 'TIER_NOT_FOUND', message: `Tier ${item.tierId} not found` });
         }
-        if (t.sales_paused) {
-          throw new UnprocessableEntityException({ code: 'TIER_PAUSED', message: `${t.name} is not on sale` });
+
+        const meta = parseTierMeta(t.metadata);
+        const eligibility = assertTierPurchasable({
+          name: t.name,
+          salesPaused: t.sales_paused,
+          metadata: t.metadata,
+          forPublicListing: true,
+        });
+        if (eligibility) {
+          throw new UnprocessableEntityException(eligibility);
         }
-        if (t.remaining < item.quantity) {
-          throw new UnprocessableEntityException({
-            code: 'INSUFFICIENT_INVENTORY',
-            message: `Only ${t.remaining} remaining for ${t.name}`,
-          });
+
+        const qtyFail = assertQuantityRules({
+          name: t.name,
+          quantity: item.quantity,
+          remaining: t.remaining,
+          unlimited: meta.unlimitedCapacity === true,
+          minQuantity: meta.minQuantity ?? 1,
+          maxQuantity: meta.maxQuantity ?? null,
+        });
+        if (qtyFail) {
+          throw new UnprocessableEntityException(qtyFail);
         }
+
+        if (meta.maxPerUser != null && meta.maxPerUser > 0) {
+          const prior = await client.query<{ qty: string }>(
+            `SELECT COALESCE(SUM(l.quantity), 0)::text AS qty
+             FROM ticket_order_lines l
+             INNER JOIN ticket_orders o ON o.id = l.ticket_order_id
+             WHERE o.tenant_id = $1
+               AND o.event_id = $2
+               AND o.buyer_user_id = $3
+               AND l.tier_id = $4
+               AND o.status IN ('pending_payment', 'confirmed', 'fulfilled')`,
+            [actor.tenantId, event.id, actor.userId, t.external_tier_id],
+          );
+          const already = Number(prior.rows[0]?.qty ?? 0);
+          if (already + item.quantity > meta.maxPerUser) {
+            throw new UnprocessableEntityException({
+              code: 'PER_USER_LIMIT',
+              message: `${t.name} allows at most ${meta.maxPerUser} per attendee (you have ${already})`,
+            });
+          }
+        }
+
         if (t.currency !== dto.currency.toUpperCase()) {
           throw new BadRequestException({ code: 'CURRENCY_MISMATCH', message: 'Tier currency mismatch' });
         }
@@ -136,23 +301,30 @@ export class TicketOrdersService {
           qty: item.quantity,
           lineSubtotal: lineSub,
           dbTierId: t.id,
+          unlimited: meta.unlimitedCapacity === true,
         });
 
-        await client.query(
-          `UPDATE event_ticket_tiers SET remaining = remaining - $3, updated_at = now()
-           WHERE id = $1 AND tenant_id = $2`,
-          [t.id, actor.tenantId, item.quantity],
-        );
+        if (!meta.unlimitedCapacity) {
+          await client.query(
+            `UPDATE event_ticket_tiers SET remaining = remaining - $3, updated_at = now()
+             WHERE id = $1 AND tenant_id = $2 AND remaining >= $3`,
+            [t.id, actor.tenantId, item.quantity],
+          );
+        }
       }
 
-      const fee = BigInt(computePlatformFeeMinor(Number(subtotal), policy.ticketPlatformFeeBps));
+      // Complimentary / free: platform fee is 0 when subtotal is 0
+      const fee =
+        subtotal === 0n
+          ? 0n
+          : BigInt(computePlatformFeeMinor(Number(subtotal), policy.ticketPlatformFeeBps));
       const total = subtotal + fee;
 
       const ins = await client.query<{ id: string }>(
         `INSERT INTO ticket_orders (
            tenant_id, organizer_id, event_id, buyer_user_id, status, currency,
-           subtotal_minor, platform_fee_minor, total_minor, idempotency_key
-         ) VALUES ($1, $2, $3, $4, 'pending_payment', $5, $6, $7, $8, $9)
+           subtotal_minor, platform_fee_minor, total_minor, idempotency_key, metadata
+         ) VALUES ($1, $2, $3, $4, 'pending_payment', $5, $6, $7, $8, $9, $10::jsonb)
          RETURNING id`,
         [
           actor.tenantId,
@@ -164,6 +336,10 @@ export class TicketOrdersService {
           fee.toString(),
           total.toString(),
           idem,
+          JSON.stringify({
+            inventoryHeldAt: new Date().toISOString(),
+            freeOrder: total === 0n,
+          }),
         ],
       );
       const orderId = ins.rows[0]?.id;
@@ -188,6 +364,33 @@ export class TicketOrdersService {
             line.lineSubtotal.toString(),
             dto.currency.toUpperCase(),
           ],
+        );
+      }
+
+      // Phase 14: free / complimentary — fulfill immediately (no payment rail).
+      if (total === 0n) {
+        await client.query(
+          `UPDATE ticket_orders
+           SET status = 'fulfilled',
+               completed_at = now(),
+               metadata = metadata || $3::jsonb,
+               updated_at = now()
+           WHERE id = $1 AND tenant_id = $2`,
+          [
+            orderId,
+            actor.tenantId,
+            JSON.stringify({
+              freeFulfilledAt: new Date().toISOString(),
+              freeOrder: true,
+            }),
+          ],
+        );
+        await this.issueEntitlementsForOrder(
+          client,
+          actor.tenantId,
+          orderId,
+          event.id,
+          actor.userId,
         );
       }
 
@@ -275,6 +478,11 @@ export class TicketOrdersService {
   }
 
   async listOrdersForBuyer(tenantId: string, userId: string) {
+    try {
+      await this.releaseAbandonedOrders(tenantId);
+    } catch {
+      /* ignore */
+    }
     const { rows } = await this.pool.query<{
       id: string;
       event_id: string;
@@ -306,13 +514,96 @@ export class TicketOrdersService {
     };
   }
 
+  private async buyerHasInvitation(
+    client: PoolClient,
+    tenantId: string,
+    eventId: string,
+    email: string | undefined,
+    userId: string,
+  ): Promise<boolean> {
+    let normalized = (email ?? '').trim().toLowerCase();
+    if (!normalized) {
+      const u = await client.query<{ email: string | null }>(
+        `SELECT email FROM users WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [userId, tenantId],
+      );
+      normalized = (u.rows[0]?.email ?? '').trim().toLowerCase();
+    }
+    if (!normalized) return false;
+
+    const { rows } = await client.query<{ id: string }>(
+      `SELECT g.id
+       FROM event_guests g
+       WHERE g.tenant_id = $1
+         AND g.event_id = $2
+         AND lower(trim(g.email)) = $3
+       LIMIT 1`,
+      [tenantId, eventId, normalized],
+    );
+    return rows.length > 0;
+  }
+
+  private async issueEntitlementsForOrder(
+    client: PoolClient,
+    tenantId: string,
+    orderId: string,
+    eventId: string,
+    holderUserId: string,
+  ): Promise<string[]> {
+    const existing = await client.query<{ id: string }>(
+      `SELECT id FROM ticket_entitlements WHERE tenant_id = $1 AND ticket_order_id = $2`,
+      [tenantId, orderId],
+    );
+    if (existing.rows.length > 0) {
+      return existing.rows.map((r) => r.id);
+    }
+
+    const lines = await client.query<{
+      id: string;
+      tier_id: string;
+      tier_name: string;
+      quantity: number;
+    }>(
+      `SELECT id, tier_id, tier_name, quantity FROM ticket_order_lines
+       WHERE ticket_order_id = $1 AND tenant_id = $2`,
+      [orderId, tenantId],
+    );
+
+    const ids: string[] = [];
+    for (const line of lines.rows) {
+      for (let i = 0; i < line.quantity; i++) {
+        const ticketCode = `TKT-${randomBytes(6).toString('hex').toUpperCase()}`;
+        const qrPayload = `OWANBE:${eventId}:${line.tier_id}:${ticketCode}`;
+        const ins = await client.query<{ id: string }>(
+          `INSERT INTO ticket_entitlements (
+             tenant_id, ticket_order_id, ticket_order_line_id, event_id, holder_user_id,
+             ticket_code, status, metadata
+           ) VALUES ($1, $2, $3, $4, $5, $6, 'issued', $7::jsonb)
+           RETURNING id`,
+          [
+            tenantId,
+            orderId,
+            line.id,
+            eventId,
+            holderUserId,
+            ticketCode,
+            JSON.stringify({ qr_payload: qrPayload, tier_name: line.tier_name, freeOrder: true }),
+          ],
+        );
+        if (ins.rows[0]) ids.push(ins.rows[0].id);
+      }
+    }
+    return ids;
+  }
+
   private async findEvent(client: PoolClient, tenantId: string, eventKey: string) {
     const { rows } = await client.query<{
       id: string;
       organizer_id: string;
       status: string;
+      metadata: Record<string, unknown>;
     }>(
-      `SELECT id, organizer_id, status::text
+      `SELECT id, organizer_id, status::text, metadata
        FROM events
        WHERE tenant_id = $1 AND (id::text = $2 OR external_ref = $2 OR slug = $2)
        LIMIT 1`,

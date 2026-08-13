@@ -8,8 +8,10 @@ import {
   Post,
   Put,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../common/decorators/public.decorator';
 import { RequirePermissions } from '../../permissions/permissions.decorator';
@@ -30,6 +32,8 @@ import { EventGuestsService } from './event-guests.service';
 import { EventInvitationsService } from './event-invitations.service';
 import { AttendeeNetworkingService } from './attendee-networking.service';
 import { AttendeePostEventService } from './attendee-post-event.service';
+import { OrganizerAnalyticsService } from './organizer-analytics.service';
+import { EventsAccessService } from './events-access.service';
 
 @Controller()
 export class EventsController {
@@ -48,6 +52,8 @@ export class EventsController {
     private readonly invitations: EventInvitationsService,
     private readonly networking: AttendeeNetworkingService,
     private readonly postEvent: AttendeePostEventService,
+    private readonly analytics: OrganizerAnalyticsService,
+    private readonly access: EventsAccessService,
   ) {}
 
   @Public()
@@ -71,7 +77,7 @@ export class EventsController {
   @Public()
   @Get('events/:eventId/tiers')
   async listPublicTiers(@TenantId() tenantId: string, @Param('eventId') eventId: string) {
-    return this.tiers.list(null, tenantId, eventId);
+    return this.tiers.list(null, tenantId, eventId, { publicStorefront: true });
   }
 
   @Public()
@@ -91,6 +97,14 @@ export class EventsController {
     @CommerceActorParam() actor: CommerceActor,
   ) {
     return this.events.patch(actor!, eventId, body);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @RequirePermissions('event.create')
+  @Post('events/:eventId/discard')
+  async discardDraft(@Param('eventId') eventId: string, @CommerceActorParam() actor: CommerceActor) {
+    return this.events.discardDraft(actor!, eventId);
   }
 
   @Public()
@@ -119,8 +133,13 @@ export class EventsController {
   @Public()
   @UseGuards(CommerceAuthGuard)
   @Get('organizers/me/events')
-  async organizerEvents(@CommerceActorParam() actor: CommerceActor) {
-    return this.events.listForOrganizer(actor!);
+  async organizerEvents(
+    @CommerceActorParam() actor: CommerceActor,
+    @Query('q') q?: string,
+    @Query('status') status?: string,
+    @Query('sort') sort?: string,
+  ) {
+    return this.events.listForOrganizer(actor!, { q, status, sort });
   }
 
   @Public()
@@ -181,6 +200,83 @@ export class EventsController {
 
   @Public()
   @UseGuards(CommerceAuthGuard)
+  @Get('events/:eventId/tiers/sales')
+  async tierSales(@Param('eventId') eventId: string, @CommerceActorParam() actor: CommerceActor) {
+    return this.tiers.salesByTier(actor!, eventId);
+  }
+
+  // —— Phase 18 Event Intelligence (read-only) ——
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  @Get('events/:eventId/analytics')
+  async eventAnalytics(
+    @Param('eventId') eventId: string,
+    @CommerceActorParam() actor: CommerceActor,
+    @Query('days') days?: string,
+  ) {
+    const n = parseInt(days ?? '30', 10) || 30;
+    return this.analytics.getEventIntelligence(actor!, eventId, n);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Get('events/:eventId/analytics/export')
+  async exportEventAnalytics(
+    @Param('eventId') eventId: string,
+    @CommerceActorParam() actor: CommerceActor,
+    @Res() res: Response,
+  ) {
+    const out = await this.analytics.exportEventCsv(actor!, eventId);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
+    return res.send(out.body);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Get('organizers/me/analytics/portfolio')
+  async organizerAnalyticsPortfolio(@CommerceActorParam() actor: CommerceActor) {
+    return this.analytics.getPortfolio(actor!);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('events/:eventId/tiers/reorder')
+  async reorderTiers(
+    @Param('eventId') eventId: string,
+    @Body() body: { orderedExternalIds?: string[] },
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.tiers.reorder(actor!, eventId, body.orderedExternalIds ?? []);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('tiers/:tierId/archive')
+  async archiveTier(@Param('tierId') tierId: string, @CommerceActorParam() actor: CommerceActor) {
+    return this.tiers.archive(actor!, tierId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('tiers/:tierId/unarchive')
+  async unarchiveTier(@Param('tierId') tierId: string, @CommerceActorParam() actor: CommerceActor) {
+    return this.tiers.unarchive(actor!, tierId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('tiers/:tierId/duplicate')
+  async duplicateTier(@Param('tierId') tierId: string, @CommerceActorParam() actor: CommerceActor) {
+    return this.tiers.duplicate(actor!, tierId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
   @Get('vendor/events')
   async vendorEvents(@CommerceActorParam() actor: CommerceActor) {
     return this.vendor.listForVendor(actor!);
@@ -212,7 +308,16 @@ export class EventsController {
   @UseGuards(CommerceAuthGuard)
   @Get('events/:eventId/check-ins')
   async listCheckIns(@Param('eventId') eventId: string, @CommerceActorParam() actor: CommerceActor) {
+    await this.access.assertEventCapability(actor!.tenantId, actor!.userId, eventId, 'ops.door');
     return this.ops.listCheckIns(actor!, eventId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Get('events/:eventId/door-summary')
+  async doorSummary(@Param('eventId') eventId: string, @CommerceActorParam() actor: CommerceActor) {
+    await this.access.assertEventCapability(actor!.tenantId, actor!.userId, eventId, 'ops.door');
+    return this.ops.doorSummary(actor!, eventId);
   }
 
   @Public()
@@ -223,6 +328,7 @@ export class EventsController {
     @Body() body: Record<string, unknown>,
     @CommerceActorParam() actor: CommerceActor,
   ) {
+    await this.access.assertEventCapability(actor!.tenantId, actor!.userId, eventId, 'ops.door');
     return this.ops.checkIn(actor!, eventId, {
       ticketCode: body.ticketCode as string | undefined,
       entitlementId: body.entitlementId as string | undefined,
@@ -252,6 +358,18 @@ export class EventsController {
       reporter: body.reporter as string | undefined,
       description: body.description as string | undefined,
     });
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Patch('events/:eventId/incidents/:incidentId')
+  async updateIncidentStatus(
+    @Param('eventId') eventId: string,
+    @Param('incidentId') incidentId: string,
+    @Body() body: Record<string, unknown>,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.ops.updateIncidentStatus(actor!, eventId, incidentId, String(body.status ?? 'open'));
   }
 
   @Public()
@@ -924,6 +1042,45 @@ export class EventsController {
 
   @Public()
   @UseGuards(CommerceAuthGuard)
+  @Patch('events/:eventId/guests/:guestId')
+  async patchEventGuest(
+    @Param('eventId') eventId: string,
+    @Param('guestId') guestId: string,
+    @Body() body: Record<string, unknown>,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.eventGuests.patch(actor!, eventId, guestId, body);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Delete('events/:eventId/guests/:guestId')
+  async deleteEventGuest(
+    @Param('eventId') eventId: string,
+    @Param('guestId') guestId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.eventGuests.remove(actor!, eventId, guestId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('events/:eventId/guests/invite-user')
+  async inviteExistingUser(
+    @Param('eventId') eventId: string,
+    @Body() body: Record<string, unknown>,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.invitations.inviteExistingUser(
+      actor!,
+      eventId,
+      String(body.userId ?? ''),
+      String(body.channel ?? 'email'),
+    );
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
   @Get('events/:eventId/invitations')
   async listEventInvitations(
     @Param('eventId') eventId: string,
@@ -948,6 +1105,39 @@ export class EventsController {
   }
 
   @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('events/:eventId/invitations/:invitationId/resend')
+  async resendEventInvitation(
+    @Param('eventId') eventId: string,
+    @Param('invitationId') invitationId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.invitations.resendInvitation(actor!, eventId, invitationId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('events/:eventId/invitations/:invitationId/cancel')
+  async cancelEventInvitation(
+    @Param('eventId') eventId: string,
+    @Param('invitationId') invitationId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.invitations.cancelInvitation(actor!, eventId, invitationId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('events/:eventId/guests/:guestId/invite-link')
+  async createGuestInviteLink(
+    @Param('eventId') eventId: string,
+    @Param('guestId') guestId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.invitations.createInviteLink(actor!, eventId, guestId);
+  }
+
+  @Public()
   @Throttle({ public: { limit: 120, ttl: 60_000 } })
   @Get('invitations/validate')
   async validateInvitation(
@@ -963,9 +1153,15 @@ export class EventsController {
   async rsvpInvitation(
     @TenantId() tenantId: string,
     @Body() body: Record<string, unknown>,
+    @CommerceActorParam() actor?: CommerceActor,
   ) {
     const status = String(body.status ?? '') === 'declined' ? 'declined' : 'confirmed';
-    return this.invitations.rsvpByToken(tenantId, String(body.token ?? ''), status);
+    return this.invitations.rsvpByToken(
+      tenantId,
+      String(body.token ?? ''),
+      status,
+      actor?.userId,
+    );
   }
 
   @Public()

@@ -480,4 +480,57 @@ class TicketCommerceApi {
       createdAt: DateTime.now(),
     );
   }
+
+  // ── Phase 14: organizer sales visibility ──────────────────────────────
+
+  Future<Map<String, dynamic>> fetchOrganizerEventOrders({
+    required AuthSession session,
+    required String eventId,
+    int limit = 100,
+  }) async {
+    final res = await _get(
+      _u('events/$eventId/ticket-orders').replace(queryParameters: {'limit': '$limit'}),
+      headers: await _headers(session),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> fetchOrganizerOrderDetail({
+    required AuthSession session,
+    required String eventId,
+    required String orderId,
+  }) async {
+    final res = await _get(
+      _u('events/$eventId/ticket-orders/$orderId'),
+      headers: await _headers(session),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> fetchOrganizerEventBuyers({
+    required AuthSession session,
+    required String eventId,
+    int limit = 200,
+  }) async {
+    final res = await _get(
+      _u('events/$eventId/ticket-buyers').replace(queryParameters: {'limit': '$limit'}),
+      headers: await _headers(session),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> fetchOrganizerSalesSummary({
+    required AuthSession session,
+    required String eventId,
+  }) async {
+    final res = await _get(
+      _u('events/$eventId/ticket-sales-summary'),
+      headers: await _headers(session),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
 }

@@ -24,4 +24,6 @@ const adminNavItems = <AdminNavItem>[
   AdminNavItem(label: 'Settings', icon: Icons.settings_outlined, selectedIcon: Icons.settings),
 ];
 
-const adminMobileBreakpoint = 768.0;
+/// Deprecated — use [EosBreakpoints.phone] via EosResponsive. Kept for legacy imports.
+@Deprecated('Use EosBreakpoints.phone / EosResponsive.isCompact')
+const adminMobileBreakpoint = 600.0;

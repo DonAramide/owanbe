@@ -5,7 +5,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../eos/eos.dart';
 import '../providers/vendor_providers.dart';
 import '../providers/vendor_intelligence_engine.dart';
+import '../vendor_os_demo_mode.dart';
 import '../widgets/vendor_shared.dart';
+import '../widgets/vendor_empty_state.dart';
 
 class VendorPayoutsScreen extends ConsumerStatefulWidget {
   const VendorPayoutsScreen({super.key});
@@ -17,11 +19,13 @@ class VendorPayoutsScreen extends ConsumerStatefulWidget {
 class _VendorPayoutsScreenState extends ConsumerState<VendorPayoutsScreen> {
   int _activeTab = 0;
 
-  final List<Map<String, dynamic>> _mockPayouts = [
-    {'date': '2026-07-02', 'id': 'PAY-901', 'amountMinor': 45000000, 'status': 'Scheduled', 'bank': 'Wema Bank (****9901)'},
-    {'date': '2026-06-25', 'id': 'PAY-882', 'amountMinor': 12000000, 'status': 'Released', 'bank': 'Zenith Bank (****2104)'},
-    {'date': '2026-06-12', 'id': 'PAY-741', 'amountMinor': 8500000, 'status': 'Failed', 'bank': 'Access Bank (****0942)'},
-  ];
+  late final List<Map<String, dynamic>> _mockPayouts = VendorOsDemoMode.isEnabled
+      ? [
+          {'date': '2026-07-02', 'id': 'PAY-901', 'amountMinor': 45000000, 'status': 'Scheduled', 'bank': 'Wema Bank (****9901)'},
+          {'date': '2026-06-25', 'id': 'PAY-882', 'amountMinor': 12000000, 'status': 'Released', 'bank': 'Zenith Bank (****2104)'},
+          {'date': '2026-06-12', 'id': 'PAY-741', 'amountMinor': 8500000, 'status': 'Failed', 'bank': 'Access Bank (****0942)'},
+        ]
+      : <Map<String, dynamic>>[];
 
   Future<void> _downloadFile() async {
     final uri = Uri.parse('https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf');
@@ -114,7 +118,7 @@ class _VendorPayoutsScreenState extends ConsumerState<VendorPayoutsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Available for Settlement: ₦485,000.00', style: TextStyle(fontSize: 18, color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+                Text('Available for Settlement: ₦0.00', style: const TextStyle(fontSize: 18, color: Colors.greenAccent, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
                 ElevatedButton(
                   onPressed: () {
@@ -130,6 +134,13 @@ class _VendorPayoutsScreenState extends ConsumerState<VendorPayoutsScreen> {
         const SizedBox(height: 20),
         const Text('SETTLEMENT TIMELINE HISTORY', style: TextStyle(color: EosColors.champagne, fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
+        if (_mockPayouts.isEmpty)
+          const VendorEmptyState(
+            message: 'No transactions yet.',
+            icon: Icons.payments_outlined,
+            compact: true,
+          )
+        else
         for (final pay in _mockPayouts)
           Card(
             color: const Color(0xFF241B3F),

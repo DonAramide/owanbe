@@ -22,8 +22,7 @@ class AttendeeTopBar extends ConsumerWidget {
     final isDark = ref.watch(themeModeProvider) == ThemeMode.dark;
     final name = identity?.displayName ?? session?.displayName ?? 'Guest';
     final avatarUrl = identity?.avatarUrl;
-    final width = MediaQuery.sizeOf(context).width;
-    final compact = width < 900;
+    final compact = EosResponsive.isCompact(context);
 
     return Material(
       color: context.eosColors.surface,

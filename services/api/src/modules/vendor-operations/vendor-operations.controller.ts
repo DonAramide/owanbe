@@ -5,12 +5,14 @@ import { CommerceAuthGuard } from '../commerce/commerce-auth.guard';
 import { CommerceActorParam, type CommerceActor } from '../commerce/commerce-auth.service';
 import { VendorCrmService } from './vendor-crm.service';
 import { VendorCalendarService } from './vendor-calendar.service';
+import { EventVendorFundsService } from './vendor-pricing-funds.service';
 
 @Controller()
 export class VendorOperationsController {
   constructor(
     private readonly crm: VendorCrmService,
     private readonly calendar: VendorCalendarService,
+    private readonly eventFunds: EventVendorFundsService,
   ) {}
 
   @Public()
@@ -76,6 +78,88 @@ export class VendorOperationsController {
     @CommerceActorParam() actor: CommerceActor,
   ) {
     return this.crm.postMessage(actor!, requestId, body);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('vendor-requests/:requestId/confirm-agreement')
+  async confirmAgreement(
+    @Param('requestId') requestId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.crm.confirmAgreement(actor!, requestId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('vendor-requests/:requestId/fund')
+  async fundVendorRequest(
+    @Param('requestId') requestId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.eventFunds.reserveForRequest(actor!, requestId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('vendor-requests/:requestId/mark-complete')
+  async markVendorRequestComplete(
+    @Param('requestId') requestId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.crm.markServiceComplete(actor!, requestId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('vendor-requests/:requestId/confirm-completion')
+  async confirmVendorRequestCompletion(
+    @Param('requestId') requestId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.crm.confirmServiceCompletion(actor!, requestId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('vendor-requests/:requestId/report-issue')
+  async reportVendorRequestIssue(
+    @Param('requestId') requestId: string,
+    @Body() body: Record<string, unknown>,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.crm.reportServiceIssue(actor!, requestId, body);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Get('events/:eventId/vendor-funds')
+  async getEventVendorFunds(
+    @Param('eventId') eventId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.eventFunds.getSummary(actor!, eventId);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('events/:eventId/vendor-funds')
+  async fundEventVendorPool(
+    @Param('eventId') eventId: string,
+    @Body() body: Record<string, unknown>,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.eventFunds.fundEvent(actor!, eventId, Number(body.amountMinor ?? 0));
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Get('vendor-requests/:requestId/timeline')
+  async vendorRequestTimeline(
+    @Param('requestId') requestId: string,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.crm.getTimeline(actor!, requestId);
   }
 
   @Public()

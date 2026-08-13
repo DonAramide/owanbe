@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
 import { CommerceModule } from '../commerce/commerce.module';
 import { EventsController } from './events.controller';
@@ -17,9 +17,10 @@ import { EventGuestsService } from './event-guests.service';
 import { EventInvitationsService } from './event-invitations.service';
 import { AttendeeNetworkingService } from './attendee-networking.service';
 import { AttendeePostEventService } from './attendee-post-event.service';
+import { OrganizerAnalyticsService } from './organizer-analytics.service';
 
 @Module({
-  imports: [DatabaseModule, CommerceModule],
+  imports: [DatabaseModule, forwardRef(() => CommerceModule)],
   controllers: [EventsController],
   providers: [
     EventsService,
@@ -37,7 +38,14 @@ import { AttendeePostEventService } from './attendee-post-event.service';
     EventInvitationsService,
     AttendeeNetworkingService,
     AttendeePostEventService,
+    OrganizerAnalyticsService,
   ],
-  exports: [EventsService, EventsAccessService],
+  exports: [
+    EventsService,
+    EventsAccessService,
+    OrganizerAnalyticsService,
+    EventOperationsService,
+    EventInvitationsService,
+  ],
 })
 export class EventsModule {}

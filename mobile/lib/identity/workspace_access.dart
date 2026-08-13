@@ -35,7 +35,7 @@ bool _legacyPortalAllows(UserRole requiredRole, AuthSession? session) {
 
 /// Watches identity and returns whether the user can enter [requiredRole]'s workspace.
 final canEnterWorkspaceByRoleProvider = Provider.family<bool, UserRole>((ref, requiredRole) {
-  final identity = ref.watch(userIdentityProvider).value;
+  final identity = ref.watch(userIdentityProvider).valueOrNull;
   final session = ref.watch(authSessionProvider);
   return canEnterWorkspaceExperience(
     requiredRole: requiredRole,

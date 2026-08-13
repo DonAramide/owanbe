@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -26,6 +26,7 @@ export class VendorsController {
     @CurrentUser() user: JwtUser | undefined,
     @Query('q') q?: string,
     @Query('city') city?: string,
+    @Query('service') service?: string,
     @Query('includeNonActive') includeNonActive?: string,
   ) {
     const includeNonActiveCatalog =
@@ -34,7 +35,16 @@ export class VendorsController {
       includeNonActive: includeNonActiveCatalog,
       q,
       city,
+      service,
     });
+  }
+
+  /** Organizer marketplace: all active services for one vendor (with ids for requests). */
+  @Public()
+  @Throttle({ public: { limit: 500, ttl: 60_000 } })
+  @Get(':vendorId/services')
+  async listServices(@TenantId() tenantId: string, @Param('vendorId') vendorId: string) {
+    return this.vendors.listVendorServices(tenantId, vendorId);
   }
 
   @Roles(...VENDOR_CREATE_ROLES)

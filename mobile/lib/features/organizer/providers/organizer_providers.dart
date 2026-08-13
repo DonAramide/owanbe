@@ -5,10 +5,17 @@ library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/api/events_api.dart';
 import '../../../core/api/persistence_providers.dart';
 import '../data/organizer_event_store.dart';
 import '../models/organizer_models.dart';
+
+export '../analytics/organizer_analytics_api.dart' show EventAnalyticsSnapshot;
+export '../analytics/organizer_analytics_providers.dart'
+    show
+        organizerAnalyticsProvider,
+        organizerAnalyticsDaysProvider,
+        organizerAnalyticsPortfolioProvider,
+        invalidateEventAnalytics;
 
 final organizerStoreProvider = Provider<OrganizerEventStore>((ref) => OrganizerEventStore.instance);
 
@@ -46,59 +53,6 @@ final organizerEventProvider = FutureProvider.autoDispose.family<OrganizerEvent?
     if (!allowMockPersistenceFallback()) rethrow;
     return ref.read(organizerStoreProvider).byId(id);
   }
-});
-
-final organizerAnalyticsProvider =
-    FutureProvider.autoDispose.family<EventAnalyticsSnapshot, String>((ref, eventId) async {
-  ref.watch(organizerRevisionProvider);
-  final event = await ref.watch(organizerEventProvider(eventId).future);
-  if (event == null) {
-    return EventAnalyticsSnapshot(
-      eventId: eventId,
-      pageViews: 0,
-      ticketsSold: 0,
-      revenueMinor: 0,
-      checkInRate: 0,
-      registrations: 0,
-      checkIns: 0,
-      noShows: 0,
-      dailySales: const [0, 0, 0, 0, 0, 0, 0],
-      weeklySales: const [0, 0, 0, 0],
-      monthlySales: const [0, 0, 0],
-      salesTrend: const [0, 0, 0, 0, 0, 0, 0],
-      tierBreakdown: const {},
-      tierTypeBreakdown: const {},
-    );
-  }
-  if (allowMockPersistenceFallback()) {
-    try {
-      return ref.read(organizerStoreProvider).analyticsFor(eventId);
-    } catch (_) {}
-  }
-  final sold = event.ticketsSold;
-  final checkIn = event.attendees.isEmpty ? 0.0 : event.checkedInCount / event.attendees.length;
-  final breakdown = {for (final t in event.ticketTiers) t.name: t.capacity - t.remaining};
-  final typeBreakdown = <TicketTierType, int>{};
-  for (final t in event.ticketTiers) {
-    typeBreakdown[t.tierType] = (typeBreakdown[t.tierType] ?? 0) + (t.capacity - t.remaining);
-  }
-  final trend = List.generate(7, (i) => sold == 0 ? 0.0 : sold / 7 * (i + 1));
-  return EventAnalyticsSnapshot(
-    eventId: eventId,
-    pageViews: sold * 3,
-    ticketsSold: sold,
-    revenueMinor: event.revenueMinor,
-    checkInRate: checkIn,
-    registrations: event.attendees.length,
-    checkIns: event.checkedInCount,
-    noShows: event.noShowCount,
-    dailySales: trend,
-    weeklySales: [trend[1], trend[3], trend[5], trend[6]],
-    monthlySales: [sold * 0.4, sold * 0.7, sold.toDouble()],
-    salesTrend: trend,
-    tierBreakdown: breakdown,
-    tierTypeBreakdown: typeBreakdown,
-  );
 });
 
 final organizerAttentionProvider = FutureProvider.autoDispose<List<OrganizerAttentionItem>>((ref) async {
@@ -147,10 +101,15 @@ final organizerDashboardStatsProvider = FutureProvider.autoDispose<OrganizerDash
     return OrganizerDashboardStats(
       activeEvents: (stats['activeEvents'] as num?)?.toInt() ?? 0,
       upcomingEvents: (stats['upcomingEvents'] as num?)?.toInt() ?? 0,
+      draftEvents: (stats['draftEvents'] as num?)?.toInt() ?? 0,
+      liveEvents: (stats['liveEvents'] as num?)?.toInt() ?? 0,
+      completedEvents: (stats['completedEvents'] as num?)?.toInt() ?? 0,
       ticketsSold: (stats['ticketsSold'] as num?)?.toInt() ?? 0,
       revenueMinor: int.tryParse((stats['revenueMinor'] ?? '0').toString()) ?? 0,
       vendorCount: (stats['vendorCount'] as num?)?.toInt() ?? 0,
       attendeeCount: (stats['attendeeCount'] as num?)?.toInt() ?? 0,
+      registrations: (stats['registrations'] as num?)?.toInt() ?? (stats['attendeeCount'] as num?)?.toInt() ?? 0,
+      checkIns: (stats['checkIns'] as num?)?.toInt() ?? 0,
     );
   } catch (e) {
     if (!allowMockPersistenceFallback()) rethrow;
@@ -163,13 +122,21 @@ final organizerDashboardStatsProvider = FutureProvider.autoDispose<OrganizerDash
     final sold = events.fold(0, (sum, e) => sum + e.ticketsSold);
     final vendors = events.fold(0, (sum, e) => sum + e.vendors.length);
     final attendees = events.fold(0, (sum, e) => sum + e.attendees.length);
+    final draft = events.where((e) => e.status == OrganizerEventStatus.draft).length;
+    final live = events.where((e) => e.status == OrganizerEventStatus.live).length;
+    final completed = events.where((e) => e.status == OrganizerEventStatus.completed).length;
     return OrganizerDashboardStats(
       activeEvents: active,
       upcomingEvents: upcoming,
+      draftEvents: draft,
+      liveEvents: live,
+      completedEvents: completed,
       ticketsSold: sold,
       revenueMinor: revenue,
       vendorCount: vendors,
       attendeeCount: attendees,
+      registrations: attendees,
+      checkIns: events.fold(0, (sum, e) => sum + e.checkedInCount),
     );
   }
 });
@@ -178,16 +145,26 @@ class OrganizerDashboardStats {
   const OrganizerDashboardStats({
     required this.activeEvents,
     required this.upcomingEvents,
+    required this.draftEvents,
+    required this.liveEvents,
+    required this.completedEvents,
     required this.ticketsSold,
     required this.revenueMinor,
     required this.vendorCount,
     required this.attendeeCount,
+    required this.registrations,
+    required this.checkIns,
   });
 
   final int activeEvents;
   final int upcomingEvents;
+  final int draftEvents;
+  final int liveEvents;
+  final int completedEvents;
   final int ticketsSold;
   final int revenueMinor;
   final int vendorCount;
   final int attendeeCount;
+  final int registrations;
+  final int checkIns;
 }

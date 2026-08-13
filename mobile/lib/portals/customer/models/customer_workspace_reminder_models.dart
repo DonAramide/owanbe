@@ -101,7 +101,7 @@ List<CustomerWorkspaceReminder> buildCustomerWorkspaceReminders(EventCommandCent
       CustomerWorkspaceReminder(
         kind: CustomerWorkspaceReminderKind.vendor,
         headline: '${openDeals.length} vendor deal${openDeals.length == 1 ? '' : 's'} still open',
-        detail: '$names$suffix — follow up or counter-offer to lock them in.',
+        detail: '$names$suffix — follow up to confirm vendor acceptance.',
         severity: CustomerWorkspaceReminderSeverity.warning,
         actionTabKey: 'vendors',
         actionLabel: 'Review vendors',
