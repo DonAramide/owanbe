@@ -43,8 +43,13 @@ export class VendorsController {
   @Public()
   @Throttle({ public: { limit: 500, ttl: 60_000 } })
   @Get(':vendorId/services')
-  async listServices(@TenantId() tenantId: string, @Param('vendorId') vendorId: string) {
-    return this.vendors.listVendorServices(tenantId, vendorId);
+  async listServices(
+    @TenantId() tenantId: string,
+    @Param('vendorId') vendorId: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.vendors.listVendorServices(tenantId, vendorId, { from, to });
   }
 
   @Roles(...VENDOR_CREATE_ROLES)

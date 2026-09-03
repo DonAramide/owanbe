@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../eos/eos.dart';
+import '../../../core/providers/silent_refresh.dart';
 import '../finance/finance_status_chip.dart';
 
 class AdminTopBar extends StatelessWidget {
@@ -47,7 +48,7 @@ class AdminTopBar extends StatelessWidget {
         if (!compact) ...[
           _EnvironmentBadge(label: environmentLabel),
           SizedBox(width: context.eos.spacing.sm),
-          financeState.when(
+          financeState.whenStable(
             data: (state) => Row(
               mainAxisSize: MainAxisSize.min,
               children: [

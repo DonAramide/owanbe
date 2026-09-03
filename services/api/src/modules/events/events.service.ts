@@ -31,6 +31,7 @@ export interface EventView {
   isFeatured: boolean;
   organizerId: string;
   createdAt: string;
+  updatedAt?: string;
   publishedAt: string | null;
   eventAccessMode: string;
   budgetMinor: string | null;
@@ -100,6 +101,7 @@ export class EventsService {
     ends_at: Date | null;
     metadata: Record<string, unknown>;
     created_at: Date;
+    updated_at?: Date;
   }): EventView {
     const m = row.metadata ?? {};
     return {
@@ -124,6 +126,7 @@ export class EventsService {
       isFeatured: m.isFeatured === true,
       organizerId: row.organizer_id,
       createdAt: row.created_at.toISOString(),
+      updatedAt: (row.updated_at ?? row.created_at).toISOString(),
       publishedAt: m.publishedAt ? String(m.publishedAt) : null,
       eventAccessMode: String(m.eventAccessMode ?? 'PRIVATE_INVITATION'),
       budgetMinor: m.budgetMinor != null ? String(m.budgetMinor) : null,
@@ -288,11 +291,15 @@ export class EventsService {
   async getForOrganizer(actor: CommerceActor, eventKey: string): Promise<EventView> {
     await this.access.assertOrganizerOwnsEvent(actor.tenantId, actor.userId, eventKey);
     const row = await this.access.resolveEventRow(actor.tenantId, eventKey);
-    const { rows } = await this.pool.query<{ created_at: Date }>(
-      `SELECT created_at FROM events WHERE id = $1`,
+    const { rows } = await this.pool.query<{ created_at: Date; updated_at: Date }>(
+      `SELECT created_at, updated_at FROM events WHERE id = $1`,
       [row.id],
     );
-    const view = this.mapEvent({ ...row, created_at: rows[0]?.created_at ?? new Date() });
+    const view = this.mapEvent({
+      ...row,
+      created_at: rows[0]?.created_at ?? new Date(),
+      updated_at: rows[0]?.updated_at,
+    });
     view.ticketTiers = await this.loadTiersForEvent(actor.tenantId, row.id, { includeArchived: true });
     await this.attachOrganizerSalesSnapshot(actor.tenantId, view);
     return view;
@@ -428,7 +435,18 @@ export class EventsService {
       });
     }
     const metadata = { ...event.metadata, ...this.buildMetadata(body) };
+    if (body.title != null && !String(body.title).trim()) {
+      throw new UnprocessableEntityException({ code: 'INVALID_TITLE', message: 'Title required' });
+    }
     const title = body.title != null ? String(body.title).trim() : event.title;
+    const nextStarts = body.startsAt ? new Date(String(body.startsAt)) : event.starts_at;
+    const nextEnds = body.endsAt ? new Date(String(body.endsAt)) : event.ends_at;
+    if (nextEnds && nextStarts && nextEnds < nextStarts) {
+      throw new UnprocessableEntityException({
+        code: 'INVALID_SCHEDULE',
+        message: 'End time must be on or after start time',
+      });
+    }
     await this.pool.query(
       `UPDATE events
        SET title = $3,

@@ -301,7 +301,7 @@ abstract final class EventModuleRegistry {
       icon: Icons.settings_outlined,
       category: EventModuleCategory.administration,
       visible: (_) => true,
-      onOpen: (c, id) => c.eventNav.openOverview(id),
+      onOpen: (c, id) => c.eventNav.openEventEdit(id),
     ),
   ];
 
@@ -386,7 +386,7 @@ abstract final class EventModuleRegistry {
       case 'analytics':
         nav.openOverview(eventId);
       case 'settings':
-        return;
+        nav.openEventEdit(eventId);
       default:
         return;
     }

@@ -1,0 +1,15 @@
+# Admin Flutter — Cloudflare development tunnel (OPTIONAL).
+# Default local development uses assets/env/owanbe_config.admin with:
+#   OWANBE_API_BASE=http://127.0.0.1:8080/v1
+#
+# Use this ONLY when the Cloudflare tunnel + DNS are available
+# (https://admin-dev.owanbe.com). Do not copy this over owanbe_config.admin
+# for normal `flutter run -t lib/main_admin.dart --web-port=59158` local work.
+#
+# To opt in: set OWANBE_API_BASE in assets/env/owanbe_config.admin to the
+# value below, then hot restart / re-run Admin. Restore the local
+# URL when returning to localhost-only development.
+#
+# See docs/DEV_TUNNEL_SETUP.md.
+
+OWANBE_API_BASE=https://admin-dev.owanbe.com/v1

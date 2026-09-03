@@ -3,9 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../eos/eos.dart';
 import '../../../profile/profile.dart';
+import '../../../shared/widgets/unsaved_changes.dart';
 import '../models/vendor_models.dart';
 import '../models/vendor_workspace_profile.dart';
 import '../providers/vendor_profile_providers.dart';
+import '../widgets/vendor_business_offerings_editor.dart';
+import '../widgets/vendor_service_capability_editor.dart';
 
 const _kServiceOptions = <String>[
   'Full-service packages',
@@ -60,7 +63,11 @@ class VendorProfileEditSheet extends ConsumerStatefulWidget {
 
 class _VendorProfileEditSheetState extends ConsumerState<VendorProfileEditSheet> {
   final _formKey = GlobalKey<FormState>();
+  final _capsKey = GlobalKey<VendorServiceCapabilityEditorState>();
+  final _offeringsKey = GlobalKey<VendorBusinessOfferingsEditorState>();
   final _edit = ProfileEditController();
+  var _capsDirty = false;
+  var _offeringsDirty = false;
 
   late final TextEditingController _businessName;
   late final TextEditingController _subcategory;
@@ -88,6 +95,7 @@ class _VendorProfileEditSheetState extends ConsumerState<VendorProfileEditSheet>
   bool _availableForBookings = true;
   Set<String> _services = {};
   Set<String> _areas = {};
+  List<VendorServiceEntity> _serviceEntities = const [];
   List<String> _portfolioImages = [];
   List<String> _portfolioVideos = [];
   List<VendorVerificationDocument> _documents = [];
@@ -163,6 +171,7 @@ class _VendorProfileEditSheetState extends ConsumerState<VendorProfileEditSheet>
     _advanceNotice = p.advanceBookingNotice;
     _availableForBookings = p.availableForBookings;
     _services = {...p.servicesOffered};
+    _serviceEntities = List.of(p.services);
     _areas = {...p.serviceAreas};
     _portfolioImages = List.of(p.portfolioImages);
     _portfolioVideos = List.of(p.portfolioVideos);
@@ -260,7 +269,11 @@ class _VendorProfileEditSheetState extends ConsumerState<VendorProfileEditSheet>
               subcategory: _subcategory.text.trim(),
               yearsOfExperience: years,
               businessDescription: _description.text.trim(),
-              servicesOffered: _services.toList()..sort(),
+              servicesOffered: {
+                ..._services,
+                ..._serviceEntities.map((s) => s.serviceName),
+              }.toList()
+                ..sort(),
               serviceAreas: _areas.toList()..sort(),
               portfolioImages: _portfolioImages,
               portfolioVideos: _portfolioVideos,
@@ -293,10 +306,40 @@ class _VendorProfileEditSheetState extends ConsumerState<VendorProfileEditSheet>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(_edit.successMessage ?? 'Vendor profile updated')),
     );
+    if (_offeringsKey.currentState?.hasUnsavedChanges == true || _offeringsDirty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Save your Business Type & Offerings changes, or discard them.')),
+      );
+      return;
+    }
+    if (_capsKey.currentState?.hasUnsavedChanges == true || _capsDirty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Save your service capability changes, or discard them.')),
+      );
+      return;
+    }
     Navigator.of(context).pop();
   }
 
   Future<void> _cancel() async {
+    if (_offeringsKey.currentState?.hasUnsavedChanges == true || _offeringsDirty) {
+      final discard = await confirmDiscardUnsavedChanges(context);
+      if (!discard || !mounted) return;
+      _offeringsKey.currentState?.discardLocalChanges();
+      setState(() => _offeringsDirty = false);
+      await WidgetsBinding.instance.endOfFrame;
+      if (mounted) Navigator.of(context).pop();
+      return;
+    }
+    if (_capsKey.currentState?.hasUnsavedChanges == true || _capsDirty) {
+      final discard = await confirmDiscardUnsavedChanges(context);
+      if (!discard || !mounted) return;
+      _capsKey.currentState?.discardLocalChanges();
+      setState(() => _capsDirty = false);
+      await WidgetsBinding.instance.endOfFrame;
+      if (mounted) Navigator.of(context).pop();
+      return;
+    }
     final discard = await _edit.confirmDiscardIfDirty(
       () => showDiscardChangesDialog(context),
     );
@@ -409,7 +452,13 @@ class _VendorProfileEditSheetState extends ConsumerState<VendorProfileEditSheet>
         return ListenableBuilder(
           listenable: _edit,
           builder: (context, _) {
-            return ProfileEditLayout(
+            return PopScope(
+              canPop: !_capsDirty && !_offeringsDirty,
+              onPopInvokedWithResult: (didPop, _) async {
+                if (didPop) return;
+                await _cancel();
+              },
+              child: ProfileEditLayout(
               title: 'Edit Vendor Profile',
               subtitle: 'Business details for the Vendor workspace only.',
               controller: _edit,
@@ -495,8 +544,30 @@ class _VendorProfileEditSheetState extends ConsumerState<VendorProfileEditSheet>
                   validator: (v) => ProfileValidators.optionalMaxLength(v, 2000),
                 ),
                 SizedBox(height: context.eos.spacing.lg),
+                VendorBusinessOfferingsEditor(
+                  key: _offeringsKey,
+                  profile: profile,
+                  onDirtyChanged: (dirty) {
+                    if (mounted) setState(() => _offeringsDirty = dirty);
+                  },
+                ),
+                SizedBox(height: context.eos.spacing.lg),
+                Text('Configure Availability', style: context.eosText.titleSmall),
+                SizedBox(height: context.eos.spacing.xs),
+                Text(
+                  'For each bookable service, set request availability and included catalogue items.',
+                  style: context.eosText.bodySmall,
+                ),
+                SizedBox(height: context.eos.spacing.sm),
+                VendorServiceCapabilityEditor(
+                  key: _capsKey,
+                  onDirtyChanged: (dirty) {
+                    if (mounted) setState(() => _capsDirty = dirty);
+                  },
+                ),
+                SizedBox(height: context.eos.spacing.md),
                 ProfileChipSelector(
-                  title: 'Services offered',
+                  title: 'Additional service labels',
                   options: _kServiceOptions,
                   selected: _services,
                   enabled: !saving,
@@ -738,6 +809,7 @@ class _VendorProfileEditSheetState extends ConsumerState<VendorProfileEditSheet>
                   ),
                 ),
               ],
+              ),
             );
           },
         );

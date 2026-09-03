@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../eos/eos.dart';
+import '../../../../portals/customer/router/event_route_registry.dart';
 import '../../../../shared/models/event_access_mode.dart';
 import '../../data/organizer_persistence.dart';
 import '../../models/organizer_models.dart';
@@ -33,7 +34,7 @@ class SettingsTabV3 extends ConsumerWidget {
                 icon: Icons.celebration_outlined,
                 title: 'Event details',
                 subtitle: '${event.title} · ${event.category}',
-                onTap: () {},
+                onTap: () => context.push(EventRouteRegistry.eventEdit(eventId)),
               ),
               _SettingsTile(
                 icon: Icons.palette_outlined,

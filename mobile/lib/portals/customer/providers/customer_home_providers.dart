@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/auth_notifier.dart';
 import '../../../core/api/persistence_providers.dart';
 import '../../../core/api/vendors_api.dart';
+import '../../../core/providers/silent_refresh.dart';
 import '../../../features/vendor/vendor_identity.dart';
 import '../../../features/public/providers/public_providers.dart';
 import '../../../features/public/providers/ticket_commerce_providers.dart';
@@ -23,7 +24,7 @@ final customerOwnedEventsProvider = FutureProvider.autoDispose<List<CustomerEven
 
 final customerTicketInvitationsProvider = FutureProvider.autoDispose<List<CustomerInvitationCard>>((ref) async {
   ref.watch(customerHomeRefreshProvider);
-  final session = ref.watch(authSessionProvider);
+  final session = ref.watchSignedInUser();
   if (session == null) return const [];
 
   try {

@@ -156,6 +156,8 @@ class VendorServiceEntity {
     required this.serviceName,
     this.serviceCode,
     this.status = 'active',
+    this.capabilities = const [],
+    this.customExtras = const [],
   });
 
   final String id;
@@ -163,6 +165,10 @@ class VendorServiceEntity {
   final String serviceName;
   final String? serviceCode;
   final String status;
+  final List<VendorServiceCapability> capabilities;
+  final List<VendorCustomExtra> customExtras;
+
+  bool get isOffered => status == 'active';
 
   factory VendorServiceEntity.fromJson(Map<String, dynamic> json) {
     return VendorServiceEntity(
@@ -171,7 +177,109 @@ class VendorServiceEntity {
       serviceName: json['serviceName'] as String? ?? '',
       serviceCode: json['serviceCode'] as String?,
       status: json['status'] as String? ?? 'active',
+      capabilities: (json['capabilities'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map((e) => VendorServiceCapability.fromJson(Map<String, dynamic>.from(e)))
+          .where((c) => c.key.isNotEmpty)
+          .toList(),
+      customExtras: (json['customExtras'] as List<dynamic>? ??
+              json['custom_extras'] as List<dynamic>? ??
+              const [])
+          .whereType<Map>()
+          .map((e) => VendorCustomExtra.fromJson(Map<String, dynamic>.from(e)))
+          .where((e) => e.name.isNotEmpty)
+          .toList(),
     );
+  }
+}
+
+class VendorCustomExtra {
+  const VendorCustomExtra({
+    required this.id,
+    required this.name,
+    this.description,
+    this.priceMinor,
+    this.currency = 'NGN',
+    this.active = true,
+    this.isPublic = true,
+  });
+
+  final String id;
+  final String name;
+  final String? description;
+  final int? priceMinor;
+  final String currency;
+  final bool active;
+  final bool isPublic;
+
+  factory VendorCustomExtra.fromJson(Map<String, dynamic> json) {
+    return VendorCustomExtra(
+      id: (json['id'] ?? '').toString(),
+      name: (json['name'] ?? json['label'] ?? '').toString(),
+      description: json['description']?.toString(),
+      priceMinor: (json['priceMinor'] as num?)?.toInt() ?? (json['price_minor'] as num?)?.toInt(),
+      currency: (json['currency'] ?? 'NGN').toString(),
+      active: json['active'] != false,
+      isPublic: json['isPublic'] != false && json['is_public'] != false,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        if (description != null) 'description': description,
+        if (priceMinor != null) 'priceMinor': priceMinor,
+        'currency': currency,
+        'active': active,
+        'isPublic': isPublic,
+      };
+
+  VendorCustomExtra copyWith({
+    String? name,
+    String? description,
+    int? priceMinor,
+    bool? active,
+    bool? isPublic,
+  }) {
+    return VendorCustomExtra(
+      id: id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      priceMinor: priceMinor ?? this.priceMinor,
+      currency: currency,
+      active: active ?? this.active,
+      isPublic: isPublic ?? this.isPublic,
+    );
+  }
+}
+
+class VendorServiceCapability {
+  const VendorServiceCapability({
+    required this.key,
+    required this.label,
+    this.provided = false,
+  });
+
+  final String key;
+  final String label;
+  final bool provided;
+
+  factory VendorServiceCapability.fromJson(Map<String, dynamic> json) {
+    return VendorServiceCapability(
+      key: (json['key'] ?? '').toString(),
+      label: (json['label'] ?? json['key'] ?? '').toString(),
+      provided: json['provided'] == true,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'key': key,
+        'label': label,
+        'provided': provided,
+      };
+
+  VendorServiceCapability copyWith({bool? provided}) {
+    return VendorServiceCapability(key: key, label: label, provided: provided ?? this.provided);
   }
 }
 

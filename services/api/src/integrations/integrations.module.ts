@@ -8,6 +8,8 @@ import { StorageService } from './storage/storage.service';
 import { MediaController } from './storage/media.controller';
 import { RealtimeBroadcastService } from './realtime/realtime-broadcast.service';
 import { EventFeedStreamController } from './realtime/event-feed-sse.controller';
+import { CrmRealtimeBroadcastService } from './realtime/crm-realtime-broadcast.service';
+import { CrmRealtimeSseController } from './realtime/crm-realtime-sse.controller';
 import { MetricsService } from './observability/metrics.service';
 import { MetricsController } from './observability/metrics.controller';
 import { HealthDetailService } from './observability/health-detail.service';
@@ -29,6 +31,7 @@ import { OrganizerIntegrationsController } from './hub/organizer-integrations.co
   controllers: [
     MediaController,
     EventFeedStreamController,
+    CrmRealtimeSseController,
     MetricsController,
     EmailInfrastructureController,
     IntegrationHubController,
@@ -44,6 +47,7 @@ import { OrganizerIntegrationsController } from './hub/organizer-integrations.co
     NotificationService,
     StorageService,
     RealtimeBroadcastService,
+    CrmRealtimeBroadcastService,
     MetricsService,
     HealthDetailService,
     SupabaseAdminService,
@@ -59,6 +63,7 @@ import { OrganizerIntegrationsController } from './hub/organizer-integrations.co
     NotificationService,
     StorageService,
     RealtimeBroadcastService,
+    CrmRealtimeBroadcastService,
     MetricsService,
     HealthDetailService,
     SupabaseAdminService,

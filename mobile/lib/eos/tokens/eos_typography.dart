@@ -1,11 +1,14 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'eos_colors.dart';
 
 /// EOS typography scale — swap [fontFamily] when custom fonts are bundled.
 abstract final class EosTypography {
-  static const String fontFamily = 'Roboto';
-  static const List<String> fontFamilyFallback = ['Segoe UI', 'Helvetica Neue', 'Arial'];
+  /// Web: avoid fetching Roboto from fonts.gstatic.com (breaks offline / restricted networks).
+  static String? get fontFamily => kIsWeb ? null : 'Roboto';
+  static List<String> get fontFamilyFallback =>
+      kIsWeb ? const ['Segoe UI', 'system-ui', 'Helvetica Neue', 'Arial', 'sans-serif'] : const ['Segoe UI', 'Helvetica Neue', 'Arial'];
 
   static TextTheme textTheme(ColorScheme scheme) {
     TextStyle base({

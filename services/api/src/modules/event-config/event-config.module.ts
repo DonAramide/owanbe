@@ -5,11 +5,12 @@ import { EventsModule } from '../events/events.module';
 import { EventConfigController, AdminEventConfigController } from './event-config.controller';
 import { EventConfigService } from './event-config.service';
 import { VendorNegotiationsService } from './vendor-negotiations.service';
+import { VendorTaxonomyService } from './vendor-taxonomy.service';
 
 @Module({
   imports: [DatabaseModule, CommerceModule, EventsModule],
   controllers: [EventConfigController, AdminEventConfigController],
-  providers: [EventConfigService, VendorNegotiationsService],
-  exports: [EventConfigService],
+  providers: [EventConfigService, VendorNegotiationsService, VendorTaxonomyService],
+  exports: [EventConfigService, VendorTaxonomyService],
 })
 export class EventConfigModule {}

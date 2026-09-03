@@ -532,8 +532,7 @@ class _CommerceConfigurationPanel extends StatelessWidget {
         Text('Commerce Configuration', style: context.eosText.titleMedium),
         const SizedBox(height: 8),
         Text(
-          'Platform commerce controls. Vendor Pricing opens the existing Platform Admin editor — '
-          'single source of truth (no duplicate screens).',
+          'Platform commerce controls. Pricing, service categories, and vendor capability catalogues.',
           style: context.eosText.bodySmall,
         ),
         const SizedBox(height: 16),
@@ -557,6 +556,56 @@ class _CommerceConfigurationPanel extends StatelessWidget {
                 onPressed: () => context.push('/super-admin/commerce/vendor-pricing'),
                 icon: const Icon(Icons.percent),
                 label: const Text('Open Vendor Pricing'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        EosSurfaceCard(
+          elevated: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Vendor Capabilities',
+                style: context.eosText.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Admin catalogue for DJ, Photography, Catering, and other service categories. '
+                'Does not change pricing or historical requests.',
+                style: context.eosText.bodyMedium,
+              ),
+              const SizedBox(height: 12),
+              FilledButton.tonalIcon(
+                onPressed: () => context.push('/super-admin/commerce/vendor-capabilities'),
+                icon: const Icon(Icons.checklist_outlined),
+                label: const Text('Open Vendor Capabilities'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        EosSurfaceCard(
+          elevated: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Vendor Configuration',
+                style: context.eosText.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Service Provider / Rental Provider definitions, service and rental categories, '
+                'and the master resource catalogue.',
+                style: context.eosText.bodyMedium,
+              ),
+              const SizedBox(height: 12),
+              FilledButton.tonalIcon(
+                onPressed: () => context.push('/super-admin/commerce/vendor-configuration'),
+                icon: const Icon(Icons.tune_outlined),
+                label: const Text('Open Vendor Configuration'),
               ),
             ],
           ),

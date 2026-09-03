@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/persistence_providers.dart';
 import '../../../core/api/vendors_api.dart';
+import '../../../core/providers/silent_refresh.dart';
 import '../models/marketplace_filters.dart';
 import '../models/marketplace_models.dart';
 import '../models/vendor_crm_models.dart';
@@ -13,17 +14,18 @@ final marketplaceVendorsProvider = FutureProvider.autoDispose<List<MarketplaceVe
   ref.watch(customerHomeRefreshProvider);
   final filters = ref.watch(marketplaceFiltersProvider);
 
+  final query = filters.query.trim();
   List<MarketplaceVendor> vendors;
   try {
     vendors = await ref.read(vendorsApiProvider).listCatalog(
-          query: filters.query.trim().isEmpty ? null : filters.query.trim(),
+          query: query.isEmpty ? null : query,
           city: filters.city.trim().isEmpty ? null : filters.city.trim(),
           service: filters.serviceCategory == 'All' ? null : filters.serviceCategory,
         );
-    if (vendors.isEmpty) {
-      vendors = await ref.read(customerMarketplaceVendorsProvider.future);
-    }
   } catch (_) {
+    // Never substitute the unfiltered catalog for a failed search — that
+    // re-introduces identity leaks via client-side slug/seed-name matches.
+    if (query.isNotEmpty) rethrow;
     vendors = await ref.read(customerMarketplaceVendorsProvider.future);
   }
 
@@ -76,14 +78,10 @@ final eventBookedVendorRequestsProvider =
 final marketplaceFilteredVendorsProvider = Provider.autoDispose<List<MarketplaceVendor>>((ref) {
   final filters = ref.watch(marketplaceFiltersProvider);
   final vendors = ref.watch(marketplaceVendorsProvider);
-  return vendors.when(
-    data: (list) {
-      final activeVendors = list.where((v) => v.id != 'vend_3' && v.id != 'suspended_v').toList();
-      return applyMarketplaceFilters(activeVendors, filters);
-    },
-    loading: () => const [],
-    error: (_, _) => const [],
-  );
+  final list = vendors.valueOrNull;
+  if (list == null) return const [];
+  final activeVendors = list.where((v) => v.id != 'vend_3' && v.id != 'suspended_v').toList();
+  return applyMarketplaceFilters(activeVendors, filters);
 });
 
 /// Discovery list for an optional event: category filters applied; only the
@@ -152,6 +150,8 @@ final marketplaceCitiesProvider = Provider.autoDispose<List<String>>((ref) {
 
 final marketplaceVendorProfileProvider =
     FutureProvider.autoDispose.family<VendorProfile, String>((ref, vendorId) async {
+  // Soft-poll capabilities / services while profile stays open (no shell rebuild).
+  refreshOnAsyncTick(ref, vendorCrmLiveTickProvider);
   MarketplaceVendor? vendor;
   try {
     vendor = await ref.read(vendorsApiProvider).getVendor(vendorId);
@@ -201,4 +201,33 @@ final marketplaceVendorServicesProvider =
   } catch (_) {
     return const [];
   }
+});
+
+/// Organizer-visible services with availability for the locked event window.
+final marketplaceVendorServicesForEventProvider = FutureProvider.autoDispose
+    .family<List<MarketplaceVendorService>, ({String vendorId, String eventId})>((ref, key) async {
+  refreshOnAsyncTick(ref, vendorCrmLiveTickProvider);
+  DateTime? from;
+  DateTime? to;
+  if (key.eventId.isNotEmpty) {
+    try {
+      final event = await ref.watch(customerEventProvider(key.eventId).future);
+      from = event?.startsAt;
+      to = event?.endsAt;
+    } catch (_) {
+      // Event lookup is best-effort; services still list without a date window.
+    }
+  }
+  return ref.read(vendorsApiProvider).listVendorServices(key.vendorId, from: from, to: to);
+});
+
+/// Occupancy browser for one vendor over a display range (one request, not per day).
+final marketplaceVendorServicesForRangeProvider = FutureProvider.autoDispose
+    .family<List<MarketplaceVendorService>, ({String vendorId, String from, String to})>((ref, key) async {
+  refreshOnAsyncTick(ref, vendorCrmLiveTickProvider);
+  return ref.read(vendorsApiProvider).listVendorServices(
+        key.vendorId,
+        from: DateTime.parse(key.from),
+        to: DateTime.parse(key.to),
+      );
 });

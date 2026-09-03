@@ -7,6 +7,7 @@ import '../providers/customer_event_command_providers.dart';
 import '../providers/customer_event_providers.dart';
 import '../providers/customer_guest_providers.dart';
 import '../providers/vendor_crm_providers.dart';
+import '../../../core/providers/silent_refresh.dart';
 import 'event_planning_models.dart';
 
 /// Aggregated planning workspace — orchestrates existing modules, no duplicate logic.
@@ -21,7 +22,8 @@ final eventPlanningWorkspaceProvider =
 
   VendorCrmSnapshot? crm;
   try {
-    crm = await ref.watch(eventVendorCrmProvider(eventId).future);
+    refreshWhenDataChanges(ref, eventVendorCrmProvider(eventId));
+    crm = await ref.read(eventVendorCrmProvider(eventId).future);
   } catch (_) {
     crm = null;
   }

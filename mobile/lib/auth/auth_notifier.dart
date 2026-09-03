@@ -96,8 +96,19 @@ class AuthNotifier extends Notifier<AuthSession?> {
 
       if (event.event == AuthChangeEvent.initialSession ||
           event.event == AuthChangeEvent.tokenRefreshed) {
-        state = _sessionFromSupabase(session);
-        // API identity sync is owned by [userIdentityProvider] — do not fetch /auth/me here.
+        final incoming = _sessionFromSupabase(session);
+        if (!shouldReplaceAuthSessionForSupabaseEvent(
+          isTokenRefresh: event.event == AuthChangeEvent.tokenRefreshed,
+          isInitialSession: event.event == AuthChangeEvent.initialSession,
+          currentUserId: state?.userId,
+          incomingUserId: incoming.userId,
+        )) {
+          if (kDebugMode && event.event == AuthChangeEvent.tokenRefreshed) {
+            debugPrint('Auth: tokenRefreshed isolated from UI (userId=${state?.userId})');
+          }
+          return;
+        }
+        state = incoming;
         return;
       }
     });

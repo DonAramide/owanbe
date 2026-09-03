@@ -19,31 +19,214 @@ class VendorsApiException implements Exception {
 }
 
 /// First-class bookable offering from `vendor_services` (+ optional package price).
+class ServiceCapability {
+  const ServiceCapability({required this.key, required this.label, this.provided = true, this.enabled = true});
+
+  final String key;
+  final String label;
+  final bool provided;
+  final bool enabled;
+
+  factory ServiceCapability.fromJson(Map<String, dynamic> json) {
+    return ServiceCapability(
+      key: (json['key'] ?? json['id'] ?? '').toString(),
+      label: (json['label'] ?? json['name'] ?? json['key'] ?? '').toString(),
+      provided: json['provided'] == true,
+      enabled: json['enabled'] != false,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'key': key,
+        'label': label,
+        if (provided) 'provided': provided,
+      };
+}
+
+class BookedRange {
+  const BookedRange({required this.startsAt, required this.endsAt, this.kind});
+
+  final DateTime startsAt;
+  final DateTime endsAt;
+  final String? kind;
+
+  factory BookedRange.fromJson(Map<String, dynamic> json) {
+    return BookedRange(
+      startsAt: DateTime.parse(json['startsAt'] as String).toLocal(),
+      endsAt: DateTime.parse(json['endsAt'] as String).toLocal(),
+      kind: json['kind']?.toString(),
+    );
+  }
+}
+
+String formatServiceAvailability(String? status) {
+  switch ((status ?? '').toUpperCase()) {
+    case 'BOOKED':
+      return 'BOOKED';
+    case 'CONFLICTING':
+      return 'CONFLICTING';
+    case 'UNAVAILABLE':
+      return 'UNAVAILABLE';
+    case 'AVAILABLE':
+      return 'AVAILABLE';
+    default:
+      return status ?? '';
+  }
+}
+
+/// True when the organizer should not send a new request for this window.
+bool serviceWindowBlocksNewRequest(String? status) {
+  final s = (status ?? '').toUpperCase();
+  return s == 'BOOKED' || s == 'CONFLICTING' || s == 'UNAVAILABLE';
+}
+
+/// True when the service offer itself is not bookable (inactive / missing).
+bool serviceOfferInactive(String? offerStatus) {
+  final s = (offerStatus ?? '').toLowerCase().trim();
+  return s.isNotEmpty && s != 'active';
+}
+
+const _shortMonths = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+const _longMonths = [
+  'JANUARY',
+  'FEBRUARY',
+  'MARCH',
+  'APRIL',
+  'MAY',
+  'JUNE',
+  'JULY',
+  'AUGUST',
+  'SEPTEMBER',
+  'OCTOBER',
+  'NOVEMBER',
+  'DECEMBER',
+];
+
+String _twoDigits(int n) => n.toString().padLeft(2, '0');
+
+String formatClock(DateTime d) {
+  final local = d.toLocal();
+  return '${_twoDigits(local.hour)}:${_twoDigits(local.minute)}';
+}
+
+String formatLongDate(DateTime d) {
+  final local = d.toLocal();
+  return '${local.day} ${_shortMonths[local.month - 1]} ${local.year}';
+}
+
+String formatTimeRange(DateTime start, DateTime? end) {
+  if (end == null) return formatClock(start);
+  return '${formatClock(start)} – ${formatClock(end)}';
+}
+
+/// Date plus clock window. Display-only — does not classify availability.
+String formatDateTimeWindow(DateTime start, DateTime? end) {
+  if (end == null) return '${formatLongDate(start)} · ${formatClock(start)}';
+  final a = start.toLocal();
+  final b = end.toLocal();
+  if (a.year == b.year && a.month == b.month && a.day == b.day) {
+    return '${formatLongDate(a)} · ${formatTimeRange(a, b)}';
+  }
+  return '${formatLongDate(a)} ${formatClock(a)} – ${formatLongDate(b)} ${formatClock(b)}';
+}
+
+String formatMonthHeading(DateTime d) {
+  final local = d.toLocal();
+  return '${_longMonths[local.month - 1]} ${local.year}';
+}
+
+String formatDayHeading(DateTime d) {
+  final local = d.toLocal();
+  return '${local.day} ${_longMonths[local.month - 1]}';
+}
+
+String formatDateWindow(DateTime start, DateTime? end) {
+  String fmt(DateTime d) {
+    final local = d.toLocal();
+    return '${local.day} ${_shortMonths[local.month - 1]}';
+  }
+
+  if (end == null) return fmt(start);
+  final a = start.toLocal();
+  final b = end.toLocal();
+  if (a.year == b.year && a.month == b.month && a.day == b.day) return fmt(a);
+  return '${fmt(a)}–${fmt(b)}';
+}
+
+/// Presentation of server CONFLICTING status + bookedRanges. No overlap math.
+String? availabilityConflictExplanation(String? status, List<BookedRange> ranges) {
+  if ((status ?? '').toUpperCase() != 'CONFLICTING' || ranges.isEmpty) return null;
+  final first = ranges.first;
+  return 'Vendor is already booked from ${formatTimeRange(first.startsAt, first.endsAt)}.';
+}
+
 class MarketplaceVendorService {
   const MarketplaceVendorService({
     required this.id,
     required this.serviceKey,
     required this.serviceName,
+    this.serviceCode,
     this.description,
     this.priceFromMinor,
     this.currency,
+    this.offerStatus = 'active',
+    this.availabilityStatus,
+    this.bookedRanges = const [],
+    this.unavailableRanges = const [],
+    this.capabilities = const [],
   });
 
   final String id;
   final String serviceKey;
   final String serviceName;
+  final String? serviceCode;
   final String? description;
   final int? priceFromMinor;
   final String? currency;
+  final String offerStatus;
+  final String? availabilityStatus;
+  final List<BookedRange> bookedRanges;
+  final List<BookedRange> unavailableRanges;
+  final List<ServiceCapability> capabilities;
 
   factory MarketplaceVendorService.fromJson(Map<String, dynamic> json) {
     return MarketplaceVendorService(
       id: (json['id'] ?? '').toString(),
       serviceKey: (json['serviceKey'] ?? json['service_key'] ?? '').toString(),
       serviceName: (json['serviceName'] ?? json['service_name'] ?? '').toString(),
+      serviceCode: json['serviceCode']?.toString() ?? json['service_code']?.toString(),
       description: json['description']?.toString(),
       priceFromMinor: (json['priceFromMinor'] as num?)?.toInt(),
       currency: json['currency']?.toString() ?? 'NGN',
+      offerStatus: (json['offerStatus'] ?? json['status'] ?? 'active').toString(),
+      availabilityStatus: json['availabilityStatus']?.toString(),
+      bookedRanges: (json['bookedRanges'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map((e) => BookedRange.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
+      unavailableRanges: (json['unavailableRanges'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map((e) => BookedRange.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
+      capabilities: (json['capabilities'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map((e) => ServiceCapability.fromJson(Map<String, dynamic>.from(e)))
+          .where((c) => c.key.isNotEmpty)
+          .toList(),
     );
   }
 
@@ -53,12 +236,20 @@ class MarketplaceVendorService {
     final name = serviceName.toLowerCase();
     final key = serviceKey.toLowerCase();
     final keyNeedle = needle.replaceAll(RegExp(r'[^a-z0-9]+'), '_');
-    return name == needle ||
+    if (name == needle ||
         name.contains(needle) ||
         needle.contains(name) ||
         key == keyNeedle ||
         key.contains(keyNeedle) ||
-        keyNeedle.contains(key);
+        keyNeedle.contains(key)) {
+      return true;
+    }
+    for (final c in capabilities) {
+      if (c.label.toLowerCase().contains(needle) || c.key.toLowerCase().contains(keyNeedle)) {
+        return true;
+      }
+    }
+    return false;
   }
 }
 
@@ -266,6 +457,34 @@ class MarketplaceVendor {
     if (fashionSubcategory != null && fashionSubcategory!.toLowerCase() == needle) return true;
     return categoryLabel.toLowerCase().contains(needle);
   }
+
+  bool matchesSearchQuery(String rawQuery) {
+    final q = rawQuery.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    // Public vendor marketplace fields only — never slug/account-holder identity.
+    if (businessName.toLowerCase().contains(q)) return true;
+    if (categoryLabel.toLowerCase().contains(q)) return true;
+    if ((city ?? '').toLowerCase().contains(q)) return true;
+    if ((countryCode ?? '').toLowerCase().contains(q)) return true;
+    if ((description ?? '').toLowerCase().contains(q)) return true;
+    if (id.toLowerCase().contains(q)) return true;
+    if ((category ?? '').toLowerCase().contains(q)) return true;
+    if ((fashionSubcategory ?? '').toLowerCase().contains(q)) return true;
+    if ((rentalSubcategory ?? '').toLowerCase().contains(q)) return true;
+    for (final s in servicesOffered) {
+      if (s.toLowerCase().contains(q)) return true;
+    }
+    for (final s in services) {
+      if (s.serviceName.toLowerCase().contains(q)) return true;
+      if (s.serviceKey.toLowerCase().contains(q)) return true;
+      if ((s.serviceCode ?? '').toLowerCase().contains(q)) return true;
+      if ((s.description ?? '').toLowerCase().contains(q)) return true;
+      for (final c in s.capabilities) {
+        if (c.label.toLowerCase().contains(q) || c.key.toLowerCase().contains(q)) return true;
+      }
+    }
+    return false;
+  }
 }
 
 MarketplaceVendor mapMarketplaceVendor(Map<String, dynamic> json) {
@@ -361,9 +580,16 @@ class VendorsApi {
         .toList();
   }
 
-  Future<List<MarketplaceVendorService>> listVendorServices(String vendorId) async {
+  Future<List<MarketplaceVendorService>> listVendorServices(
+    String vendorId, {
+    DateTime? from,
+    DateTime? to,
+  }) async {
     final res = await _http.get(
-      _u('vendors/$vendorId/services'),
+      _u('vendors/$vendorId/services', {
+        if (from != null) 'from': from.toUtc().toIso8601String(),
+        if (to != null) 'to': to.toUtc().toIso8601String(),
+      }),
       headers: OwambeApiAuth.publicHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);

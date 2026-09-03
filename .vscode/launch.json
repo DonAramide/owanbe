@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Customer Web (Chrome)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "cwd": "${workspaceFolder}/mobile",
+      "args": ["-d", "chrome", "--no-web-resources-cdn"]
+    },
+    {
+      "name": "Admin Web (Chrome)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main_admin.dart",
+      "cwd": "${workspaceFolder}/mobile",
+      "args": ["-d", "chrome", "--no-web-resources-cdn"]
+    }
+  ]
+}

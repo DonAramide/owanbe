@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   Inject,
+  Logger,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -15,6 +16,12 @@ import { EventsAccessService } from './events-access.service';
 import { issueInvitationEntitlement, resolveUserIdByEmail } from './invite-entitlement';
 import { DomainEventsService } from '../domain-events/domain-events.service';
 import { DOMAIN_EVENTS } from '../domain-events/domain-event.types';
+import {
+  buildInvitationEmailHtml,
+  buildInvitationEmailSubject,
+  extractInvitationEventFields,
+  resolvePublicEmailImageUrl,
+} from './invitation-email.builder';
 
 export type InvitationStatsView = {
   sent: number;
@@ -60,6 +67,8 @@ export type InvitationValidateView = {
 
 @Injectable()
 export class EventInvitationsService {
+  private readonly logger = new Logger(EventInvitationsService.name);
+
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly access: EventsAccessService,
@@ -164,16 +173,31 @@ export class EventInvitationsService {
     };
   }
 
+  /**
+   * User-facing app origin for RSVP deep links.
+   * Uses PUBLIC_APP_BASE_URL (or APP_PUBLIC_URL alias) — never PUBLIC_API_BASE_URL.
+   */
   private appBaseUrl(): string {
-    const fromEnv =
-      process.env.PUBLIC_APP_BASE_URL?.trim() ||
-      process.env.APP_PUBLIC_URL?.trim() ||
-      process.env.PUBLIC_API_BASE_URL?.trim();
-    return (fromEnv && fromEnv.length > 0 ? fromEnv : 'https://app.owanbe.com').replace(/\/$/, '');
+    const configured =
+      process.env.PUBLIC_APP_BASE_URL?.trim() || process.env.APP_PUBLIC_URL?.trim();
+    if (configured) return configured.replace(/\/$/, '');
+    if ((process.env.NODE_ENV ?? 'development') === 'production') {
+      throw new UnprocessableEntityException({
+        code: 'PUBLIC_APP_BASE_URL_REQUIRED',
+        message:
+          'PUBLIC_APP_BASE_URL must be configured for invitation RSVP links in production (user-facing app URL, not the API)',
+      });
+    }
+    this.logger.warn(
+      'PUBLIC_APP_BASE_URL is not set — invitation RSVP links will use https://app.owanbe.com. ' +
+        'Set PUBLIC_APP_BASE_URL to your reachable app origin for phone/email testing (never use PUBLIC_API_BASE_URL).',
+    );
+    return 'https://app.owanbe.com';
   }
 
-  private inviteUrlFor(eventId: string, plainToken: string): string {
-    return `${this.appBaseUrl()}/events/${eventId}/rsvp?token=${encodeURIComponent(plainToken)}`;
+  private inviteUrlFor(eventId: string, plainToken: string, action?: 'accept' | 'decline'): string {
+    const base = `${this.appBaseUrl()}/events/${eventId}/rsvp?token=${encodeURIComponent(plainToken)}`;
+    return action ? `${base}&action=${action}` : base;
   }
 
   async sendInvitations(
@@ -203,7 +227,24 @@ export class EventInvitationsService {
       throw new BadRequestException({ code: 'NO_GUESTS', message: 'No guests to invite' });
     }
 
-    const baseUrl = this.appBaseUrl();
+    const { rows: orgRows } = await this.pool.query<{ organizer_name: string | null }>(
+      `SELECT COALESCE(
+          NULLIF(TRIM(o.display_name), ''),
+          NULLIF(TRIM(u.display_name), '')
+        ) AS organizer_name
+       FROM organizers o
+       LEFT JOIN users u ON u.id = o.owner_user_id
+       WHERE o.id = $1 AND o.tenant_id = $2
+       LIMIT 1`,
+      [event.organizer_id, actor.tenantId],
+    );
+    const organizerName = orgRows[0]?.organizer_name?.trim() || null;
+    const fields = extractInvitationEventFields(event.metadata);
+    const imageUrl = resolvePublicEmailImageUrl(
+      fields.imageRaw,
+      process.env.PUBLIC_API_BASE_URL?.trim() || null,
+    );
+
     const tokens: Array<{ guestId: string; inviteUrl: string }> = [];
     let sent = 0;
 
@@ -233,16 +274,34 @@ export class EventInvitationsService {
       );
 
       const inviteUrl = this.inviteUrlFor(event.id, plainToken);
+      const acceptUrl = this.inviteUrlFor(event.id, plainToken, 'accept');
+      const declineUrl = this.inviteUrlFor(event.id, plainToken, 'decline');
       tokens.push({ guestId: guest.id, inviteUrl });
 
       if (guest.email && (channel === 'email' || channel === 'link')) {
+        const emailPayload = {
+          guestName: guest.name,
+          eventTitle: event.title,
+          eventType: fields.eventType,
+          organizerName,
+          startsAt: event.starts_at,
+          venueName: fields.venueName,
+          venueLocation: fields.venueLocation,
+          description: fields.description,
+          expectedAttendees: fields.expectedAttendees,
+          imageUrl,
+          templateId,
+          acceptUrl,
+          declineUrl,
+          rsvpUrl: inviteUrl,
+        };
         const result = await this.notifications.send({
           tenantId: actor.tenantId,
           channel: 'email',
           template: 'event_invitation',
           recipient: guest.email,
-          subject: `You're invited — ${event.title}`,
-          body: `Hi ${guest.name},\n\nYou're invited to ${event.title}.\nRSVP: ${inviteUrl}`,
+          subject: buildInvitationEmailSubject(event.title),
+          body: buildInvitationEmailHtml(emailPayload),
         });
         if (!result.ok && channel === 'email') {
           this.metrics.inc('invitations_failed_total', { reason: 'email_delivery' });

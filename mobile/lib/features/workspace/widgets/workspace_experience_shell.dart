@@ -7,6 +7,7 @@ import '../../../identity/identity_provider.dart';
 import '../../../identity/workspace_models.dart';
 import '../../../navigation/enterprise_back_handler.dart';
 import '../../../eos/layout/eos_adaptive.dart';
+import '../../../portals/customer/providers/crm_realtime_providers.dart';
 import 'workspace_switcher.dart';
 
 /// Unified workspace shell — access control, active context, and platform chrome.
@@ -30,12 +31,17 @@ class _WorkspaceExperienceShellState extends ConsumerState<WorkspaceExperienceSh
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.read(activeWorkspaceProvider.notifier).switchTo(widget.workspace);
+      final active = ref.read(activeWorkspaceProvider);
+      if (active != widget.workspace) {
+        ref.read(activeWorkspaceProvider.notifier).switchTo(widget.workspace);
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    // Phase 3A — keep CRM SSE alive while any workspace shell is mounted.
+    ref.watch(crmRealtimeLifecycleProvider);
     return PortalAccessGuard(
       requiredRole: widget.workspace.userRole,
       child: WorkspaceBackScope(

@@ -40,7 +40,7 @@ class MarketplaceFilters {
   }
 }
 
-final marketplaceFiltersProvider = StateProvider.autoDispose<MarketplaceFilters>((ref) {
+final marketplaceFiltersProvider = StateProvider<MarketplaceFilters>((ref) {
   return const MarketplaceFilters();
 });
 
@@ -69,17 +69,8 @@ List<MarketplaceVendor> applyMarketplaceFilters(List<MarketplaceVendor> vendors,
   }
 
   if (filters.query.trim().isNotEmpty) {
-    final q = filters.query.trim().toLowerCase();
-    result = result
-        .where(
-          (v) =>
-              v.businessName.toLowerCase().contains(q) ||
-              v.categoryLabel.toLowerCase().contains(q) ||
-              (v.city ?? '').toLowerCase().contains(q) ||
-              (v.description ?? '').toLowerCase().contains(q) ||
-              (v.slug ?? '').toLowerCase().contains(q),
-        )
-        .toList();
+    final q = filters.query.trim();
+    result = result.where((v) => v.matchesSearchQuery(q)).toList();
   }
 
   switch (filters.sort) {

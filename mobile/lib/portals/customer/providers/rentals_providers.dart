@@ -64,6 +64,51 @@ class RentalsApi {
     return RentalBooking.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
+  Future<RentalBooking> createVendorBuyerBooking({
+    required String eventId,
+    required String catalogItemId,
+    required String requesterName,
+    String? deliveryAddress,
+  }) async {
+    final res = await _http.post(
+      Uri.parse('$_base/events/$eventId/rentals/vendor-buyer-bookings'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      body: jsonEncode({
+        'catalogItemId': catalogItemId,
+        'quantityRequested': 1,
+        'requesterName': requesterName,
+        if (deliveryAddress != null) 'deliveryAddress': deliveryAddress,
+      }),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return RentalBooking.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<List<RentalBooking>> fetchMyBookings() async {
+    final res = await _http.get(
+      Uri.parse('$_base/me/rental-bookings'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return (body['bookings'] as List<dynamic>? ?? [])
+        .map((e) => RentalBooking.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<List<({String id, String title})>> fetchBuyerEligibleEvents() async {
+    final res = await _http.get(
+      Uri.parse('$_base/me/rental-buyer-events'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return (body['items'] as List<dynamic>? ?? []).map((e) {
+      final m = e as Map<String, dynamic>;
+      return (id: (m['id'] ?? '').toString(), title: (m['title'] ?? '').toString());
+    }).toList();
+  }
+
   Future<({List<RentalCatalogItem> items, List<RentalBlackout> blackouts})> fetchVendorInventory(
     String vendorId,
   ) async {
@@ -118,7 +163,9 @@ class RentalsApi {
   Never _throw(http.Response res) {
     try {
       final body = jsonDecode(res.body) as Map<String, dynamic>;
-      throw StateError((body['message'] ?? 'Request failed').toString());
+      throw StateError((body['message'] ?? body['code'] ?? 'Request failed').toString());
+    } on StateError {
+      rethrow;
     } catch (_) {
       throw StateError('Rentals API error (${res.statusCode})');
     }
@@ -137,6 +184,16 @@ final rentalsCatalogProvider = FutureProvider.autoDispose.family<List<RentalCata
   ref.watch(rentalsRefreshProvider);
   try {
     return await ref.read(rentalsApiProvider).fetchCatalog(category: category);
+  } catch (e) {
+    if (!allowMockPersistenceFallback()) rethrow;
+    return const [];
+  }
+});
+
+final myRentalBookingsProvider = FutureProvider.autoDispose<List<RentalBooking>>((ref) async {
+  ref.watch(rentalsRefreshProvider);
+  try {
+    return await ref.read(rentalsApiProvider).fetchMyBookings();
   } catch (e) {
     if (!allowMockPersistenceFallback()) rethrow;
     return const [];

@@ -7,10 +7,17 @@ import '../../../features/organizer/command_center_v3/tabs/finance_tab_v3.dart';
 import '../../../features/organizer/command_center_v3/tabs/reports_tab_v3.dart';
 import '../../../features/organizer/command_center_v3/tabs/tickets_tab_v3.dart';
 import '../../../features/organizer/command_center_v3/tabs/vendors_tab_v3.dart';
+import '../../../auth/auth_notifier.dart';
 import '../../../eos/eos.dart';
 import '../../../eos/layout/workspace/workspace_definition.dart';
 import '../../../eos/layout/workspace/workspace_shell.dart';
 import '../../../eos/layout/workspace/workspace_widgets.dart';
+import '../../../core/providers/silent_refresh.dart';
+import '../../../features/organizer/command_center_v3/tabs/settings_tab_v3.dart';
+import '../../../features/organizer/providers/organizer_profile_providers.dart';
+import '../models/command_center_models.dart';
+import '../models/home_hub_models.dart';
+import '../router/event_route_registry.dart';
 import '../navigation/event_navigator.dart';
 import '../providers/customer_event_command_providers.dart';
 import 'widgets/event_desktop.dart';
@@ -102,7 +109,7 @@ class _EventWorkspaceState extends ConsumerState<EventWorkspace> {
         ),
         WorkspaceTabDefinition(
           label: 'Settings',
-          builder: (context, id) => _SettingsTabBridge(eventId: id),
+          builder: (context, id) => SettingsTabV3(eventId: id),
         ),
       ],
     );
@@ -117,7 +124,7 @@ class _EventWorkspaceState extends ConsumerState<EventWorkspace> {
   Widget build(BuildContext context) {
     final snapshot = ref.watch(customerEventCommandProvider(widget.eventId));
 
-    return snapshot.when(
+    return snapshot.whenStable(
       loading: () => const EventLoadingSkeleton(variant: EventLoadingVariant.workspace),
       error: (_, _) => Scaffold(
         body: ListView(
@@ -143,17 +150,37 @@ class _EventWorkspaceState extends ConsumerState<EventWorkspace> {
           healthScore = ((data.tasksCompleted / totalTasks) * 100).round();
         }
 
+        final profile = ref.watch(organizerWorkspaceProfileProvider).valueOrNull;
+        final session = ref.watch(authSessionProvider);
+        final region = event.state.trim().isNotEmpty
+            ? event.state.trim()
+            : event.city.trim();
+        final contact = (profile?.supportEmail ?? '').trim().isNotEmpty
+            ? profile!.supportEmail!.trim()
+            : (event.organizerContactEmail ?? '').trim().isNotEmpty
+                ? event.organizerContactEmail!.trim()
+                : (session?.email ?? '').trim();
+        final created = event.createdAt != null
+            ? formatEventDate(event.createdAt!.toLocal())
+            : '';
+        final activityAt = event.updatedAt ?? event.createdAt;
+        final lastActivity = activityAt != null ? formatTimeAgo(activityAt.toLocal()) : '';
+
         return WorkspaceShell(
           definition: _eventWorkspaceDefinition,
           entityId: widget.eventId,
           name: name,
           logoText: name.isNotEmpty ? name[0].toUpperCase() : 'E',
           healthScore: healthScore,
-          environment: 'Production',
-          region: 'NG-LAGOS',
-          primaryContact: 'organizer@owanbe.dev',
-          createdDate: '2026-06-01',
-          lastActivity: 'Updated 5 minutes ago',
+          plan: '',
+          environment: event.status.name,
+          region: region,
+          primaryContact: contact,
+          createdDate: created,
+          lastActivity: lastActivity,
+          rootLabel: 'EVENTS',
+          onRootTap: () => context.go(EventRouteRegistry.myEvents),
+          onHeaderTap: () => context.eventNav.openEventEdit(widget.eventId),
           sidebarWidgets: [
             WorkspaceHealthPanel(
               healthScore: healthScore,
@@ -301,25 +328,6 @@ class _AuditTabBridge extends ConsumerWidget {
         const SizedBox(height: 16),
         const ListTile(
           title: Text('No system configuration audits recorded.'),
-        ),
-      ],
-    );
-  }
-}
-
-class _SettingsTabBridge extends ConsumerWidget {
-  const _SettingsTabBridge({required this.eventId});
-  final String eventId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        Text('Branding & Visibility Policies', style: context.eosText.titleMedium),
-        const SizedBox(height: 16),
-        const ListTile(
-          title: Text('Search Visibility: PUBLIC'),
         ),
       ],
     );

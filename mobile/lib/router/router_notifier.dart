@@ -4,22 +4,34 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../auth/auth_notifier.dart';
 import '../auth/auth_session.dart';
 import '../core/bootstrap/app_bootstrap.dart';
+import '../core/bootstrap/app_boot_state.dart';
 import '../identity/identity_provider.dart';
 import 'deep_link_listener.dart';
+
 /// Drives [GoRouter] refresh when auth, identity, or workspace context changes.
 final class RouterNotifier extends ChangeNotifier {
   RouterNotifier(this._ref) {
-    _ref.listen<AuthSession?>(authSessionProvider, (prev, next) => notifyListeners());
-    _ref.listen(appBootstrapProvider, (_, __) => notifyListeners());
-    _ref.listen(userIdentityProvider, (previous, next) {
-      // Refresh routing when identity resolves or userId changes — not on sync errors.
-      final prevId = previous?.valueOrNull?.userId;
-      final nextId = next.valueOrNull?.userId;
-      if (previous?.isLoading != next.isLoading || prevId != nextId) {
+    _ref.listen<AuthSession?>(authSessionProvider, (prev, next) {
+      final prevUser = prev?.userId;
+      final nextUser = next?.userId;
+      if (prevUser != nextUser) notifyListeners();
+    });
+    _ref.listen(appBootstrapProvider, (prev, next) {
+      if (prev?.phase != next.phase &&
+          (next.phase == AppBootPhase.ready ||
+              next.phase == AppBootPhase.connectivityBlocked ||
+              next.phase == AppBootPhase.offlineReady)) {
         notifyListeners();
       }
     });
-    _ref.listen(activeWorkspaceProvider, (_, __) => notifyListeners());
+    _ref.listen(userIdentityProvider, (previous, next) {
+      final prevId = previous?.valueOrNull?.userId;
+      final nextId = next.valueOrNull?.userId;
+      if (prevId != nextId) notifyListeners();
+    });
+    _ref.listen(activeWorkspaceProvider, (prev, next) {
+      if (prev != next) notifyListeners();
+    });
     _ref.listen<String?>(pendingDeepLinkProvider, (prev, next) {
       if (next != null) notifyListeners();
     });

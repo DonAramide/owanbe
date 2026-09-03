@@ -1,4 +1,4 @@
-import { Injectable, Inject, Optional } from '@nestjs/common';
+import { Injectable, Inject, Optional, NotFoundException } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { PG_POOL } from '../../database/database.tokens';
 import type { UpsertVendorProfileDto } from './dto/upsert-vendor-profile.dto';
@@ -30,6 +30,16 @@ export interface VendorWorkspaceProfileView {
     status: string;
     basePayoutMinor?: number | null;
     currency?: string | null;
+    capabilities?: Array<{ key: string; label: string; provided: boolean }>;
+    customExtras?: Array<{
+      id: string;
+      name: string;
+      description: string | null;
+      priceMinor: number | null;
+      currency: string;
+      active: boolean;
+      isPublic: boolean;
+    }>;
   }>;
   serviceAreas: string[];
   portfolioImages: string[];
@@ -234,6 +244,42 @@ export class VendorProfileService {
     return this.getProfile(tenantId, userId);
   }
 
+  async patchOwnService(
+    tenantId: string,
+    userId: string,
+    serviceId: string,
+    body: {
+      status?: string;
+      capabilities?: Array<{ key: string; label: string; provided?: boolean }>;
+      customExtras?: Array<Record<string, unknown>>;
+    },
+  ) {
+    await this.ensureRow(tenantId, userId);
+    const row = await this.loadRow(tenantId, userId);
+    const vendorId = row?.vendor_id ?? null;
+    if (!vendorId || !this.vendorServices) {
+      throw new NotFoundException({ code: 'VENDOR_NOT_FOUND', message: 'Vendor not found' });
+    }
+    const status =
+      body.status === 'active' || body.status === 'inactive' ? body.status : undefined;
+    const capabilities = Array.isArray(body.capabilities)
+      ? body.capabilities.map((c) => ({
+          key: String(c.key ?? ''),
+          label: String(c.label ?? c.key ?? ''),
+          provided: c.provided === true,
+        }))
+      : undefined;
+    const customExtras = Array.isArray(body.customExtras) ? body.customExtras : undefined;
+    return this.vendorServices.patchOwnedService({
+      tenantId,
+      vendorId,
+      serviceId,
+      status,
+      capabilities,
+      customExtras: customExtras as never,
+    });
+  }
+
   private async ensureRow(tenantId: string, userId: string): Promise<void> {
     let vendorId: string | null = null;
     const { rows: vendorRows } = await this.pool.query<{ id: string }>(
@@ -306,7 +352,11 @@ export class VendorProfileService {
   ): Promise<VendorWorkspaceProfileView> {
     const services =
       row?.vendor_id && this.vendorServices
-        ? (await this.vendorServices.listForVendor(tenantId, row.vendor_id)).map((s) => ({
+        ? (
+            await this.vendorServices.listForVendor(tenantId, row.vendor_id, {
+              includeInactive: true,
+            })
+          ).map((s) => ({
             id: s.id,
             serviceKey: s.serviceKey,
             serviceName: s.serviceName,
@@ -314,6 +364,8 @@ export class VendorProfileService {
             status: s.status,
             basePayoutMinor: s.basePayoutMinor,
             currency: s.currency,
+            capabilities: s.capabilities,
+            customExtras: s.customExtras,
           }))
         : [];
 

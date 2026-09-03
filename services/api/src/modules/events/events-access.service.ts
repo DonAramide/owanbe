@@ -69,6 +69,28 @@ export class EventsAccessService {
     return id;
   }
 
+  /** Same resolution as resolveVendorId without throwing when the user is not a vendor. */
+  async tryResolveVendorId(tenantId: string, userId: string): Promise<string | null> {
+    const { rows } = await this.pool.query<{ id: string | null }>(
+      `SELECT COALESCE(
+         (
+           SELECT vp.vendor_id
+           FROM vendor_profiles vp
+           WHERE vp.tenant_id = $1 AND vp.user_id = $2 AND vp.vendor_id IS NOT NULL
+           LIMIT 1
+         ),
+         (
+           SELECT v.id
+           FROM vendors v
+           WHERE v.tenant_id = $1 AND v.owner_user_id = $2 AND v.status = 'active'
+           LIMIT 1
+         )
+       ) AS id`,
+      [tenantId, userId],
+    );
+    return rows[0]?.id ?? null;
+  }
+
   async resolveEventRow(
     tenantId: string,
     eventKey: string,
@@ -166,6 +188,42 @@ export class EventsAccessService {
       });
     }
     return role;
+  }
+
+  /**
+   * Vendor is associated with an event via organizer access, participation, or accepted CRM.
+   * Does not invent a new membership table. Does not treat marketplace "discover" as access.
+   */
+  async assertVendorAssociatedWithEvent(tenantId: string, userId: string, eventKey: string) {
+    const vendorId = await this.resolveVendorId(tenantId, userId);
+    let organizerOk = false;
+    try {
+      await this.assertOrganizerOwnsEvent(tenantId, userId, eventKey);
+      organizerOk = true;
+    } catch {
+      organizerOk = false;
+    }
+    const event = await this.resolveEventRow(tenantId, eventKey, !organizerOk);
+    if (organizerOk) return { vendorId, event };
+    const { rows } = await this.pool.query<{ ok: number }>(
+      `SELECT 1 AS ok WHERE EXISTS (
+         SELECT 1 FROM vendor_event_participations
+         WHERE tenant_id = $1 AND vendor_id = $2::uuid AND event_id = $3
+           AND status::text NOT IN ('rejected')
+       ) OR EXISTS (
+         SELECT 1 FROM vendor_event_requests
+         WHERE tenant_id = $1 AND vendor_id = $2::uuid AND event_id = $3
+           AND stage IN ('accepted', 'scheduled', 'arrived', 'completed')
+       )`,
+      [tenantId, vendorId, event.id],
+    );
+    if (!rows.length) {
+      throw new ForbiddenException({
+        code: 'EVENT_NOT_ASSOCIATED',
+        message: 'Vendor can only act on events they are associated with',
+      });
+    }
+    return { vendorId, event };
   }
 
   /**

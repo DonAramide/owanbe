@@ -15,15 +15,31 @@ import {
   resolveMarkupFromRules,
 } from '../vendor-operations/vendor-pricing.util';
 import { VendorServicesService } from './vendor-services.service';
+import { VendorAvailabilityService } from '../vendor-operations/vendor-availability.service';
+import {
+  parseVendorCapabilities,
+  parseAdminCapabilities,
+  categoryMatchesService,
+  allowedCapabilitySet,
+} from '../vendor-operations/vendor-capability.util';
+import { resolveEventWindow } from '../vendor-operations/vendor-availability.util';
 
 export interface VendorServiceOfferingDto {
   id: string;
   serviceKey: string;
   serviceName: string;
+  serviceCode: string | null;
   description: string | null;
   /** Customer-facing price when a matching package exists (existing markup rules). */
   priceFromMinor: number | null;
   currency: string | null;
+  offerStatus: string;
+  availabilityStatus: 'AVAILABLE' | 'BOOKED' | 'CONFLICTING' | 'UNAVAILABLE' | null;
+  bookedRanges: Array<{ startsAt: string; endsAt: string }>;
+  /** Vendor-level overlay windows (blackout / vacation / not accepting). Additive. */
+  unavailableRanges: Array<{ startsAt: string; endsAt: string; kind: 'blackout' | 'vacation' | 'closed' }>;
+  /** Capabilities the vendor actually provides and Admin still enables (public). */
+  capabilities: Array<{ key: string; label: string }>;
 }
 
 export interface VendorSummaryDto {
@@ -54,6 +70,7 @@ export class VendorsService {
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly pricingRules: VendorPricingRulesService,
     @Optional() private readonly vendorServices?: VendorServicesService,
+    @Optional() private readonly availability?: VendorAvailabilityService,
   ) {}
 
   async listCatalog(
@@ -68,7 +85,41 @@ export class VendorsService {
     }
     let where = `WHERE v.tenant_id = $1 AND ${statusClause}`;
     if (opts.q) {
-      where += ` AND (v.business_name ILIKE $${p} OR v.slug ILIKE $${p})`;
+      // Marketplace search is vendor-public only. Do not match users.display_name,
+      // leftover seed vendors.business_name/slug from account creation, or email.
+      where += ` AND (
+        COALESCE(NULLIF(TRIM(vp.business_name), ''), v.business_name) ILIKE $${p}
+        OR COALESCE(v.city, '') ILIKE $${p}
+        OR COALESCE(vp.city, '') ILIKE $${p}
+        OR COALESCE(vp.state, '') ILIKE $${p}
+        OR COALESCE(vp.country, '') ILIKE $${p}
+        OR COALESCE(v.country_code, '') ILIKE $${p}
+        OR COALESCE(vp.bio, '') ILIKE $${p}
+        OR COALESCE(vp.category, '') ILIKE $${p}
+        OR COALESCE(vp.subcategory, '') ILIKE $${p}
+        OR COALESCE(vp.services_offered::text, '') ILIKE $${p}
+        OR COALESCE(vp.service_areas::text, '') ILIKE $${p}
+        OR v.id::text ILIKE $${p}
+        OR EXISTS (
+          SELECT 1 FROM jsonb_array_elements_text(COALESCE(vp.services_offered, '[]'::jsonb)) s
+          WHERE s ILIKE $${p}
+        )
+        OR EXISTS (
+          SELECT 1 FROM jsonb_array_elements_text(COALESCE(vp.service_areas, '[]'::jsonb)) a
+          WHERE a ILIKE $${p}
+        )
+        OR EXISTS (
+          SELECT 1 FROM vendor_services vs
+          WHERE vs.tenant_id = v.tenant_id
+            AND vs.vendor_id = v.id
+            AND vs.status = 'active'
+            AND (
+              vs.service_name ILIKE $${p}
+              OR vs.service_key ILIKE $${p}
+              OR vs.service_code ILIKE $${p}
+            )
+        )
+      )`;
       params.push(`%${opts.q}%`);
       p++;
     }
@@ -132,9 +183,11 @@ export class VendorsService {
                       'id', vs.id,
                       'serviceKey', vs.service_key,
                       'serviceName', vs.service_name,
+                      'serviceCode', vs.service_code,
                       'description', vs.description,
                       'payoutMinor', COALESCE(vs.base_payout_minor::text, pkg.unit_amount_minor),
-                      'currency', COALESCE(NULLIF(vs.currency, ''), pkg.currency)
+                      'currency', COALESCE(NULLIF(vs.currency, ''), pkg.currency),
+                      'capabilities', vs.capabilities
                     )
                     ORDER BY vs.service_name
                   ),
@@ -189,13 +242,14 @@ export class VendorsService {
     };
 
     const rules = await this.pricingRules.listRuleRows(tenantId);
+    const categoryRows = await this.loadActiveCategoryCapabilityRows(tenantId);
 
     return {
       items: rows.map((r) => {
         const fromEntity = (r.services_from_entity ?? []).filter(Boolean);
         const servicesOffered =
           fromEntity.length > 0 ? fromEntity : parseServices(r.services_offered);
-        const services = this.mapServiceOfferings(r.services_json, r.id, rules);
+        const services = this.mapServiceOfferings(r.services_json, r.id, rules, categoryRows);
         const serviceKey =
           opts.service && opts.service.trim().toLowerCase() !== 'all'
             ? normalizeServiceKey(opts.service)
@@ -239,10 +293,12 @@ export class VendorsService {
 
   /**
    * Public organizer-facing services for a vendor (first-class vendor_services + package price).
+   * Optional from/to (ISO) compute service-specific date availability. Inactive services are omitted.
    */
   async listVendorServices(
     tenantId: string,
     vendorId: string,
+    opts?: { from?: string; to?: string },
   ): Promise<{ items: VendorServiceOfferingDto[] }> {
     const { rows: vendorRows } = await this.pool.query<{ id: string }>(
       `SELECT id FROM vendors
@@ -253,17 +309,23 @@ export class VendorsService {
       throw new NotFoundException({ code: 'VENDOR_NOT_FOUND', message: 'Vendor not found' });
     }
 
+    const window = this.parseWindow(opts?.from, opts?.to);
+
     const { rows } = await this.pool.query<{
       id: string;
       service_key: string;
       service_name: string;
+      service_code: string | null;
       description: string | null;
       payout_minor: string | null;
       currency: string | null;
+      capabilities: unknown;
+      status: string;
     }>(
-      `SELECT vs.id, vs.service_key, vs.service_name, vs.description,
+      `SELECT vs.id, vs.service_key, vs.service_name, vs.service_code, vs.description,
               COALESCE(vs.base_payout_minor::text, pkg.unit_amount_minor) AS payout_minor,
-              COALESCE(NULLIF(vs.currency, ''), pkg.currency) AS currency
+              COALESCE(NULLIF(vs.currency, ''), pkg.currency) AS currency,
+              vs.capabilities, vs.status
        FROM vendor_services vs
        LEFT JOIN LATERAL (
          SELECT p.unit_amount_minor::text AS unit_amount_minor, p.currency
@@ -281,7 +343,9 @@ export class VendorsService {
     );
 
     const rules = await this.pricingRules.listRuleRows(tenantId);
-    const items: VendorServiceOfferingDto[] = rows.map((r) => {
+    const categoryRows = await this.loadActiveCategoryCapabilityRows(tenantId);
+    const items: VendorServiceOfferingDto[] = [];
+    for (const r of rows) {
       let priceFromMinor: number | null = null;
       if (r.payout_minor != null) {
         const payout = BigInt(r.payout_minor);
@@ -292,39 +356,123 @@ export class VendorsService {
           );
         }
       }
-      return {
+      const capabilities = this.publicCapabilities(
+        categoryRows,
+        r.service_key,
+        r.service_name,
+        r.capabilities,
+      );
+      let availabilityStatus: VendorServiceOfferingDto['availabilityStatus'] = window
+        ? 'AVAILABLE'
+        : null;
+      let bookedRanges: VendorServiceOfferingDto['bookedRanges'] = [];
+      let unavailableRanges: VendorServiceOfferingDto['unavailableRanges'] = [];
+      if (window && this.availability) {
+        const classified = await this.availability.classifyServiceWindow({
+          tenantId,
+          vendorId,
+          vendorServiceId: r.id,
+          serviceKey: r.service_key,
+          window,
+          offerActive: r.status === 'active',
+        });
+        availabilityStatus = classified.availabilityStatus;
+        bookedRanges = classified.bookedRanges;
+        unavailableRanges = classified.unavailableRanges;
+      }
+      items.push({
         id: r.id,
         serviceKey: r.service_key,
         serviceName: r.service_name,
+        serviceCode: r.service_code ?? null,
         description: r.description,
         priceFromMinor,
         currency: r.currency ?? (priceFromMinor != null ? 'NGN' : null),
-      };
-    });
+        offerStatus: r.status,
+        availabilityStatus,
+        bookedRanges,
+        unavailableRanges,
+        capabilities,
+      });
+    }
 
-    // Fallback: if entity rows missing, sync labels are still exposed as names-only via catalog;
-    // ensureForBooking remains available on request create.
     if (items.length === 0 && this.vendorServices) {
       const synced = await this.vendorServices.listForVendor(tenantId, vendorId);
       return {
-        items: synced.map((s) => ({
-          id: s.id,
-          serviceKey: s.serviceKey,
-          serviceName: s.serviceName,
-          description: s.description,
-          priceFromMinor: null,
-          currency: null,
-        })),
+        items: synced
+          .filter((s) => s.status === 'active')
+          .map((s) => ({
+            id: s.id,
+            serviceKey: s.serviceKey,
+            serviceName: s.serviceName,
+            serviceCode: s.serviceCode ?? null,
+            description: s.description,
+            priceFromMinor: null,
+            currency: null,
+            offerStatus: s.status,
+            availabilityStatus: window ? 'AVAILABLE' : null,
+            bookedRanges: [],
+            unavailableRanges: [],
+            capabilities: this.publicCapabilities(
+              categoryRows,
+              s.serviceKey,
+              s.serviceName,
+              s.capabilities,
+            ),
+          })),
       };
     }
 
     return { items };
   }
 
+  private async loadActiveCategoryCapabilityRows(
+    tenantId: string,
+  ): Promise<Array<{ slug: string; label: string; metadata: unknown }>> {
+    const { rows } = await this.pool.query<{ slug: string; label: string; metadata: unknown }>(
+      `SELECT slug, label, metadata FROM tenant_vendor_categories
+       WHERE tenant_id = $1 AND is_active = true`,
+      [tenantId],
+    );
+    return rows;
+  }
+
+  private publicCapabilities(
+    categoryRows: Array<{ slug: string; label: string; metadata: unknown }>,
+    serviceKey: string,
+    serviceName: string,
+    capabilitiesRaw: unknown,
+  ): Array<{ key: string; label: string }> {
+    const adminDefs = [];
+    const seen = new Set<string>();
+    for (const row of categoryRows) {
+      if (!categoryMatchesService(row.slug, row.label, serviceKey, serviceName)) continue;
+      for (const cap of parseAdminCapabilities(row.metadata)) {
+        if (seen.has(cap.key)) continue;
+        seen.add(cap.key);
+        adminDefs.push(cap);
+      }
+    }
+    const vendorDecls = parseVendorCapabilities(capabilitiesRaw);
+    return Array.from(allowedCapabilitySet(adminDefs, vendorDecls).entries()).map(([key, label]) => ({
+      key,
+      label,
+    }));
+  }
+
+  private parseWindow(fromRaw?: string, toRaw?: string): { start: Date; end: Date } | null {
+    if (!fromRaw || !toRaw) return null;
+    const from = new Date(fromRaw);
+    const to = new Date(toRaw);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return null;
+    return resolveEventWindow(from, to);
+  }
+
   private mapServiceOfferings(
     raw: unknown,
     vendorId: string,
     rules: Awaited<ReturnType<VendorPricingRulesService['listRuleRows']>>,
+    categoryRows: Array<{ slug: string; label: string; metadata: unknown }> = [],
   ): VendorServiceOfferingDto[] {
     const list = Array.isArray(raw)
       ? raw
@@ -340,7 +488,7 @@ export class VendorsService {
         : [];
 
     return list
-      .map((entry) => {
+      .map((entry): VendorServiceOfferingDto | null => {
         const e = entry as Record<string, unknown>;
         const id = String(e.id ?? '').trim();
         const serviceKey = String(e.serviceKey ?? e.service_key ?? '').trim();
@@ -367,14 +515,30 @@ export class VendorsService {
             : priceFromMinor != null
               ? 'NGN'
               : null;
+        const serviceCodeRaw = e.serviceCode ?? e.service_code;
+        const capabilities = this.publicCapabilities(
+          categoryRows,
+          serviceKey,
+          serviceName,
+          e.capabilities,
+        );
         return {
           id,
           serviceKey,
           serviceName,
+          serviceCode:
+            serviceCodeRaw != null && String(serviceCodeRaw).trim() !== ''
+              ? String(serviceCodeRaw).trim()
+              : null,
           description: e.description != null ? String(e.description) : null,
           priceFromMinor,
           currency,
-        } satisfies VendorServiceOfferingDto;
+          offerStatus: 'active',
+          availabilityStatus: null,
+          bookedRanges: [],
+          unavailableRanges: [],
+          capabilities,
+        };
       })
       .filter((x): x is VendorServiceOfferingDto => x != null);
   }

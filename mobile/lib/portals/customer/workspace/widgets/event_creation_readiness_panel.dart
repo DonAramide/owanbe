@@ -112,7 +112,7 @@ class EventCreationReadinessPanel extends ConsumerWidget {
         context.eventNav.openTicketsManage(eventId);
       case 'venue':
       case 'details':
-        context.eventNav.openOverview(eventId);
+        context.eventNav.openEventEdit(eventId);
       case 'publish':
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

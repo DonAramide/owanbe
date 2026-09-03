@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/api/event_config_api.dart';
+import '../../../core/api/owambe_http_client.dart';
 import '../../../core/utils/money.dart';
 import '../../../eos/eos.dart';
+import '../../../features/vendor/providers/vendor_providers.dart';
+import '../models/marketplace_offering_context.dart';
 import '../models/rentals_constants.dart';
 import '../models/rentals_models.dart';
 import '../providers/rentals_providers.dart';
@@ -14,9 +18,18 @@ import '../widgets/section_header.dart';
 
 /// Marketplace rentals at `/vendors/rentals`.
 class MarketplaceRentalsScreen extends ConsumerStatefulWidget {
-  const MarketplaceRentalsScreen({super.key, this.eventId});
+  const MarketplaceRentalsScreen({
+    super.key,
+    this.eventId,
+    this.vendorBuyerMode = false,
+    this.buyerVendorId,
+    this.embedded = false,
+  });
 
   final String? eventId;
+  final bool vendorBuyerMode;
+  final String? buyerVendorId;
+  final bool embedded;
 
   @override
   ConsumerState<MarketplaceRentalsScreen> createState() => _MarketplaceRentalsScreenState();
@@ -24,17 +37,29 @@ class MarketplaceRentalsScreen extends ConsumerStatefulWidget {
 
 class _MarketplaceRentalsScreenState extends ConsumerState<MarketplaceRentalsScreen> {
   String? _category;
+  List<VendorCategoryConfig> _rentalCats = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCats();
+  }
+
+  Future<void> _loadCats() async {
+    try {
+      final cats = await EventConfigApi(createOwambeHttpClient()).listPublicOfferingCategories(kind: 'rental');
+      if (!mounted) return;
+      setState(() => _rentalCats = cats);
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
+    final currentVendorId = widget.vendorBuyerMode
+        ? (ref.watch(canonicalVendorIdProvider).valueOrNull ?? widget.buyerVendorId)
+        : widget.buyerVendorId;
     final catalog = ref.watch(rentalsCatalogProvider(_category));
-
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.pop()),
-        title: const Text('Rentals & equipment'),
-      ),
-      body: catalog.when(
+    final body = catalog.when(
         loading: () => const EventLoadingSkeleton(variant: EventLoadingVariant.list),
         error: (_, _) => ListView(
           padding: EdgeInsets.all(context.eos.spacing.lg),
@@ -61,35 +86,68 @@ class _MarketplaceRentalsScreenState extends ConsumerState<MarketplaceRentalsScr
                   selected: _category == null,
                   onSelected: (_) => setState(() => _category = null),
                 ),
-                for (final slug in rentalCategorySlugs.take(10))
-                  FilterChip(
-                    label: Text(rentalCategoryLabel(slug)),
-                    selected: _category == slug,
-                    onSelected: (_) => setState(() => _category = slug),
-                  ),
+                if (_rentalCats.isEmpty)
+                  for (final slug in rentalCategorySlugs.take(10))
+                    FilterChip(
+                      label: Text(rentalCategoryLabel(slug)),
+                      selected: _category == slug,
+                      onSelected: (_) => setState(() => _category = slug),
+                    )
+                else
+                  for (final cat in _rentalCats)
+                    FilterChip(
+                      label: Text(cat.label),
+                      selected: _category == cat.slug,
+                      onSelected: (_) => setState(() => _category = cat.slug),
+                    ),
               ],
             ),
             SizedBox(height: context.eos.spacing.lg),
             if (items.isEmpty)
               const EmptyStateCard(
                 title: 'No rental items yet',
-                message: 'Rental vendors can list chairs, tents, sound systems, and more.',
+                message: 'Rental vendors can list packages and equipment.',
                 icon: Icons.inventory_2_outlined,
               )
             else
-              ...items.map((item) => _RentalItemCard(item: item, eventId: widget.eventId)),
+              ...items.map(
+                    (item) => _RentalItemCard(
+                      item: item,
+                      eventId: widget.eventId,
+                      vendorBuyerMode: widget.vendorBuyerMode,
+                      isOwnOffering: isMarketplaceOwnOffering(
+                        offeringVendorId: item.vendorId,
+                        currentVendorId: currentVendorId,
+                      ),
+                    ),
+                  ),
           ],
         ),
+      );
+
+    if (widget.embedded) return body;
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.pop()),
+        title: const Text('Rentals & equipment'),
       ),
+      body: body,
     );
   }
 }
 
 class _RentalItemCard extends ConsumerStatefulWidget {
-  const _RentalItemCard({required this.item, this.eventId});
+  const _RentalItemCard({
+    required this.item,
+    this.eventId,
+    this.vendorBuyerMode = false,
+    this.isOwnOffering = false,
+  });
 
   final RentalCatalogItem item;
   final String? eventId;
+  final bool vendorBuyerMode;
+  final bool isOwnOffering;
 
   @override
   ConsumerState<_RentalItemCard> createState() => _RentalItemCardState();
@@ -117,13 +175,22 @@ class _RentalItemCardState extends ConsumerState<_RentalItemCard> {
       return;
     }
     try {
-      await ref.read(rentalsApiProvider).createBooking(
-            eventId: eventId,
-            catalogItemId: widget.item.id,
-            quantityRequested: int.tryParse(_qtyCtrl.text.trim()) ?? 1,
-            requesterName: _nameCtrl.text.trim().isEmpty ? 'Event organizer' : _nameCtrl.text.trim(),
-            deliveryAddress: _addressCtrl.text.trim(),
-          );
+      if (widget.vendorBuyerMode) {
+        await ref.read(rentalsApiProvider).createVendorBuyerBooking(
+              eventId: eventId,
+              catalogItemId: widget.item.id,
+              requesterName: _nameCtrl.text.trim().isEmpty ? 'Vendor buyer' : _nameCtrl.text.trim(),
+              deliveryAddress: _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
+            );
+      } else {
+        await ref.read(rentalsApiProvider).createBooking(
+              eventId: eventId,
+              catalogItemId: widget.item.id,
+              quantityRequested: widget.item.isPackage ? 1 : (int.tryParse(_qtyCtrl.text.trim()) ?? 1),
+              requesterName: _nameCtrl.text.trim().isEmpty ? 'Event organizer' : _nameCtrl.text.trim(),
+              deliveryAddress: _addressCtrl.text.trim(),
+            );
+      }
       refreshRentals(ref);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rental request submitted')));
@@ -158,15 +225,43 @@ class _RentalItemCardState extends ConsumerState<_RentalItemCard> {
                 ],
               ),
             ),
-            Text('${item.availableQuantity} of ${item.totalQuantity} available', style: context.eosText.bodySmall),
-            if (widget.eventId != null) ...[
-              SizedBox(height: context.eos.spacing.sm),
-              TextField(
-                controller: _qtyCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Quantity', border: OutlineInputBorder()),
-              ),
+            Text(
+              item.availableQuantity < 1
+                  ? 'Unavailable'
+                  : '${item.availableQuantity} of ${item.totalQuantity} available',
+              style: context.eosText.bodySmall,
+            ),
+            if (item.isPackage && item.components.isNotEmpty) ...[
               SizedBox(height: context.eos.spacing.xs),
+              Text(
+                item.components.map((c) => '${c.label} × ${c.quantity}').join(' · '),
+                style: context.eosText.bodySmall,
+              ),
+            ],
+            if (widget.isOwnOffering) ...[
+              SizedBox(height: context.eos.spacing.sm),
+              Row(
+                children: [
+                  OutlinedButton(
+                    onPressed: () {},
+                    child: const Text('View'),
+                  ),
+                  SizedBox(width: context.eos.spacing.sm),
+                  FilledButton(
+                    onPressed: () => context.push('/vendor/offerings'),
+                    child: const Text('Manage'),
+                  ),
+                ],
+              ),
+            ] else if (widget.eventId != null) ...[
+              SizedBox(height: context.eos.spacing.sm),
+              if (!item.isPackage)
+                TextField(
+                  controller: _qtyCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Quantity', border: OutlineInputBorder()),
+                ),
+              if (!item.isPackage) SizedBox(height: context.eos.spacing.xs),
               TextField(
                 controller: _nameCtrl,
                 decoration: const InputDecoration(labelText: 'Contact name', border: OutlineInputBorder()),
@@ -177,7 +272,10 @@ class _RentalItemCardState extends ConsumerState<_RentalItemCard> {
                 decoration: const InputDecoration(labelText: 'Delivery address', border: OutlineInputBorder()),
               ),
               SizedBox(height: context.eos.spacing.sm),
-              FilledButton(onPressed: _request, child: const Text('Request rental')),
+              FilledButton(
+                onPressed: item.availableQuantity < 1 ? null : _request,
+                child: Text(item.availableQuantity < 1 ? 'Unavailable' : 'Request rental'),
+              ),
             ],
           ],
         ),

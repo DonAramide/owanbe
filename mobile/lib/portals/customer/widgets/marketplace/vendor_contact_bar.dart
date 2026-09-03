@@ -8,12 +8,16 @@ class VendorContactBar extends StatelessWidget {
     super.key,
     required this.vendorName,
     required this.phone,
-    required this.onRequest,
+    this.onRequest,
+    this.onManage,
+    this.requestLabel = 'Request',
   });
 
   final String vendorName;
   final String phone;
-  final VoidCallback onRequest;
+  final VoidCallback? onRequest;
+  final VoidCallback? onManage;
+  final String requestLabel;
 
   Future<void> _copy(BuildContext context, String text, String label) async {
     await Clipboard.setData(ClipboardData(text: text));
@@ -35,11 +39,17 @@ class VendorContactBar extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: FilledButton.icon(
-                onPressed: onRequest,
-                icon: const Icon(Icons.send_outlined),
-                label: const Text('Request'),
-              ),
+              child: onManage != null
+                  ? FilledButton.icon(
+                      onPressed: onManage,
+                      icon: const Icon(Icons.inventory_2_outlined),
+                      label: const Text('Manage'),
+                    )
+                  : FilledButton.icon(
+                      onPressed: onRequest,
+                      icon: const Icon(Icons.send_outlined),
+                      label: Text(requestLabel),
+                    ),
             ),
             SizedBox(width: context.eos.spacing.sm),
             IconButton.filledTonal(

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../auth/auth_notifier.dart';
 import '../../../core/api/persistence_providers.dart';
+import '../../../core/providers/silent_refresh.dart';
 import '../../../features/operations/data/operations_store.dart';
 import '../../../features/operations/models/operations_models.dart';
 import '../../../features/operations/providers/operations_providers.dart';
@@ -22,7 +23,7 @@ void refreshEventCommandCenter(WidgetRef ref) {
 
 /// True when the signed-in user can manage this event.
 final customerEventOwnershipProvider = FutureProvider.autoDispose.family<bool, String>((ref, eventId) async {
-  final session = ref.watch(authSessionProvider);
+  final session = ref.watchSignedInUser();
   if (session == null) return false;
 
   try {

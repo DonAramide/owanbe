@@ -52,6 +52,13 @@ export const VENDOR_PRICING_ADMIN_ROLES: OwanbeRole[] = [
   'admin_ops',
 ];
 
+/**
+ * Vendor service-category capability catalogue (Control Tower Service Categories).
+ * Adds `super_admin` without dropping existing ADMIN_TIERS (includes admin_support).
+ * Does not broaden pricing, finance, or public catalog access.
+ */
+export const VENDOR_CATEGORY_ADMIN_ROLES: OwanbeRole[] = ['super_admin', ...ADMIN_TIERS];
+
 export const VENDOR_FINANCE_VIEW_ROLES: OwanbeRole[] = ['vendor', 'vendor_pending', ...ADMIN_TIERS];
 
 export const DISPUTE_CREATE_ROLES: OwanbeRole[] = ['client'];

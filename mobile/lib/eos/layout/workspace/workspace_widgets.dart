@@ -22,6 +22,7 @@ class WorkspaceEntityHeader extends StatelessWidget {
     required this.lastActivity,
     required this.healthScore,
     this.hasActiveAlerts = false,
+    this.onIdentityTap,
   });
 
   final String logoText;
@@ -35,6 +36,7 @@ class WorkspaceEntityHeader extends StatelessWidget {
   final String lastActivity;
   final int healthScore;
   final bool hasActiveAlerts;
+  final VoidCallback? onIdentityTap;
 
   @override
   Widget build(BuildContext context) {
@@ -65,56 +67,15 @@ class WorkspaceEntityHeader extends StatelessWidget {
               ),
               const SizedBox(width: 16),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(name, style: context.eosText.headlineSmall),
-                        const SizedBox(width: 12),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: context.eosColors.secondaryContainer,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(plan.toUpperCase(),
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: context.eosColors.onSecondaryContainer,
-                              )),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: environment.toLowerCase() == 'production'
-                                ? Colors.green.withOpacity(0.15)
-                                : Colors.blue.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(environment.toUpperCase(),
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: environment.toLowerCase() == 'production' ? Colors.green : Colors.blue,
-                              )),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    if (entityType == WorkspaceEntityType.security)
-                      Text(
-                        'Platform: Owambe Cloud Operations · Region: ${region.isNotEmpty ? region : "Unavailable"} · Runtime: v1.12.4-prod',
-                        style: context.eosText.bodySmall,
-                      )
-                    else
-                      Text(
-                        '${entityType.name.toUpperCase()} · Region: ${region.isNotEmpty ? region : "Unavailable"} · Primary: ${primaryContact.isNotEmpty ? primaryContact : "Not Configured"}',
-                        style: context.eosText.bodySmall,
-                      ),
-                  ],
+                child: _IdentityBlock(
+                  name: name,
+                  entityType: entityType,
+                  plan: plan,
+                  environment: environment,
+                  region: region,
+                  primaryContact: primaryContact,
+                  clickable: onIdentityTap != null,
+                  onTap: onIdentityTap,
                 ),
               ),
               // Health Score Gauge
@@ -212,6 +173,113 @@ class WorkspaceEntityHeader extends StatelessWidget {
       width: 1,
       color: context.eosColors.outlineVariant,
       margin: const EdgeInsets.symmetric(horizontal: 24),
+    );
+  }
+}
+
+class _IdentityBlock extends StatelessWidget {
+  const _IdentityBlock({
+    required this.name,
+    required this.entityType,
+    required this.plan,
+    required this.environment,
+    required this.region,
+    required this.primaryContact,
+    required this.clickable,
+    this.onTap,
+  });
+
+  final String name;
+  final WorkspaceEntityType entityType;
+  final String plan;
+  final String environment;
+  final String region;
+  final String primaryContact;
+  final bool clickable;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final identity = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Flexible(child: Text(name, style: context.eosText.headlineSmall)),
+            if (clickable) ...[
+              const SizedBox(width: 8),
+              Icon(Icons.edit_outlined, size: 18, color: context.eosColors.primary),
+            ],
+            if (plan.trim().isNotEmpty) ...[
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: context.eosColors.secondaryContainer,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  plan.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: context.eosColors.onSecondaryContainer,
+                  ),
+                ),
+              ),
+            ],
+            if (environment.trim().isNotEmpty) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: environment.toLowerCase() == 'production'
+                      ? Colors.green.withOpacity(0.15)
+                      : Colors.blue.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  environment.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: environment.toLowerCase() == 'production' ? Colors.green : Colors.blue,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 4),
+        if (entityType == WorkspaceEntityType.security)
+          Text(
+            'Platform: Owambe Cloud Operations · Region: ${region.isNotEmpty ? region : "Unavailable"} · Runtime: v1.12.4-prod',
+            style: context.eosText.bodySmall,
+          )
+        else
+          Text(
+            '${entityType.name.toUpperCase()} · Region: ${region.isNotEmpty ? region : "Unavailable"} · Primary: ${primaryContact.isNotEmpty ? primaryContact : "Not configured"}',
+            style: context.eosText.bodySmall,
+          ),
+      ],
+    );
+
+    if (!clickable) return identity;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        mouseCursor: SystemMouseCursors.click,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+          child: Tooltip(
+            message: 'Edit event details',
+            child: identity,
+          ),
+        ),
+      ),
     );
   }
 }

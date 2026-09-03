@@ -10,6 +10,14 @@ import type { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../../database/database.tokens';
 import type { CommerceActor } from '../commerce/commerce-auth.service';
 import { EventsAccessService } from '../events/events-access.service';
+import { isSelfRental, resolveRentalQuantity } from './rentals-buyer.util';
+
+export type RentalPackageComponentView = {
+  resourceId: string;
+  quantity: number;
+  slug: string;
+  label: string;
+};
 
 export const RENTAL_BOOKING_STATUSES = [
   'pending',
@@ -36,6 +44,8 @@ export type RentalCatalogItemView = {
   rentalFeeMinor: number;
   depositMinor: number;
   active: boolean;
+  isPackage: boolean;
+  components: RentalPackageComponentView[];
 };
 
 export type RentalBookingView = {
@@ -98,6 +108,7 @@ export class RentalsService {
     rental_fee_minor: string;
     deposit_minor: string;
     active: boolean;
+    is_package?: boolean;
   }): RentalCatalogItemView {
     return {
       id: row.id,
@@ -113,6 +124,8 @@ export class RentalsService {
       rentalFeeMinor: Number(row.rental_fee_minor),
       depositMinor: Number(row.deposit_minor),
       active: row.active,
+      isPackage: row.is_package === true,
+      components: [],
     };
   }
 
@@ -187,17 +200,52 @@ export class RentalsService {
       rental_fee_minor: string;
       deposit_minor: string;
       active: boolean;
+      is_package: boolean;
     }>(
       `SELECT i.id, i.vendor_id, v.business_name AS vendor_name, i.category_slug, i.name, i.description,
               i.photo_url, i.total_quantity, i.available_quantity, i.reserved_quantity,
-              i.rental_fee_minor, i.deposit_minor, i.active
+              i.rental_fee_minor, i.deposit_minor, i.active, COALESCE(i.is_package, false) AS is_package
        FROM rental_catalog_items i
        JOIN vendors v ON v.id = i.vendor_id
        WHERE i.tenant_id = $1 AND i.active = true ${filter}
        ORDER BY i.name`,
       params,
     );
-    return { items: rows.map((r) => this.rowToItem(r)) };
+    return { items: await this.withPackageComponents(rows.map((r) => this.rowToItem(r))) };
+  }
+
+  private async withPackageComponents(items: RentalCatalogItemView[]): Promise<RentalCatalogItemView[]> {
+    const packageIds = items.filter((i) => i.isPackage).map((i) => i.id);
+    if (!packageIds.length) return items;
+    const { rows } = await this.pool.query<{
+      catalog_item_id: string;
+      resource_id: string;
+      quantity: number;
+      slug: string;
+      label: string;
+    }>(
+      `SELECT c.catalog_item_id, c.resource_id, c.quantity, r.slug, r.label
+       FROM rental_package_components c
+       JOIN tenant_vendor_resource_catalog r ON r.id = c.resource_id
+       WHERE c.catalog_item_id = ANY($1::uuid[])
+       ORDER BY r.sort_order, r.label`,
+      [packageIds],
+    );
+    const byItem = new Map<string, RentalPackageComponentView[]>();
+    for (const row of rows) {
+      const list = byItem.get(row.catalog_item_id) ?? [];
+      list.push({
+        resourceId: row.resource_id,
+        quantity: row.quantity,
+        slug: row.slug,
+        label: row.label,
+      });
+      byItem.set(row.catalog_item_id, list);
+    }
+    return items.map((item) => ({
+      ...item,
+      components: byItem.get(item.id) ?? item.components,
+    }));
   }
 
   async listVendorInventory(actor: CommerceActor, vendorId: string) {
@@ -216,10 +264,11 @@ export class RentalsService {
       rental_fee_minor: string;
       deposit_minor: string;
       active: boolean;
+      is_package: boolean;
     }>(
       `SELECT i.id, i.vendor_id, v.business_name AS vendor_name, i.category_slug, i.name, i.description,
               i.photo_url, i.total_quantity, i.available_quantity, i.reserved_quantity,
-              i.rental_fee_minor, i.deposit_minor, i.active
+              i.rental_fee_minor, i.deposit_minor, i.active, COALESCE(i.is_package, false) AS is_package
        FROM rental_catalog_items i
        JOIN vendors v ON v.id = i.vendor_id
        WHERE i.tenant_id = $1 AND i.vendor_id = $2::uuid
@@ -227,7 +276,7 @@ export class RentalsService {
       [actor.tenantId, vendorId],
     );
     const blackouts = await this.listBlackouts(actor, vendorId);
-    return { items: rows.map((r) => this.rowToItem(r)), blackouts: blackouts.items };
+    return { items: await this.withPackageComponents(rows.map((r) => this.rowToItem(r))), blackouts: blackouts.items };
   }
 
   async createInventoryItem(
@@ -448,6 +497,112 @@ export class RentalsService {
     return { bookings: rows.map((r) => this.rowToBooking(r)) };
   }
 
+  async listMyBookings(actor: CommerceActor) {
+    const { rows } = await this.pool.query<{
+      id: string;
+      event_id: string;
+      event_title: string;
+      vendor_id: string;
+      vendor_name: string;
+      catalog_item_id: string;
+      item_name: string;
+      category_slug: string;
+      requester_name: string;
+      quantity_requested: number;
+      quantity_approved: number | null;
+      counter_quantity: number | null;
+      status: string;
+      rental_fee_minor: string;
+      deposit_minor: string;
+      delivery_date: Date | null;
+      pickup_date: Date | null;
+      delivery_address: string | null;
+      damage_notes: string | null;
+      delivered_at: Date | null;
+      returned_at: Date | null;
+      created_at: Date;
+    }>(
+      `SELECT b.id, b.event_id, e.title AS event_title, b.vendor_id, v.business_name AS vendor_name,
+              b.catalog_item_id, i.name AS item_name, i.category_slug, b.requester_name,
+              b.quantity_requested, b.quantity_approved, b.counter_quantity, b.status,
+              b.rental_fee_minor, b.deposit_minor, b.delivery_date, b.pickup_date,
+              b.delivery_address, b.damage_notes, b.delivered_at, b.returned_at, b.created_at
+       FROM rental_bookings b
+       JOIN events e ON e.id = b.event_id
+       JOIN vendors v ON v.id = b.vendor_id
+       JOIN rental_catalog_items i ON i.id = b.catalog_item_id
+       WHERE b.tenant_id = $1 AND b.requester_user_id = $2::uuid
+       ORDER BY b.created_at DESC`,
+      [actor.tenantId, actor.userId],
+    );
+    return { bookings: rows.map((r) => this.rowToBooking(r)) };
+  }
+
+  async listBuyerEligibleEvents(actor: CommerceActor) {
+    const vendorId = await this.access.resolveVendorId(actor.tenantId, actor.userId);
+    const { rows } = await this.pool.query<{
+      id: string;
+      title: string;
+      starts_at: Date;
+      source: string;
+    }>(
+      `SELECT e.id, e.title, e.starts_at, x.source
+       FROM (
+         SELECT event_id, 'participation' AS source
+         FROM vendor_event_participations
+         WHERE tenant_id = $1 AND vendor_id = $2::uuid AND status::text NOT IN ('rejected')
+         UNION
+         SELECT event_id, 'request' AS source
+         FROM vendor_event_requests
+         WHERE tenant_id = $1 AND vendor_id = $2::uuid
+           AND stage IN ('accepted', 'scheduled', 'arrived', 'completed')
+         UNION
+         SELECT e2.id, 'organizer' AS source
+         FROM events e2
+         JOIN organizers o ON o.id = e2.organizer_id
+         WHERE e2.tenant_id = $1
+           AND (
+             o.owner_user_id = $3
+             OR EXISTS (
+               SELECT 1 FROM organizer_members om
+               WHERE om.organizer_id = o.id AND om.user_id = $3 AND om.status = 'active'
+             )
+           )
+       ) x
+       JOIN events e ON e.id = x.event_id
+       GROUP BY e.id, e.title, e.starts_at, x.source
+       ORDER BY e.starts_at DESC`,
+      [actor.tenantId, vendorId, actor.userId],
+    );
+    const byId = new Map<string, { id: string; title: string; startsAt: string; sources: string[] }>();
+    for (const row of rows) {
+      const cur = byId.get(row.id) ?? {
+        id: row.id,
+        title: row.title,
+        startsAt: row.starts_at.toISOString(),
+        sources: [] as string[],
+      };
+      if (!cur.sources.includes(row.source)) cur.sources.push(row.source);
+      byId.set(row.id, cur);
+    }
+    return { items: [...byId.values()] };
+  }
+
+  private async assertVendorMayBuyForEvent(actor: CommerceActor, eventKey: string) {
+    return this.access.assertVendorAssociatedWithEvent(actor.tenantId, actor.userId, eventKey);
+  }
+
+  async createVendorBuyerBooking(actor: CommerceActor, eventKey: string, body: Record<string, unknown>) {
+    await this.assertVendorMayBuyForEvent(actor, eventKey);
+    const requesterName = String(body.requesterName ?? '').trim() || 'Vendor buyer';
+    return this.createBooking(
+      actor.tenantId,
+      eventKey,
+      { ...body, requesterName, quantityRequested: body.quantityRequested ?? 1 },
+      actor.userId,
+    );
+  }
+
   async createBooking(
     tenantId: string,
     eventKey: string,
@@ -456,9 +611,8 @@ export class RentalsService {
   ): Promise<RentalBookingView> {
     const event = await this.access.resolveEventRow(tenantId, eventKey, true);
     const catalogItemId = String(body.catalogItemId ?? '');
-    const qty = Math.floor(Number(body.quantityRequested) || 0);
     const requesterName = String(body.requesterName ?? '').trim();
-    if (!catalogItemId || qty < 1) {
+    if (!catalogItemId) {
       throw new BadRequestException({ code: 'INVALID_REQUEST', message: 'Item and quantity required' });
     }
     if (requesterName.length < 2) {
@@ -471,14 +625,32 @@ export class RentalsService {
       deposit_minor: string;
       available_quantity: number;
       name: string;
+      is_package: boolean;
     }>(
-      `SELECT vendor_id, rental_fee_minor, deposit_minor, available_quantity, name
+      `SELECT vendor_id, rental_fee_minor, deposit_minor, available_quantity, name,
+              COALESCE(is_package, false) AS is_package
        FROM rental_catalog_items
        WHERE tenant_id = $1 AND id = $2::uuid AND active = true`,
       [tenantId, catalogItemId],
     );
     const item = items[0];
     if (!item) throw new NotFoundException({ code: 'ITEM_NOT_FOUND', message: 'Rental item not found' });
+
+    const qty = resolveRentalQuantity(item.is_package, Number(body.quantityRequested) || 0);
+    if (qty < 1) {
+      throw new BadRequestException({ code: 'INVALID_REQUEST', message: 'Item and quantity required' });
+    }
+
+    if (userId) {
+      const buyerVendorId = await this.access.tryResolveVendorId(tenantId, userId);
+      if (isSelfRental(buyerVendorId, item.vendor_id)) {
+        throw new ForbiddenException({
+          code: 'SELF_RENTAL_FORBIDDEN',
+          message: 'A vendor cannot rent its own package',
+        });
+      }
+    }
+
     if (item.available_quantity < qty) {
       throw new UnprocessableEntityException({ code: 'INSUFFICIENT_STOCK', message: 'Not enough available units' });
     }

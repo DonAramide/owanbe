@@ -737,6 +737,7 @@ class _CommandPaletteDialogState extends ConsumerState<_CommandPaletteDialog> {
     {'label': 'Audit Log: Secrets Rotation Sequence Logs', 'route': '/super-admin/vendor-governance'},
     {'label': 'Analytics 360: Platform Growth Charts', 'route': '/super-admin/analytics/global'},
     {'label': 'Commerce Configuration: Vendor Pricing Rules', 'route': '/super-admin/commerce/vendor-pricing'},
+    {'label': 'Vendor Configuration: Business Capabilities', 'route': '/super-admin/commerce/vendor-configuration'},
     {'label': 'Navigate to: Commerce Configuration', 'action': 'nav_commerce', 'tab': 8},
     {'label': 'Navigate to: Platform Administration', 'action': 'nav_platform_admin', 'tab': 9},
     {'label': 'Commerce 360: Payout Ledger & Revenue Analytics', 'route': '/super-admin/commerce/global'},

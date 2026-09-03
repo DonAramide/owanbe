@@ -50,6 +50,7 @@ class EventModuleScaffold extends ConsumerWidget {
     this.footer,
     this.busy = false,
     this.showBreadcrumb = true,
+    this.onBack,
   });
 
   final String eventId;
@@ -64,6 +65,7 @@ class EventModuleScaffold extends ConsumerWidget {
   final Widget? footer;
   final bool busy;
   final bool showBreadcrumb;
+  final Future<void> Function()? onBack;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -86,7 +88,13 @@ class EventModuleScaffold extends ConsumerWidget {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_outlined),
           tooltip: 'Back',
-          onPressed: () => ExperienceNavigation.navigateBack(context),
+          onPressed: () async {
+            if (onBack != null) {
+              await onBack!();
+            } else {
+              ExperienceNavigation.navigateBack(context);
+            }
+          },
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

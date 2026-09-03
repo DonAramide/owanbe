@@ -125,6 +125,8 @@ abstract final class PortalRoutes {
     final first = sub.split('/').first;
     // Attendee purchase only — organizer manage requires auth.
     if (first == 'tickets') return sub == 'tickets';
+    // Token RSVP deep links — no account required.
+    if (first == 'rsvp') return sub == 'rsvp';
     return first == 'aso-ebi' || first == 'attire';
   }
 

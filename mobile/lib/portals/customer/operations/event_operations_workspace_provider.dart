@@ -9,6 +9,7 @@ import '../providers/customer_guest_providers.dart';
 import '../providers/program_providers.dart';
 import '../providers/vendor_crm_providers.dart';
 import '../closing/event_closing_actions.dart';
+import '../../../core/providers/silent_refresh.dart';
 import 'event_operations_models.dart';
 
 /// Live operations workspace — aggregates existing ops infrastructure (Phase 4).
@@ -51,7 +52,8 @@ final eventOperationsWorkspaceProvider =
 
   VendorCrmSnapshot? crm;
   try {
-    crm = await ref.watch(eventVendorCrmProvider(eventId).future);
+    refreshWhenDataChanges(ref, eventVendorCrmProvider(eventId));
+    crm = await ref.read(eventVendorCrmProvider(eventId).future);
   } catch (_) {}
 
   return buildEventOperationsWorkspace(

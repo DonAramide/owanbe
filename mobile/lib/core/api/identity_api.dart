@@ -344,6 +344,28 @@ class IdentityApi {
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> patchVendorService(
+    String serviceId, {
+    String? status,
+    List<Map<String, dynamic>>? capabilities,
+    List<Map<String, dynamic>>? customExtras,
+  }) async {
+    final res = await _patch(
+      _u('me/vendor-services/$serviceId'),
+      headers: await OwambeApiAuth.authorizedHeaders(
+        tenantId: _tenantId,
+        refreshIfNeeded: true,
+      ),
+      body: jsonEncode({
+        if (status != null) 'status': status,
+        if (capabilities != null) 'capabilities': capabilities,
+        if (customExtras != null) 'customExtras': customExtras,
+      }),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
   Future<String?> resolveVendorId(AuthSession session) async {
     final res = await _get(
       _u('me/vendor-id'),

@@ -1,0 +1,33 @@
+# Owanbe development tunnel — copy to ~/.cloudflared/owanbe-dev.yml
+# Credentials stay in ~/.cloudflared/ (never commit).
+#
+# Create tunnel (once):
+#   cloudflared tunnel create owanbe-dev
+#
+# DNS (requires owanbe.com zone access):
+#   cloudflared tunnel route dns owanbe-dev dev.owanbe.com
+#   cloudflared tunnel route dns owanbe-dev admin-dev.owanbe.com
+#
+# Or manual CNAME in Cloudflare DNS (both hostnames → same target):
+#   <TUNNEL_ID>.cfargotunnel.com
+#
+# Run:
+#   cloudflared tunnel --config %USERPROFILE%\.cloudflared\owanbe-dev.yml run owanbe-dev
+
+tunnel: owanbe-dev
+credentials-file: C:\Users\HorizonPay\.cloudflared\REPLACE_WITH_TUNNEL_ID.json
+
+ingress:
+  # Customer app + API (API paths first)
+  - hostname: dev.owanbe.com
+    path: /v1*
+    service: http://127.0.0.1:8080
+  - hostname: dev.owanbe.com
+    service: http://127.0.0.1:3000
+  # Admin app + API (separate Flutter binary)
+  - hostname: admin-dev.owanbe.com
+    path: /v1*
+    service: http://127.0.0.1:8080
+  - hostname: admin-dev.owanbe.com
+    service: http://127.0.0.1:59158
+  - service: http_status:404

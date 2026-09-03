@@ -91,6 +91,8 @@ abstract final class EventRouteRegistry {
 
   static String eventVendorPipeline(String eventId) => '/events/$eventId/vendor-pipeline';
 
+  static String eventEdit(String eventId) => '/events/$eventId/edit';
+
   /// Event-scoped vendor sourcing (alias for vendor pipeline).
   static String eventVendors(String eventId) => '/events/$eventId/vendors';
 
@@ -137,6 +139,7 @@ abstract final class EventRouteRegistry {
   /// sends valid organizer navigation to `/hub`.
   static bool isOrganizerWorkspacePath(String location) {
     final path = location.split('?').first;
+    if (path == vendors || path.startsWith('$vendors/')) return true;
     return isShellPath(path) || isEventOverviewPath(path) || isEventModulePath(path);
   }
 }

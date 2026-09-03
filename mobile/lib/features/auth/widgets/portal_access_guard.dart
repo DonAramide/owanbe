@@ -44,17 +44,16 @@ class _WorkspaceAccessBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final identityAsync = ref.watch(userIdentityProvider);
-    final session = ref.watch(authSessionProvider);
+    final session = ref.watch(authSessionProvider.select((s) => s));
+    final identity = identityAsync.valueOrNull;
 
-    return identityAsync.when(
-      loading: () => child,
-      error: (_, __) {
-        if (canEnterWorkspaceExperience(
-          requiredRole: requiredRole,
-          session: session,
-        )) {
-          return child;
-        }
+    // Keep the current screen mounted during identity loading/refresh.
+    if (identity == null) {
+      if (identityAsync.hasError &&
+          !canEnterWorkspaceExperience(
+            requiredRole: requiredRole,
+            session: session,
+          )) {
         return _AccessDeniedScaffold(
           requiredRole: requiredRole,
           title: 'Could not verify workspace access',
@@ -62,47 +61,46 @@ class _WorkspaceAccessBody extends ConsumerWidget {
           primaryAction: 'Go to Owanbe Home',
           onPrimary: () => ExperienceNavigation.returnToHub(context),
         );
-      },
-      data: (identity) {
-        if (identity == null ||
-            canEnterWorkspaceExperience(
-              requiredRole: requiredRole,
-              identity: identity,
-              session: session,
-            )) {
-          return child;
-        }
+      }
+      return child;
+    }
 
-        final workspace = ExperienceWorkspace.fromUserRole(requiredRole);
-        final wsTitle = workspace?.title ?? requiredRole.label;
-        final state = workspace != null ? identity.workspaceState(workspace) : null;
+    if (canEnterWorkspaceExperience(
+      requiredRole: requiredRole,
+      identity: identity,
+      session: session,
+    )) {
+      return child;
+    }
 
-        if (state != null && state.needsActivation) {
-          return _AccessDeniedScaffold(
-            requiredRole: requiredRole,
-            title: '$wsTitle workspace not activated',
-            body: 'Activate $wsTitle from Owanbe Home to use this experience.',
-            primaryAction: 'Activate $wsTitle',
-            onPrimary: () {
-              if (workspace != null) {
-                context.push(ExperienceRoutes.activateFor(workspace));
-              } else {
-                ExperienceNavigation.returnToHub(context);
-              }
-            },
-            secondaryLabel: 'Back to Owanbe Home',
-            onSecondary: () => ExperienceNavigation.returnToHub(context),
-          );
-        }
+    final workspace = ExperienceWorkspace.fromUserRole(requiredRole);
+    final wsTitle = workspace?.title ?? requiredRole.label;
+    final state = workspace != null ? identity.workspaceState(workspace) : null;
 
-        return _AccessDeniedScaffold(
-          requiredRole: requiredRole,
-          title: 'Workspace unavailable',
-          body: 'You do not have access to $wsTitle right now.',
-          primaryAction: 'Go to Owanbe Home',
-          onPrimary: () => ExperienceNavigation.returnToHub(context),
-        );
-      },
+    if (state != null && state.needsActivation) {
+      return _AccessDeniedScaffold(
+        requiredRole: requiredRole,
+        title: '$wsTitle workspace not activated',
+        body: 'Activate $wsTitle from Owanbe Home to use this experience.',
+        primaryAction: 'Activate $wsTitle',
+        onPrimary: () {
+          if (workspace != null) {
+            context.push(ExperienceRoutes.activateFor(workspace));
+          } else {
+            ExperienceNavigation.returnToHub(context);
+          }
+        },
+        secondaryLabel: 'Back to Owanbe Home',
+        onSecondary: () => ExperienceNavigation.returnToHub(context),
+      );
+    }
+
+    return _AccessDeniedScaffold(
+      requiredRole: requiredRole,
+      title: 'Workspace unavailable',
+      body: 'You do not have access to $wsTitle right now.',
+      primaryAction: 'Go to Owanbe Home',
+      onPrimary: () => ExperienceNavigation.returnToHub(context),
     );
   }
 }

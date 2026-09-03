@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/money.dart';
 import '../../../eos/eos.dart';
+import '../../../portals/customer/models/vendor_change_request_models.dart';
 import '../../../portals/customer/models/vendor_crm_models.dart';
 import '../../../portals/customer/providers/vendor_crm_providers.dart';
+import '../../../portals/customer/widgets/vendor_crm/vendor_change_requests_panel.dart';
 import '../../../portals/customer/widgets/vendor_crm/vendor_stage_badge.dart';
 import '../providers/vendor_inbox_integration.dart';
 
@@ -138,9 +140,19 @@ class _VendorRequestDetailSheetState extends ConsumerState<_VendorRequestDetailS
               ],
               if (request.requiredServices != null && request.requiredServices!.isNotEmpty)
                 _row('Event services needed', request.requiredServices!.join(', ')),
+              if (request.selectedCapabilities.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('REQUESTED CAPABILITIES', style: const TextStyle(color: Colors.white54)),
+                const SizedBox(height: 4),
+                for (final cap in request.selectedCapabilities)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text('✓ ${cap.label}', style: const TextStyle(color: Colors.white)),
+                  ),
+              ],
               if (request.message.trim().isNotEmpty) ...[
                 const SizedBox(height: 8),
-                Text('Requirements', style: const TextStyle(color: Colors.white54)),
+                Text('Message', style: const TextStyle(color: Colors.white54)),
                 const SizedBox(height: 4),
                 Text(request.message, style: const TextStyle(color: Colors.white)),
               ],
@@ -169,6 +181,22 @@ class _VendorRequestDetailSheetState extends ConsumerState<_VendorRequestDetailS
                 textAlign: TextAlign.right,
               ),
               _row('Created', _fmt(request.createdAt)),
+              if (vendorRequestAllowsChangeRequests(request.stage)) ...[
+                const SizedBox(height: 16),
+                _section('CHANGE REQUESTS'),
+                const SizedBox(height: 4),
+                Text(
+                  'Organizer proposals to adjust this booking. Accepting applies the change; declining leaves the booking as-is.',
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+                const SizedBox(height: 8),
+                VendorChangeRequestsPanel(
+                  request: request,
+                  role: ChangeRequestPanelRole.vendor,
+                  onLight: false,
+                  dense: true,
+                ),
+              ],
               const SizedBox(height: 20),
               if (canAct) ...[
                 FilledButton(

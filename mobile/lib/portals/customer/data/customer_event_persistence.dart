@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/persistence_providers.dart';
 import '../../../core/api/vendors_api.dart';
 import '../../../features/vendor/vendor_identity.dart';
-import '../api/customer_events_api.dart';
 import '../data/customer_event_dev_store.dart';
 import '../models/customer_event_models.dart';
 import '../providers/customer_event_providers.dart';
@@ -46,17 +45,26 @@ Future<void> inviteVendorToEvent(
   String? serviceLabel,
   String? serviceKey,
   String? vendorServiceId,
+  List<Map<String, String>>? selectedCapabilities,
+  bool vendorBuyer = false,
 }) async {
   try {
-    await ref.read(vendorCrmApiProvider).createRequest(eventId, {
+    final body = {
       'vendorId': VendorIdentity.resolveMarketplaceVendorId(vendor.id),
       'message': message ?? '',
       if (serviceLabel != null && serviceLabel.trim().isNotEmpty) 'serviceLabel': serviceLabel.trim(),
       if (serviceKey != null && serviceKey.trim().isNotEmpty) 'serviceKey': serviceKey.trim(),
       if (vendorServiceId != null && vendorServiceId.trim().isNotEmpty)
         'vendorServiceId': vendorServiceId.trim(),
-      'source': 'marketplace',
-    });
+      if (selectedCapabilities != null && selectedCapabilities.isNotEmpty)
+        'selectedCapabilities': selectedCapabilities,
+      'source': vendorBuyer ? 'vendor_marketplace' : 'marketplace',
+    };
+    if (vendorBuyer) {
+      await ref.read(vendorCrmApiProvider).createVendorBuyerRequest(eventId, body);
+    } else {
+      await ref.read(vendorCrmApiProvider).createRequest(eventId, body);
+    }
     bumpCustomerEventRevision(ref);
     refreshVendorCrm(ref);
     return;

@@ -98,5 +98,9 @@ CustomerEvent mapCustomerEvent(Map<String, dynamic> json) {
     venueLongitude: (json['venueLongitude'] as num?)?.toDouble(),
     googlePlaceId: json['googlePlaceId']?.toString(),
     celebrantImageUrl: json['celebrantImageUrl']?.toString(),
+    updatedAt: _parseDate(json['updatedAt']),
+    state: (json['state'] ?? '').toString(),
+    lga: (json['lga'] ?? '').toString(),
+    organizerContactEmail: json['organizerContactEmail']?.toString(),
   );
 }

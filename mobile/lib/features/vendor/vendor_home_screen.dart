@@ -40,7 +40,7 @@ class _VendorHomeContent extends ConsumerWidget {
 
     // Harden: never show dashboard before vendor onboarding is complete.
     final step = workspaceProfile.valueOrNull?.onboardingStep;
-    if (workspaceProfile.isLoading) {
+    if (workspaceProfile.isLoading && !workspaceProfile.hasValue) {
       return const Scaffold(
         backgroundColor: EosColors.plumDark,
         body: Center(child: CircularProgressIndicator()),
@@ -133,6 +133,21 @@ class _VendorTopBar extends ConsumerWidget {
               ],
             ),
       iconActions: [
+        IconButton(
+          tooltip: 'Services & Availability',
+          onPressed: () => context.push('/vendor/services'),
+          icon: const Icon(Icons.home_repair_service_outlined),
+        ),
+        IconButton(
+          tooltip: 'My Services & Rentals',
+          onPressed: () => context.push('/vendor/offerings'),
+          icon: const Icon(Icons.inventory_2_outlined),
+        ),
+        IconButton(
+          tooltip: 'Marketplace',
+          onPressed: () => context.push('/vendors?vendorBuyer=1'),
+          icon: const Icon(Icons.storefront_outlined),
+        ),
         IconButton(
           tooltip: 'Edit Vendor Profile',
           onPressed: onEditProfile,

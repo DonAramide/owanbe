@@ -3,13 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/auth_notifier.dart';
 import '../../../portals/attendee/data/attendee_pass_cache.dart';
 import '../../../portals/attendee/providers/attendee_pass_providers.dart';
+import '../../../core/providers/silent_refresh.dart';
 import '../models/attendee_event_models.dart';
 import '../models/public_models.dart';
 import '../providers/public_providers.dart';
 import '../providers/ticket_commerce_providers.dart';
 
 final attendeeTicketsSyncProvider = FutureProvider.autoDispose<List<AttendeeTicket>>((ref) async {
-  final session = ref.watch(authSessionProvider);
+  final session = ref.watchSignedInUser();
   if (session == null) return ref.watch(attendeeTicketsProvider);
 
   final cache = ref.read(attendeePassCacheProvider);

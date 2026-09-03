@@ -53,9 +53,8 @@ final attendeeLiveSyncProvider = Provider.autoDispose.family<void, String>((ref,
   final watching = ref.watch(attendeeLiveWatchProvider(eventId));
   if (!watching) return;
   final timer = Timer.periodic(const Duration(seconds: 10), (_) {
-    ref.invalidate(publicEventProgramProvider(eventId));
-    ref.invalidate(attendeeLiveUpdatesProvider(eventId));
-    ref.invalidate(attendeeTicketsSyncProvider);
+    unawaited(ref.refresh(publicEventProgramProvider(eventId).future));
+    unawaited(ref.refresh(attendeeLiveUpdatesProvider(eventId).future));
   });
   ref.onDispose(timer.cancel);
 });

@@ -1,6 +1,11 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, BadRequestException } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { PG_POOL } from '../../database/database.tokens';
+import {
+  normalizeCapabilityKey,
+  parseAdminCapabilities,
+  parseCapabilityTier,
+} from '../vendor-operations/vendor-capability.util';
 
 type ConfigRow = {
   id: string;
@@ -8,9 +13,11 @@ type ConfigRow = {
   label: string;
   sort_order: number;
   is_active: boolean;
-  metadata?: Record<string, unknown>;
+  metadata?: unknown;
   description?: string | null;
   icon_key?: string | null;
+  offering_kind?: string | null;
+  parent_id?: string | null;
   access_mode?: string;
   category_slug?: string | null;
   checklist?: unknown;
@@ -18,6 +25,61 @@ type ConfigRow = {
   budget_hints?: unknown;
   allocations?: unknown;
 };
+
+/** Migration 068/070 Admin catalogues — applied only on first INSERT of a missing core slug. */
+function coreCategoryMetadata(slug: string): Record<string, unknown> {
+  type Cap = { key: string; label: string; enabled: boolean; tier: 'core' | 'optional' };
+  const catalogues: Record<string, Cap[]> = {
+    dj: [
+      { key: 'sound_system', label: 'Sound System', enabled: true, tier: 'core' },
+      { key: 'microphones', label: 'Microphones', enabled: true, tier: 'core' },
+      { key: 'speakers', label: 'Speakers', enabled: true, tier: 'core' },
+      { key: 'dj_controller', label: 'DJ Controller', enabled: true, tier: 'core' },
+      { key: 'lighting', label: 'Lighting', enabled: true, tier: 'optional' },
+      { key: 'generator', label: 'Generator', enabled: true, tier: 'optional' },
+      { key: 'smoke_machine', label: 'Smoke Machine', enabled: true, tier: 'optional' },
+      { key: 'led_screen', label: 'LED Screen', enabled: false, tier: 'optional' },
+      { key: 'stage', label: 'Stage', enabled: false, tier: 'optional' },
+      { key: 'ac', label: 'AC', enabled: false, tier: 'optional' },
+    ],
+    photographer: [
+      { key: 'cameras', label: 'Cameras', enabled: true, tier: 'core' },
+      { key: 'lighting', label: 'Lighting', enabled: true, tier: 'optional' },
+      { key: 'drone', label: 'Drone', enabled: true, tier: 'optional' },
+      { key: 'backdrop', label: 'Backdrop', enabled: true, tier: 'optional' },
+      { key: 'photo_booth', label: 'Photo Booth', enabled: false, tier: 'optional' },
+    ],
+    catering: [
+      { key: 'chafing_dishes', label: 'Chafing Dishes', enabled: true, tier: 'core' },
+      { key: 'waitstaff', label: 'Waitstaff', enabled: true, tier: 'core' },
+      { key: 'small_chops', label: 'Small Chops', enabled: true, tier: 'core' },
+      { key: 'drinks_station', label: 'Drinks Station', enabled: true, tier: 'optional' },
+      { key: 'generator', label: 'Generator', enabled: false, tier: 'optional' },
+    ],
+    decorator: [
+      { key: 'backdrop', label: 'Backdrop', enabled: true, tier: 'core' },
+      { key: 'lighting', label: 'Lighting', enabled: true, tier: 'optional' },
+      { key: 'florals', label: 'Florals', enabled: true, tier: 'optional' },
+      { key: 'draping', label: 'Draping', enabled: true, tier: 'optional' },
+      { key: 'stage', label: 'Stage', enabled: false, tier: 'optional' },
+    ],
+    florist: [
+      { key: 'backdrop', label: 'Backdrop', enabled: true, tier: 'core' },
+      { key: 'lighting', label: 'Lighting', enabled: true, tier: 'optional' },
+      { key: 'florals', label: 'Florals', enabled: true, tier: 'core' },
+      { key: 'draping', label: 'Draping', enabled: true, tier: 'optional' },
+      { key: 'stage', label: 'Stage', enabled: false, tier: 'optional' },
+    ],
+    drinks: [
+      { key: 'bar_setup', label: 'Bar Setup', enabled: true, tier: 'core' },
+      { key: 'glassware', label: 'Glassware', enabled: true, tier: 'core' },
+      { key: 'coolers', label: 'Coolers', enabled: true, tier: 'optional' },
+      { key: 'waitstaff', label: 'Waitstaff', enabled: true, tier: 'optional' },
+    ],
+  };
+  const capabilities = catalogues[slug];
+  return capabilities ? { capabilities } : {};
+}
 
 @Injectable()
 export class EventConfigService {
@@ -69,10 +131,11 @@ export class EventConfigService {
 
   async listVendorCategories(tenantId: string) {
     await this.seedVendorCategoriesIfEmpty(tenantId);
+    await this.ensureCoreVendorCategories(tenantId);
     await this.ensureFashionAttireCategories(tenantId);
     await this.ensureRentalCategories(tenantId);
     const { rows } = await this.pool.query<ConfigRow>(
-      `SELECT id, slug, label, icon_key, sort_order
+      `SELECT id, slug, label, icon_key, sort_order, metadata, offering_kind
        FROM tenant_vendor_categories
        WHERE tenant_id = $1 AND is_active = true
        ORDER BY sort_order ASC, label ASC`,
@@ -84,6 +147,10 @@ export class EventConfigService {
         slug: r.slug,
         label: r.label,
         iconKey: r.icon_key,
+        offeringKind: r.offering_kind ?? 'unclassified',
+        capabilities: parseAdminCapabilities(r.metadata)
+          .filter((c) => c.enabled)
+          .map((c) => ({ key: c.key, label: c.label, tier: c.tier })),
       })),
     };
   }
@@ -184,6 +251,94 @@ export class EventConfigService {
     return { id: rows[0]!.id };
   }
 
+  async adminListVendorCategories(tenantId: string) {
+    await this.seedVendorCategoriesIfEmpty(tenantId);
+    await this.ensureCoreVendorCategories(tenantId);
+    await this.ensureFashionAttireCategories(tenantId);
+    await this.ensureRentalCategories(tenantId);
+    const { rows } = await this.pool.query<ConfigRow>(
+      `SELECT id, slug, label, icon_key, sort_order, is_active, metadata, offering_kind, parent_id
+       FROM tenant_vendor_categories
+       WHERE tenant_id = $1
+       ORDER BY sort_order ASC, label ASC`,
+      [tenantId],
+    );
+    return {
+      items: rows.map((r) => ({
+        id: r.id,
+        slug: r.slug,
+        label: r.label,
+        iconKey: r.icon_key,
+        isActive: r.is_active !== false,
+        offeringKind: r.offering_kind ?? 'unclassified',
+        parentId: r.parent_id ?? null,
+        capabilities: parseAdminCapabilities(r.metadata),
+      })),
+    };
+  }
+
+  async adminPatchVendorCategoryCapabilities(tenantId: string, body: Record<string, unknown>) {
+    const id = String(body.id ?? '').trim();
+    if (!id) throw new BadRequestException({ code: 'INVALID_CATEGORY', message: 'id required' });
+    const raw = Array.isArray(body.capabilities) ? body.capabilities : null;
+    const hasIsActive = body.isActive !== undefined || body.is_active !== undefined;
+    const isActive =
+      body.isActive !== false && body.isActive !== 'false' && body.is_active !== false && body.is_active !== 'false';
+
+    let capabilities: Array<{ key: string; label: string; enabled: boolean; tier: 'core' | 'optional' }> | null =
+      null;
+    if (raw) {
+      const seen = new Set<string>();
+      capabilities = [];
+      for (const entry of raw) {
+        if (!entry || typeof entry !== 'object') continue;
+        const e = entry as Record<string, unknown>;
+        const key = normalizeCapabilityKey(String(e.key ?? e.label ?? ''));
+        if (!key || key === 'general' || seen.has(key)) continue;
+        seen.add(key);
+        capabilities.push({
+          key,
+          label: String(e.label ?? key).trim() || key,
+          enabled: e.enabled !== false && e.enabled !== 'false',
+          tier: parseCapabilityTier(e.tier ?? e.kind),
+        });
+      }
+    }
+
+    const { rows } = await this.pool.query<{ metadata: unknown }>(
+      `SELECT metadata FROM tenant_vendor_categories WHERE tenant_id = $1 AND id = $2`,
+      [tenantId, id],
+    );
+    if (!rows.length) throw new NotFoundException({ code: 'CATEGORY_NOT_FOUND' });
+
+    if (capabilities != null) {
+      const prev =
+        rows[0]!.metadata && typeof rows[0]!.metadata === 'object' && !Array.isArray(rows[0]!.metadata)
+          ? (rows[0]!.metadata as Record<string, unknown>)
+          : {};
+      const next = { ...prev, capabilities };
+      await this.pool.query(
+        `UPDATE tenant_vendor_categories
+         SET metadata = $3::jsonb, updated_at = now()
+         WHERE tenant_id = $1 AND id = $2`,
+        [tenantId, id, JSON.stringify(next)],
+      );
+    }
+    if (hasIsActive) {
+      await this.pool.query(
+        `UPDATE tenant_vendor_categories
+         SET is_active = $3, updated_at = now()
+         WHERE tenant_id = $1 AND id = $2`,
+        [tenantId, id, isActive],
+      );
+    }
+    return {
+      id,
+      ...(capabilities != null ? { capabilities } : {}),
+      ...(hasIsActive ? { isActive } : {}),
+    };
+  }
+
   async seedDefaultsIfEmpty(tenantId: string) {
     const { rows } = await this.pool.query(`SELECT 1 FROM tenant_event_categories WHERE tenant_id = $1 LIMIT 1`, [
       tenantId,
@@ -255,6 +410,42 @@ export class EventConfigService {
     }
   }
 
+  /**
+   * Idempotent core marketplace categories from seedVendorCategoriesIfEmpty.
+   * INSERT ON CONFLICT DO NOTHING — does not overwrite fashion/rental rows or existing metadata.
+   * Capability JSON matches migration 068 catalogues for those slugs only, and only on first insert.
+   */
+  async ensureCoreVendorCategories(tenantId: string) {
+    const categories: Array<[string, string, string, number]> = [
+      ['venue', 'Venue', 'apartment', 0],
+      ['decorator', 'Decorator', 'brush', 1],
+      ['photographer', 'Photographer', 'photo_camera', 2],
+      ['dj', 'DJ', 'music_note', 3],
+      ['mc', 'MC', 'mic', 4],
+      ['security', 'Security', 'shield', 5],
+      ['cake', 'Cake', 'cake', 6],
+      ['drinks', 'Drinks', 'local_bar', 7],
+      ['ushers', 'Ushers', 'groups', 8],
+      ['live-band', 'Live Band', 'nightlife', 9],
+      ['catering', 'Catering', 'restaurant', 10],
+      ['florist', 'Florist', 'local_florist', 11],
+      ['av-production', 'AV Production', 'videocam', 12],
+    ];
+    for (const [slug, label, icon, sortOrder] of categories) {
+      const metadata = coreCategoryMetadata(slug);
+      await this.pool.query(
+        `INSERT INTO tenant_vendor_categories (tenant_id, slug, label, icon_key, sort_order, is_active, metadata, offering_kind)
+         VALUES ($1, $2, $3, $4, $5, true, $6::jsonb, 'service')
+         ON CONFLICT (tenant_id, slug) DO UPDATE
+           SET offering_kind = CASE
+             WHEN tenant_vendor_categories.offering_kind = 'unclassified' THEN EXCLUDED.offering_kind
+             ELSE tenant_vendor_categories.offering_kind
+           END`,
+        [tenantId, slug, label, icon, sortOrder, JSON.stringify(metadata)],
+      );
+    }
+  }
+
   async ensureFashionAttireCategories(tenantId: string) {
     const categories: Array<[string, string, string, number]> = [
       ['fashion-attire', 'Fashion & Attire', 'checkroom', 50],
@@ -269,10 +460,15 @@ export class EventConfigService {
     ];
     for (const [slug, label, icon, sortOrder] of categories) {
       await this.pool.query(
-        `INSERT INTO tenant_vendor_categories (tenant_id, slug, label, icon_key, sort_order, is_active)
-         VALUES ($1, $2, $3, $4, $5, true)
+        `INSERT INTO tenant_vendor_categories (tenant_id, slug, label, icon_key, sort_order, is_active, offering_kind)
+         VALUES ($1, $2, $3, $4, $5, true, 'service')
          ON CONFLICT (tenant_id, slug) DO UPDATE
-           SET label = EXCLUDED.label, icon_key = EXCLUDED.icon_key, is_active = true`,
+           SET label = EXCLUDED.label,
+               icon_key = EXCLUDED.icon_key,
+               offering_kind = CASE
+                 WHEN tenant_vendor_categories.offering_kind = 'unclassified' THEN EXCLUDED.offering_kind
+                 ELSE tenant_vendor_categories.offering_kind
+               END`,
         [tenantId, slug, label, icon, sortOrder],
       );
     }
@@ -302,10 +498,15 @@ export class EventConfigService {
     ];
     for (const [slug, label, icon, sortOrder] of categories) {
       await this.pool.query(
-        `INSERT INTO tenant_vendor_categories (tenant_id, slug, label, icon_key, sort_order, is_active)
-         VALUES ($1, $2, $3, $4, $5, true)
+        `INSERT INTO tenant_vendor_categories (tenant_id, slug, label, icon_key, sort_order, is_active, offering_kind)
+         VALUES ($1, $2, $3, $4, $5, true, 'rental')
          ON CONFLICT (tenant_id, slug) DO UPDATE
-           SET label = EXCLUDED.label, icon_key = EXCLUDED.icon_key, is_active = true`,
+           SET label = EXCLUDED.label,
+               icon_key = EXCLUDED.icon_key,
+               offering_kind = CASE
+                 WHEN tenant_vendor_categories.offering_kind = 'unclassified' THEN EXCLUDED.offering_kind
+                 ELSE tenant_vendor_categories.offering_kind
+               END`,
         [tenantId, slug, label, icon, sortOrder],
       );
     }

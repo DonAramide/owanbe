@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../eos/eos.dart';
-import '../../admin/screens/admin_vendor_categories_screen.dart';
 
 /// Control Tower → Commerce Configuration hub.
 /// Vendor Pricing deep-links to the existing [AdminVendorPricingScreen] via route —
@@ -29,13 +28,23 @@ class CommerceConfigurationScreen extends ConsumerWidget {
           ),
           SizedBox(height: context.eos.spacing.md),
           _CommerceNavCard(
-            title: 'Service Categories',
+            title: 'Vendor Capabilities',
             description:
-                'Vendor service categories used in marketplace filters and event workflows.',
-            icon: Icons.category_outlined,
-            onOpen: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const AdminVendorCategoriesScreen()),
-            ),
+                'Admin-owned Core and Optional capability catalogues per service category. '
+                'Vendors only toggle what they provide — they cannot create catalogue items. '
+                'Does not change vendor pricing or historical requests.',
+            icon: Icons.checklist_outlined,
+            onOpen: () => context.push('/super-admin/commerce/vendor-capabilities'),
+          ),
+          SizedBox(height: context.eos.spacing.md),
+          _CommerceNavCard(
+            title: 'Vendor Configuration',
+            description:
+                'Business capabilities (Service Provider / Rental Provider), service categories, '
+                'rental categories, and the master resource catalogue. Definitions only — '
+                'does not change Vendor CRM, rental bookings, or vendor identity.',
+            icon: Icons.tune_outlined,
+            onOpen: () => context.push('/super-admin/commerce/vendor-configuration'),
           ),
           SizedBox(height: context.eos.spacing.md),
           _CommerceNavCard(

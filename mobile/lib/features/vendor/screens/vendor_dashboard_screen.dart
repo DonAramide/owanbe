@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../eos/eos.dart';
+import '../../../core/providers/silent_refresh.dart';
 import '../models/vendor_models.dart';
 import '../providers/vendor_providers.dart';
 import '../providers/vendor_intelligence_engine.dart';
@@ -124,6 +125,162 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
                 if (profile.tier.trim().isNotEmpty) EosVendorTierChip(tier: profile.tier),
               ],
             ),
+            const SizedBox(height: 16),
+            InkWell(
+              onTap: () => context.push('/vendor/services'),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: EosColors.champagne.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: EosColors.champagne.withValues(alpha: 0.35)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.home_repair_service_outlined, color: EosColors.champagne),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'SERVICES & AVAILABILITY',
+                            style: TextStyle(
+                              color: EosColors.champagne,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Turn services on/off, declare what you provide, and see booked dates.',
+                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, color: Colors.white54),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            InkWell(
+              onTap: () => context.push('/vendor/offerings'),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.03),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white10),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.inventory_2_outlined, color: EosColors.champagne),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'MY SERVICES & RENTAL PACKAGES',
+                            style: TextStyle(
+                              color: EosColors.champagne,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Service blueprints and rental packages from Super Admin catalogues.',
+                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, color: Colors.white54),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            InkWell(
+              onTap: () => context.push('/vendors?vendorBuyer=1'),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.03),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white10),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.storefront_outlined, color: EosColors.champagne),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'MARKETPLACE',
+                            style: TextStyle(
+                              color: EosColors.champagne,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Find services and rental packages for events you are on.',
+                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, color: Colors.white54),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            InkWell(
+              onTap: () => context.push('/vendor/calendar'),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.03),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white10),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.calendar_month_outlined, color: EosColors.champagne),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'MY SCHEDULE',
+                            style: TextStyle(
+                              color: EosColors.champagne,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Upcoming bookings, pending requests, and BLOCK DATES.',
+                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, color: Colors.white54),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 20),
 
             // AI Insights Banner Section (BI)
@@ -151,7 +308,7 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // 3. Incoming Requests (live CRM)
-                          inboxAsync.when(
+                          inboxAsync.whenStable(
                             data: (snap) => VendorIncomingRequestsPanel(snapshot: snap),
                             loading: () => const LinearProgressIndicator(),
                             error: (e, _) => VendorEmptyState(
@@ -987,7 +1144,7 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          inbox.when(
+          inbox.whenStable(
             loading: () => const LinearProgressIndicator(minHeight: 2),
             error: (e, _) => Text('$e', style: const TextStyle(color: Colors.white54, fontSize: 12)),
             data: (snap) {
@@ -1010,9 +1167,9 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
                       leading: CircleAvatar(
                         backgroundColor: EosColors.plum,
                         child: Text(
-                          ((r.organizerName ?? 'O').trim().isEmpty
+                          ((r.displayBuyerName).trim().isEmpty
                                   ? 'O'
-                                  : (r.organizerName ?? 'O').trim()[0])
+                                  : r.displayBuyerName.trim()[0])
                               .toUpperCase(),
                           style: const TextStyle(color: Colors.white),
                         ),
@@ -1025,7 +1182,7 @@ class _VendorDashboardScreenState extends ConsumerState<VendorDashboardScreen> {
                       ),
                       subtitle: Text(
                         [
-                          r.organizerName ?? 'Organizer',
+                          r.displayBuyerName,
                           r.serviceLabel ?? 'Service',
                           if (r.serviceCode != null && r.serviceCode!.isNotEmpty) r.serviceCode!,
                           vendorCrmStageLabels[r.stage] ?? r.stage,

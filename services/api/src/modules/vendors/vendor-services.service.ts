@@ -1,7 +1,25 @@
-import { Injectable, Inject } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Inject,
+  NotFoundException,
+} from '@nestjs/common';
 import type { Pool } from 'pg';
 import { PG_POOL } from '../../database/database.tokens';
 import { normalizeServiceKey } from '../vendor-operations/vendor-pricing.util';
+import {
+  parseVendorCapabilities,
+  parseAdminCapabilities,
+  categoryMatchesService,
+  type VendorCapabilityDecl,
+  type AdminCapabilityDef,
+} from '../vendor-operations/vendor-capability.util';
+import {
+  normalizeVendorCustomExtrasInput,
+  parseVendorCustomExtras,
+  type VendorCustomExtra,
+} from '../vendor-operations/vendor-custom-extras.util';
 
 export type VendorServiceRow = {
   id: string;
@@ -14,6 +32,8 @@ export type VendorServiceRow = {
   status: string;
   basePayoutMinor: number | null;
   currency: string;
+  capabilities: VendorCapabilityDecl[];
+  customExtras: VendorCustomExtra[];
   createdAt: string;
   updatedAt: string;
 };
@@ -51,10 +71,11 @@ export class VendorServicesService {
       updated_at: Date;
     }>(
       `SELECT id, tenant_id, vendor_id, service_key, service_name, service_code, description, status,
-              base_payout_minor::text, currency, created_at, updated_at
+              base_payout_minor::text, currency, capabilities, custom_extras, created_at, updated_at
        FROM vendor_services
        WHERE tenant_id = $1 AND vendor_id = $2
          AND ($3::boolean OR status = 'active')
+         AND status <> 'archived'
        ORDER BY service_name ASC`,
       [tenantId, vendorId, opts?.includeInactive === true],
     );
@@ -62,8 +83,9 @@ export class VendorServicesService {
   }
 
   /**
-   * Upsert active services from profile labels; mark missing prior actives inactive.
-   * Optional pricesByName (display name → base payout minor) writes vendor_services.base_payout_minor.
+   * Upsert services from profile labels.
+   * Does NOT flip status: ON/OFF is owned by patchStatus (dedicated path).
+   * New rows insert as active. Existing rows keep their status.
    */
   async syncFromOfferedLabels(
     tenantId: string,
@@ -97,32 +119,13 @@ export class VendorServicesService {
          VALUES ($1, $2, $3, $4, 'VS-' || lpad(nextval('vendor_service_code_seq')::text, 6, '0'), 'active', $5, 'NGN')
          ON CONFLICT (vendor_id, service_key) DO UPDATE SET
            service_name = EXCLUDED.service_name,
-           status = 'active',
            base_payout_minor = COALESCE(EXCLUDED.base_payout_minor, vendor_services.base_payout_minor),
            updated_at = now()`,
         [tenantId, vendorId, key, name, basePayout],
       );
     }
 
-    if (keys.size === 0) {
-      await this.pool.query(
-        `UPDATE vendor_services
-         SET status = 'inactive', updated_at = now()
-         WHERE tenant_id = $1 AND vendor_id = $2 AND status = 'active'`,
-        [tenantId, vendorId],
-      );
-    } else {
-      const keyList = [...keys];
-      await this.pool.query(
-        `UPDATE vendor_services
-         SET status = 'inactive', updated_at = now()
-         WHERE tenant_id = $1 AND vendor_id = $2 AND status = 'active'
-           AND service_key <> ALL($3::text[])`,
-        [tenantId, vendorId, keyList],
-      );
-    }
-
-    return this.listForVendor(tenantId, vendorId, { includeInactive: false });
+    return this.listForVendor(tenantId, vendorId, { includeInactive: true });
   }
 
   /** Apply/update base payouts for named services (does not deactivate others). */
@@ -144,7 +147,6 @@ export class VendorServicesService {
          VALUES ($1, $2, $3, $4, 'VS-' || lpad(nextval('vendor_service_code_seq')::text, 6, '0'), 'active', $5, 'NGN')
          ON CONFLICT (vendor_id, service_key) DO UPDATE SET
            service_name = EXCLUDED.service_name,
-           status = 'active',
            base_payout_minor = EXCLUDED.base_payout_minor,
            updated_at = now()`,
         [tenantId, vendorId, key, name, base],
@@ -154,29 +156,180 @@ export class VendorServicesService {
 
   /**
    * Resolve existing service or create one for booking compatibility.
+   * Never reactivates an inactive/archived row — vendor must PATCH status back to active.
    */
   async ensureForBooking(
     tenantId: string,
     vendorId: string,
     serviceKeyRaw: string | null,
     serviceNameRaw: string | null,
-  ): Promise<string | null> {
+  ): Promise<{ id: string; status: string } | null> {
     const key = normalizeServiceKey(serviceKeyRaw ?? serviceNameRaw);
     if (!key || key === 'general') return null;
     const name = (serviceNameRaw ?? serviceKeyRaw ?? key).trim() || key;
 
-    const { rows } = await this.pool.query<{ id: string }>(
+    const existing = await this.pool.query<{ id: string; status: string }>(
+      `SELECT id, status FROM vendor_services
+       WHERE tenant_id = $1 AND vendor_id = $2 AND service_key = $3
+       LIMIT 1`,
+      [tenantId, vendorId, key],
+    );
+    if (existing.rows[0]) {
+      return { id: existing.rows[0].id, status: existing.rows[0].status };
+    }
+
+    const { rows } = await this.pool.query<{ id: string; status: string }>(
       `INSERT INTO vendor_services
          (tenant_id, vendor_id, service_key, service_name, service_code, status)
        VALUES ($1, $2, $3, $4, 'VS-' || lpad(nextval('vendor_service_code_seq')::text, 6, '0'), 'active')
        ON CONFLICT (vendor_id, service_key) DO UPDATE SET
-         status = 'active',
          service_name = COALESCE(NULLIF(vendor_services.service_name, ''), EXCLUDED.service_name),
          updated_at = now()
-       RETURNING id`,
+       RETURNING id, status`,
       [tenantId, vendorId, key, name],
     );
-    return rows[0]?.id ?? null;
+    const row = rows[0];
+    return row ? { id: row.id, status: row.status } : null;
+  }
+
+  async getById(
+    tenantId: string,
+    vendorId: string,
+    serviceId: string,
+  ): Promise<VendorServiceRow | null> {
+    const { rows } = await this.pool.query(
+      `SELECT id, tenant_id, vendor_id, service_key, service_name, service_code, description, status,
+              base_payout_minor::text, currency, capabilities, custom_extras, created_at, updated_at
+       FROM vendor_services
+       WHERE tenant_id = $1 AND vendor_id = $2 AND id = $3
+       LIMIT 1`,
+      [tenantId, vendorId, serviceId],
+    );
+    return rows[0] ? this.mapRow(rows[0]) : null;
+  }
+
+  async patchOwnedService(opts: {
+    tenantId: string;
+    vendorId: string;
+    serviceId: string;
+    status?: 'active' | 'inactive';
+    capabilities?: VendorCapabilityDecl[];
+    customExtras?: VendorCustomExtra[];
+  }): Promise<VendorServiceRow> {
+    const current = await this.getById(opts.tenantId, opts.vendorId, opts.serviceId);
+    if (!current) {
+      throw new NotFoundException({ code: 'VENDOR_SERVICE_NOT_FOUND', message: 'Vendor service not found' });
+    }
+    if (current.vendorId !== opts.vendorId) {
+      throw new ForbiddenException({ code: 'ACCESS_DENIED', message: 'Not your service' });
+    }
+    if (current.status === 'archived') {
+      throw new ForbiddenException({
+        code: 'SERVICE_ARCHIVED',
+        message: 'Archived services cannot be restored from this endpoint',
+      });
+    }
+
+    const sets: string[] = ['updated_at = now()'];
+    const params: unknown[] = [opts.tenantId, opts.vendorId, opts.serviceId];
+    if (opts.status != null) {
+      if (opts.status !== 'active' && opts.status !== 'inactive') {
+        throw new BadRequestException({ code: 'INVALID_STATUS', message: 'status must be active or inactive' });
+      }
+      params.push(opts.status);
+      sets.push(`status = $${params.length}`);
+    }
+    if (opts.capabilities != null) {
+      const allowed = await this.allowedCapabilityKeys(opts.tenantId, current.serviceKey, current.serviceName);
+      const cleaned: VendorCapabilityDecl[] = [];
+      const seen = new Set<string>();
+      for (const c of opts.capabilities) {
+        const key = String(c.key ?? '').trim();
+        if (!key || seen.has(key)) continue;
+        if (!allowed.has(key)) {
+          // Reject newly selecting Admin-disabled / unknown keys.
+          // Preserve already-stored declarations below so history is not wiped.
+          if (c.provided === true && !current.capabilities.some((x) => x.key === key && x.provided)) {
+            throw new BadRequestException({
+              code: 'CAPABILITY_INVALID',
+              message: `Capability is not enabled for this service: ${key || c.label}`,
+            });
+          }
+          continue;
+        }
+        seen.add(key);
+        cleaned.push({
+          key,
+          label: allowed.get(key) || c.label,
+          provided: c.provided === true,
+        });
+      }
+      // Preserve Admin-disabled (or unmatched) declarations already on the row.
+      for (const existing of current.capabilities) {
+        if (seen.has(existing.key)) continue;
+        if (allowed.has(existing.key)) continue;
+        seen.add(existing.key);
+        cleaned.push(existing);
+      }
+      params.push(JSON.stringify(cleaned));
+      sets.push(`capabilities = $${params.length}::jsonb`);
+    }
+    if (opts.customExtras != null) {
+      const cleaned = normalizeVendorCustomExtrasInput(opts.customExtras);
+      params.push(JSON.stringify(cleaned));
+      sets.push(`custom_extras = $${params.length}::jsonb`);
+    }
+    if (params.length === 3) {
+      return current;
+    }
+    const { rows } = await this.pool.query(
+      `UPDATE vendor_services SET ${sets.join(', ')}
+       WHERE tenant_id = $1 AND vendor_id = $2 AND id = $3
+       RETURNING id, tenant_id, vendor_id, service_key, service_name, service_code, description, status,
+                 base_payout_minor::text, currency, capabilities, custom_extras, created_at, updated_at`,
+      params,
+    );
+    if (!rows[0]) {
+      throw new NotFoundException({ code: 'VENDOR_SERVICE_NOT_FOUND', message: 'Vendor service not found' });
+    }
+    return this.mapRow(rows[0]);
+  }
+
+  async allowedCapabilityKeys(
+    tenantId: string,
+    serviceKey: string,
+    serviceName: string,
+  ): Promise<Map<string, string>> {
+    const defs = await this.adminCapabilityDefsForService(tenantId, serviceKey, serviceName);
+    const allowed = new Map<string, string>();
+    for (const cap of defs) {
+      if (cap.enabled) allowed.set(cap.key, cap.label);
+    }
+    return allowed;
+  }
+
+  /** Full Admin defs matching a service (enabled + disabled) for vendor UI / marketplace filter. */
+  async adminCapabilityDefsForService(
+    tenantId: string,
+    serviceKey: string,
+    serviceName: string,
+  ): Promise<AdminCapabilityDef[]> {
+    const { rows } = await this.pool.query<{ slug: string; label: string; metadata: unknown }>(
+      `SELECT slug, label, metadata FROM tenant_vendor_categories
+       WHERE tenant_id = $1 AND is_active = true`,
+      [tenantId],
+    );
+    const out: AdminCapabilityDef[] = [];
+    const seen = new Set<string>();
+    for (const row of rows) {
+      if (!categoryMatchesService(row.slug, row.label, serviceKey, serviceName)) continue;
+      for (const cap of parseAdminCapabilities(row.metadata)) {
+        if (seen.has(cap.key)) continue;
+        seen.add(cap.key);
+        out.push(cap);
+      }
+    }
+    return out;
   }
 
   async findId(
@@ -300,6 +453,8 @@ export class VendorServicesService {
     status: string;
     base_payout_minor: string | null;
     currency: string;
+    capabilities?: unknown;
+    custom_extras?: unknown;
     created_at: Date;
     updated_at: Date;
   }): VendorServiceRow {
@@ -317,6 +472,8 @@ export class VendorServicesService {
           ? Number(r.base_payout_minor)
           : null,
       currency: r.currency || 'NGN',
+      capabilities: parseVendorCapabilities(r.capabilities),
+      customExtras: parseVendorCustomExtras(r.custom_extras),
       createdAt: r.created_at.toISOString(),
       updatedAt: r.updated_at.toISOString(),
     };

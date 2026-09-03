@@ -20,6 +20,8 @@ export default (): EnvVars => ({
     10,
   ),
   PUBLIC_API_BASE_URL: process.env.PUBLIC_API_BASE_URL ?? '',
+  PUBLIC_APP_BASE_URL: process.env.PUBLIC_APP_BASE_URL ?? '',
+  APP_PUBLIC_URL: process.env.APP_PUBLIC_URL ?? '',
   ALERT_WEBHOOK_URL: process.env.ALERT_WEBHOOK_URL ?? '',
   ALERT_EMAIL_TO: process.env.ALERT_EMAIL_TO ?? '',
   ALERT_DEDUPE_WINDOW_MS: parseInt(process.env.ALERT_DEDUPE_WINDOW_MS ?? '120000', 10),
@@ -42,4 +44,10 @@ export default (): EnvVars => ({
   SUPABASE_URL: process.env.SUPABASE_URL ?? '',
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
   STORAGE_BUCKET: process.env.STORAGE_BUCKET ?? 'owanbe-media',
+  CRM_REALTIME_SSE: ['true', '1', 'yes'].includes(
+    String(process.env.CRM_REALTIME_SSE ?? 'true').toLowerCase(),
+  ),
+  CRM_REALTIME_FANOUT: (process.env.CRM_REALTIME_FANOUT ?? 'pg_notify') as
+    | 'pg_notify'
+    | 'local',
 });

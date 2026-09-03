@@ -21,7 +21,11 @@ class WorkspaceShell extends ConsumerStatefulWidget {
     required this.primaryContact,
     required this.createdDate,
     required this.lastActivity,
+    this.plan = 'Enterprise',
     this.sidebarWidgets = const [],
+    this.onHeaderTap,
+    this.rootLabel = 'PLATFORM',
+    this.onRootTap,
   });
 
   final WorkspaceDefinition definition;
@@ -34,7 +38,11 @@ class WorkspaceShell extends ConsumerStatefulWidget {
   final String primaryContact;
   final String createdDate;
   final String lastActivity;
+  final String plan;
   final List<Widget> sidebarWidgets;
+  final VoidCallback? onHeaderTap;
+  final String rootLabel;
+  final VoidCallback? onRootTap;
 
   @override
   ConsumerState<WorkspaceShell> createState() => _WorkspaceShellState();
@@ -82,7 +90,7 @@ class _WorkspaceShellState extends ConsumerState<WorkspaceShell> with SingleTick
             logoText: widget.logoText,
             name: widget.name,
             entityType: widget.definition.entityType,
-            plan: 'Enterprise',
+            plan: widget.plan,
             environment: widget.environment,
             region: widget.region,
             primaryContact: widget.primaryContact,
@@ -90,6 +98,7 @@ class _WorkspaceShellState extends ConsumerState<WorkspaceShell> with SingleTick
             lastActivity: widget.lastActivity,
             healthScore: widget.healthScore,
             hasActiveAlerts: widget.healthScore < 75,
+            onIdentityTap: widget.onHeaderTap,
           ),
 
           // 3. Tab Navigation bar
@@ -168,11 +177,12 @@ class _WorkspaceShellState extends ConsumerState<WorkspaceShell> with SingleTick
       child: Row(
         children: [
           InkWell(
-            onTap: () {
-              ref.read(contextDrawerProvider.notifier).clear();
-              context.go('/super-admin');
-            },
-            child: Text('PLATFORM',
+            onTap: widget.onRootTap ??
+                () {
+                  ref.read(contextDrawerProvider.notifier).clear();
+                  context.go('/super-admin');
+                },
+            child: Text(widget.rootLabel,
                 style: context.eosText.labelSmall?.copyWith(color: context.eosColors.primary)),
           ),
           for (final item in items) ...[

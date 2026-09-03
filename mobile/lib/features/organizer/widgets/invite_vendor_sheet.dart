@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/api/persistence_providers.dart';
 import '../../../core/api/vendors_api.dart';
 import '../../../eos/eos.dart';
 import '../../../portals/customer/models/marketplace_models.dart';
@@ -8,6 +9,7 @@ import '../../../portals/customer/providers/marketplace_providers.dart';
 import '../../../portals/customer/widgets/marketplace/verified_vendor_badge.dart';
 import '../data/organizer_persistence.dart';
 import '../models/organizer_models.dart';
+import '../providers/organizer_providers.dart';
 
 /// Opens a marketplace vendor picker to invite a vendor to an event.
 Future<bool?> showInviteVendorSheet(
@@ -52,7 +54,11 @@ class _InviteVendorSheetState extends ConsumerState<InviteVendorSheet> {
   final _searchController = TextEditingController();
   String _category = 'All';
   String? _selectedVendorId;
+  String? _selectedServiceId;
+  List<MarketplaceVendorService> _services = const [];
+  var _loadingServices = false;
   var _submitting = false;
+  final Set<String> _selectedCapKeys = {};
 
   @override
   void dispose() {
@@ -65,10 +71,77 @@ class _InviteVendorSheetState extends ConsumerState<InviteVendorSheet> {
         widget.alreadyInvitedNames.contains(vendor.businessName.toLowerCase());
   }
 
+  Future<void> _selectVendor(MarketplaceVendor vendor) async {
+    setState(() {
+      _selectedVendorId = vendor.id;
+      _selectedServiceId = null;
+      _services = const [];
+      _selectedCapKeys.clear();
+      _loadingServices = true;
+    });
+    try {
+      final event = await ref.read(organizerEventProvider(widget.eventId).future);
+      final list = await ref.read(vendorsApiProvider).listVendorServices(
+            vendor.id,
+            from: event?.startsAt,
+            to: event?.endsAt,
+          );
+      if (!mounted || _selectedVendorId != vendor.id) return;
+      setState(() {
+        _services = list;
+        _loadingServices = false;
+        if (list.length == 1) {
+          _selectedServiceId = list.first.id;
+        }
+      });
+    } catch (_) {
+      if (!mounted || _selectedVendorId != vendor.id) return;
+      setState(() => _loadingServices = false);
+    }
+  }
+
+  MarketplaceVendorService? get _selectedService {
+    for (final s in _services) {
+      if (s.id == _selectedServiceId) return s;
+    }
+    return null;
+  }
+
   Future<void> _sendInvite(MarketplaceVendor vendor) async {
+    final service = _selectedService;
+    if (service == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select an active service before sending the invite')),
+      );
+      return;
+    }
+    if (serviceOfferInactive(service.offerStatus)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This service is inactive and cannot be requested.')),
+      );
+      return;
+    }
+    if (serviceWindowBlocksNewRequest(service.availabilityStatus)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(formatServiceAvailability(service.availabilityStatus))),
+      );
+      return;
+    }
     setState(() => _submitting = true);
     try {
-      await inviteVendor(ref, widget.eventId, vendor);
+      final selected = [
+        for (final c in service.capabilities)
+          if (_selectedCapKeys.contains(c.key)) {'key': c.key, 'label': c.label},
+      ];
+      await inviteVendor(
+        ref,
+        widget.eventId,
+        vendor,
+        serviceLabel: service.serviceName,
+        serviceKey: service.serviceKey,
+        vendorServiceId: service.id,
+        selectedCapabilities: selected,
+      );
       if (!mounted) return;
       Navigator.pop(context, true);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -203,7 +276,7 @@ class _InviteVendorSheetState extends ConsumerState<InviteVendorSheet> {
                         invited: invited,
                         onTap: invited
                             ? null
-                            : () => setState(() => _selectedVendorId = vendor.id),
+                            : () => _selectVendor(vendor),
                       );
                     },
                   );
@@ -227,6 +300,21 @@ class _InviteVendorSheetState extends ConsumerState<InviteVendorSheet> {
                 return _InviteFooter(
                   vendor: selected,
                   submitting: _submitting,
+                  loadingServices: _loadingServices,
+                  services: _services,
+                  selectedServiceId: _selectedServiceId,
+                  selectedCapKeys: _selectedCapKeys,
+                  onServiceChanged: (id) => setState(() {
+                    _selectedServiceId = id;
+                    _selectedCapKeys.clear();
+                  }),
+                  onCapChanged: (key, selectedCap) => setState(() {
+                    if (selectedCap) {
+                      _selectedCapKeys.add(key);
+                    } else {
+                      _selectedCapKeys.remove(key);
+                    }
+                  }),
                   onSend: () => _sendInvite(selected),
                   onCancel: () => Navigator.pop(context),
                 );
@@ -356,22 +444,48 @@ class _InviteFooter extends StatelessWidget {
   const _InviteFooter({
     required this.vendor,
     required this.submitting,
+    required this.loadingServices,
+    required this.services,
+    required this.selectedServiceId,
+    required this.selectedCapKeys,
+    required this.onServiceChanged,
+    required this.onCapChanged,
     required this.onSend,
     required this.onCancel,
   });
 
   final MarketplaceVendor vendor;
   final bool submitting;
+  final bool loadingServices;
+  final List<MarketplaceVendorService> services;
+  final String? selectedServiceId;
+  final Set<String> selectedCapKeys;
+  final ValueChanged<String?> onServiceChanged;
+  final void Function(String key, bool selected) onCapChanged;
   final VoidCallback onSend;
   final VoidCallback onCancel;
 
   @override
   Widget build(BuildContext context) {
+    MarketplaceVendorService? service;
+    for (final s in services) {
+      if (s.id == selectedServiceId) {
+        service = s;
+        break;
+      }
+    }
+    final blocked = serviceOfferInactive(service?.offerStatus) ||
+        serviceWindowBlocksNewRequest(service?.availabilityStatus);
+    final canSend = !submitting && service != null && !blocked;
+
     return Material(
       elevation: 8,
-      child: Padding(
-        padding: EdgeInsets.all(context.eos.spacing.lg),
-        child: Column(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.46),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: EdgeInsets.all(context.eos.spacing.lg),
+            child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -380,6 +494,50 @@ class _InviteFooter extends StatelessWidget {
               '${vendor.categoryLabel}${vendor.city != null ? ' · ${vendor.city}' : ''}',
               style: context.eosText.bodySmall,
             ),
+            SizedBox(height: context.eos.spacing.sm),
+            if (loadingServices)
+              const LinearProgressIndicator()
+            else if (services.isEmpty)
+              Text(
+                'This vendor has no services accepting requests.',
+                style: context.eosText.bodySmall,
+              )
+            else
+              DropdownButtonFormField<String>(
+                value: selectedServiceId != null && services.any((s) => s.id == selectedServiceId)
+                    ? selectedServiceId
+                    : null,
+                decoration: const InputDecoration(labelText: 'Service'),
+                items: [
+                  for (final s in services)
+                    DropdownMenuItem(
+                      value: s.id,
+                      child: Text(
+                        '${s.serviceName}${s.availabilityStatus != null ? ' · ${formatServiceAvailability(s.availabilityStatus)}' : ''}',
+                      ),
+                    ),
+                ],
+                onChanged: submitting ? null : onServiceChanged,
+              ),
+            if (service != null && service.availabilityStatus != null) ...[
+              SizedBox(height: context.eos.spacing.xs),
+              Text(
+                'Availability: ${formatServiceAvailability(service.availabilityStatus)}',
+                style: context.eosText.bodySmall,
+              ),
+            ],
+            if (service != null && service.capabilities.isNotEmpty) ...[
+              SizedBox(height: context.eos.spacing.xs),
+              Text('Required capabilities', style: context.eosText.labelSmall),
+              for (final cap in service.capabilities)
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: Text(cap.label),
+                  value: selectedCapKeys.contains(cap.key),
+                  onChanged: submitting ? null : (v) => onCapChanged(cap.key, v == true),
+                ),
+            ],
             SizedBox(height: context.eos.spacing.md),
             Row(
               children: [
@@ -390,13 +548,15 @@ class _InviteFooter extends StatelessWidget {
                 Expanded(
                   flex: 2,
                   child: FilledButton(
-                    onPressed: submitting ? null : onSend,
+                    onPressed: canSend ? onSend : null,
                     child: Text(submitting ? 'Sending…' : 'Send invite'),
                   ),
                 ),
               ],
             ),
           ],
+            ),
+          ),
         ),
       ),
     );

@@ -40,6 +40,9 @@ class EventNavigator {
   void backToOverview(String eventId) {
     ExperienceNavigation.navigateBack(context);
   }
+
+  void openEventEdit(String eventId) => context.push(EventRouteRegistry.eventEdit(eventId));
+
   void openGuests(String eventId) => context.push(EventRouteRegistry.eventGuests(eventId));
 
   void openInvitations(String eventId) => context.push(EventRouteRegistry.eventInvitations(eventId));
@@ -122,6 +125,9 @@ class EventNavigator {
 abstract final class EventNavigation {
   static void openOverview(BuildContext context, String eventId) =>
       context.eventNav.openOverview(eventId);
+
+  static void openEventEdit(BuildContext context, String eventId) =>
+      context.eventNav.openEventEdit(eventId);
 
   static void openGuests(BuildContext context, String eventId) =>
       context.eventNav.openGuests(eventId);

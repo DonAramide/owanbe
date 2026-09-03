@@ -15,6 +15,8 @@ class RentalCatalogItem {
     required this.rentalFeeMinor,
     required this.depositMinor,
     required this.active,
+    this.isPackage = false,
+    this.components = const [],
   });
 
   final String id;
@@ -30,6 +32,8 @@ class RentalCatalogItem {
   final int rentalFeeMinor;
   final int depositMinor;
   final bool active;
+  final bool isPackage;
+  final List<RentalPackageComponent> components;
 
   factory RentalCatalogItem.fromJson(Map<String, dynamic> json) {
     return RentalCatalogItem(
@@ -46,6 +50,33 @@ class RentalCatalogItem {
       rentalFeeMinor: (json['rentalFeeMinor'] as num?)?.toInt() ?? 0,
       depositMinor: (json['depositMinor'] as num?)?.toInt() ?? 0,
       active: json['active'] != false,
+      isPackage: json['isPackage'] == true,
+      components: (json['components'] as List<dynamic>? ?? const [])
+          .map((e) => RentalPackageComponent.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList(),
+    );
+  }
+}
+
+class RentalPackageComponent {
+  const RentalPackageComponent({
+    required this.resourceId,
+    required this.quantity,
+    required this.slug,
+    required this.label,
+  });
+
+  final String resourceId;
+  final int quantity;
+  final String slug;
+  final String label;
+
+  factory RentalPackageComponent.fromJson(Map<String, dynamic> json) {
+    return RentalPackageComponent(
+      resourceId: (json['resourceId'] ?? '').toString(),
+      quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+      slug: (json['slug'] ?? '').toString(),
+      label: (json['label'] ?? '').toString(),
     );
   }
 }

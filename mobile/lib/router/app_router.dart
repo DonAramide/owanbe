@@ -10,6 +10,13 @@ import '../features/super_admin/screens/vendor_governance_screen.dart';
 import '../features/super_admin/super_admin_home_screen.dart';
 import '../features/admin/admin_home_screen.dart';
 import '../features/admin/screens/admin_vendor_pricing_screen.dart';
+import '../features/admin/screens/admin_vendor_categories_screen.dart';
+import '../features/super_admin/screens/vendor_configuration_hub_screen.dart';
+import '../features/super_admin/screens/vendor_business_capabilities_screen.dart';
+import '../features/super_admin/screens/vendor_offering_categories_screen.dart';
+import '../features/super_admin/screens/vendor_resource_catalogue_screen.dart';
+import '../features/admin/screens/admin_vendor_capability_detail_screen.dart';
+import '../shared/widgets/unsaved_changes.dart';
 import '../portals/attendee/navigation/attendee_commerce_routes.dart';
 import '../features/public/screens/attendee_dashboard_screen.dart';
 import '../features/public/screens/checkout_screen.dart';
@@ -18,6 +25,7 @@ import '../portals/customer/screens/customer_event_ai_planner_screen.dart';
 import '../portals/customer/screens/customer_event_budget_screen.dart';
 import '../portals/customer/screens/marketplace_screen.dart';
 import '../portals/customer/screens/marketplace_vendor_detail_screen.dart';
+import '../portals/customer/screens/customer_event_edit_screen.dart';
 import '../portals/customer/screens/customer_event_guests_screen.dart';
 import '../portals/customer/screens/customer_event_invitations_screen.dart';
 import '../portals/customer/screens/event_rsvp_screen.dart';
@@ -42,8 +50,10 @@ import '../features/vendor/screens/vendor_fashion_attire_screen.dart';
 import '../features/vendor/screens/vendor_crm_screen.dart';
 import '../applications/owanbe_customer/screens/onboarding_form_screen.dart';
 import '../features/vendor/screens/vendor_onboarding_screen.dart';
+import '../features/vendor/screens/vendor_my_offerings_screen.dart';
 import '../features/vendor/screens/vendor_rentals_screen.dart';
 import '../features/vendor/screens/vendor_calendar_screen.dart';
+import '../features/vendor/screens/vendor_services_availability_screen.dart';
 import '../features/public/screens/splash_screen.dart';
 import '../features/public/screens/supabase_diagnostics_route.dart';
 import '../features/public/screens/walkthrough_screen.dart';
@@ -237,6 +247,18 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             },
             routes: [
               GoRoute(
+                path: 'edit',
+                builder: (context, state) => CustomerEventEditScreen(
+                  eventId: state.pathParameters['id']!,
+                ),
+                onExit: (context, state) {
+                  return UnsavedChangesRegistry.confirmLeave(
+                    context,
+                    binder: UnsavedChangesRegistry.eventDetails,
+                  );
+                },
+              ),
+              GoRoute(
                 path: 'tickets',
                 builder: (context, state) => TicketSelectScreen(eventId: state.pathParameters['id']!),
                 routes: [
@@ -271,6 +293,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 builder: (context, state) => EventRsvpScreen(
                   eventId: state.pathParameters['id']!,
                   token: state.uri.queryParameters['token'],
+                  action: state.uri.queryParameters['action'],
                 ),
               ),
               GoRoute(
@@ -399,12 +422,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => MarketplaceScreen(
           eventId: state.uri.queryParameters['eventId'],
           initialCategory: state.uri.queryParameters['category'],
+          vendorBuyerMode: state.uri.queryParameters['vendorBuyer'] == '1',
         ),
         routes: [
           GoRoute(
             path: 'rentals',
             builder: (context, state) => MarketplaceRentalsScreen(
               eventId: state.uri.queryParameters['eventId'],
+              vendorBuyerMode: state.uri.queryParameters['vendorBuyer'] == '1',
             ),
           ),
           GoRoute(
@@ -413,6 +438,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               vendorId: state.pathParameters['vendorId']!,
               eventId: state.uri.queryParameters['eventId'],
               initialService: state.uri.queryParameters['service'],
+              vendorBuyerMode: state.uri.queryParameters['vendorBuyer'] == '1',
             ),
           ),
         ],
@@ -476,12 +502,36 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const VendorCrmScreen(),
           ),
           GoRoute(
+            path: 'services',
+            builder: (context, state) => const VendorServicesAvailabilityScreen(),
+            onExit: (context, state) {
+              return UnsavedChangesRegistry.confirmLeave(
+                context,
+                binder: UnsavedChangesRegistry.vendorServices,
+              );
+            },
+          ),
+          GoRoute(
             path: 'calendar',
             builder: (context, state) => const VendorCalendarScreen(),
           ),
           GoRoute(
             path: 'onboarding',
             builder: (context, state) => const VendorOnboardingScreen(),
+          ),
+          GoRoute(
+            path: 'offerings',
+            builder: (context, state) => const VendorMyOfferingsScreen(),
+          ),
+          GoRoute(
+            path: 'marketplace',
+            redirect: (context, state) {
+              final eventId = state.uri.queryParameters['eventId'];
+              if (eventId != null && eventId.isNotEmpty) {
+                return '/vendors?eventId=${Uri.encodeComponent(eventId)}&vendorBuyer=1';
+              }
+              return '/vendors?vendorBuyer=1';
+            },
           ),
         ],
       ),
@@ -490,6 +540,46 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/super-admin/commerce/vendor-pricing',
         builder: (context, state) => const AdminVendorPricingScreen(),
+      ),
+      GoRoute(
+        path: '/super-admin/commerce/vendor-configuration',
+        builder: (context, state) => const VendorConfigurationHubScreen(),
+        routes: [
+          GoRoute(
+            path: 'capabilities',
+            builder: (context, state) => const VendorBusinessCapabilitiesScreen(),
+          ),
+          GoRoute(
+            path: 'service-categories',
+            builder: (context, state) => const VendorOfferingCategoriesScreen(offeringKind: 'service'),
+          ),
+          GoRoute(
+            path: 'rental-categories',
+            builder: (context, state) => const VendorOfferingCategoriesScreen(offeringKind: 'rental'),
+          ),
+          GoRoute(
+            path: 'resources',
+            builder: (context, state) => const VendorResourceCatalogueScreen(),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/super-admin/commerce/vendor-capabilities',
+        builder: (context, state) => const AdminVendorCategoriesScreen(),
+        routes: [
+          GoRoute(
+            path: ':categoryId',
+            builder: (context, state) => AdminVendorCapabilityDetailScreen(
+              categoryId: state.pathParameters['categoryId'] ?? '',
+            ),
+            onExit: (context, state) {
+              return UnsavedChangesRegistry.confirmLeave(
+                context,
+                binder: UnsavedChangesRegistry.adminCapabilityDetail,
+              );
+            },
+          ),
+        ],
       ),
       GoRoute(
         path: '/super-admin/platform-config',

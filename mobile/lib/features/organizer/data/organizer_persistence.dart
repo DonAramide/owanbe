@@ -440,6 +440,7 @@ Future<void> inviteVendor(
   String? serviceLabel,
   String? serviceKey,
   String? vendorServiceId,
+  List<Map<String, String>>? selectedCapabilities,
 }) async {
   try {
     await ref.read(vendorCrmApiProvider).createRequest(eventId, {
@@ -449,6 +450,8 @@ Future<void> inviteVendor(
       if (serviceKey != null && serviceKey.trim().isNotEmpty) 'serviceKey': serviceKey.trim(),
       if (vendorServiceId != null && vendorServiceId.trim().isNotEmpty)
         'vendorServiceId': vendorServiceId.trim(),
+      if (selectedCapabilities != null && selectedCapabilities.isNotEmpty)
+        'selectedCapabilities': selectedCapabilities,
       'source': 'marketplace',
     });
     bumpOrganizerRevision(ref);

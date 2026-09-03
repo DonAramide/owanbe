@@ -9,16 +9,19 @@ import '../../attendee/providers/attendee_hub_providers.dart';
 
 final invitationPublicApiProvider = Provider<InvitationPublicApi>((ref) => InvitationPublicApi());
 
-/// Deep-link RSVP: `/events/:eventId/rsvp?token=…`
+/// Deep-link RSVP: `/events/:eventId/rsvp?token=…&action=accept|decline`
 class EventRsvpScreen extends ConsumerStatefulWidget {
   const EventRsvpScreen({
     super.key,
     required this.eventId,
     this.token,
+    this.action,
   });
 
   final String eventId;
   final String? token;
+  /// Email CTA: `accept` or `decline` — auto-submits after token validation.
+  final String? action;
 
   @override
   ConsumerState<EventRsvpScreen> createState() => _EventRsvpScreenState();
@@ -37,6 +40,18 @@ class _EventRsvpScreenState extends ConsumerState<EventRsvpScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  /// Maps email CTA query param to existing RSVP API status values.
+  static String? _statusFromAction(String? action) {
+    switch (action?.trim().toLowerCase()) {
+      case 'accept':
+        return 'confirmed';
+      case 'decline':
+        return 'declined';
+      default:
+        return null;
+    }
   }
 
   Future<void> _load() async {
@@ -70,12 +85,29 @@ class _EventRsvpScreenState extends ConsumerState<EventRsvpScreen> {
         });
         return;
       }
+
+      if (result.rsvpStatus == 'confirmed' || result.rsvpStatus == 'declined') {
+        setState(() {
+          _invite = result;
+          _loading = false;
+          _doneStatus = result.rsvpStatus;
+        });
+        return;
+      }
+
+      final autoStatus = _statusFromAction(widget.action);
+      if (autoStatus != null) {
+        setState(() {
+          _invite = result;
+          _loading = false;
+        });
+        await _respond(autoStatus);
+        return;
+      }
+
       setState(() {
         _invite = result;
         _loading = false;
-        if (result.rsvpStatus == 'confirmed' || result.rsvpStatus == 'declined') {
-          _doneStatus = result.rsvpStatus;
-        }
       });
     } on InvitationPublicApiException catch (e) {
       if (!mounted) return;
@@ -95,6 +127,7 @@ class _EventRsvpScreenState extends ConsumerState<EventRsvpScreen> {
   }
 
   Future<void> _respond(String status) async {
+    if (_submitting || _doneStatus != null) return;
     final token = widget.token?.trim() ?? '';
     if (token.isEmpty) return;
     setState(() => _submitting = true);
@@ -124,7 +157,7 @@ class _EventRsvpScreenState extends ConsumerState<EventRsvpScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('RSVP')),
       body: SafeArea(
-        child: _loading
+        child: _loading || _submitting
             ? const Center(child: CircularProgressIndicator())
             : SingleChildScrollView(
                 padding: EdgeInsets.all(context.eos.spacing.lg),
@@ -228,24 +261,20 @@ class _EventRsvpScreenState extends ConsumerState<EventRsvpScreen> {
             ),
           ),
           SizedBox(height: context.eos.spacing.md),
-          if (_submitting)
-            const Center(child: CircularProgressIndicator())
-          else ...[
-            FilledButton(
-              onPressed: () => _respond('confirmed'),
-              child: const Text('Accept invitation'),
-            ),
-            SizedBox(height: context.eos.spacing.sm),
-            OutlinedButton(
-              onPressed: () => _respond('declined'),
-              child: const Text('Decline'),
-            ),
-            SizedBox(height: context.eos.spacing.sm),
-            Text(
-              'Maybe is not available for this invitation — please accept or decline.',
-              style: context.eosText.bodySmall,
-            ),
-          ],
+          FilledButton(
+            onPressed: () => _respond('confirmed'),
+            child: const Text('Accept invitation'),
+          ),
+          SizedBox(height: context.eos.spacing.sm),
+          OutlinedButton(
+            onPressed: () => _respond('declined'),
+            child: const Text('Decline'),
+          ),
+          SizedBox(height: context.eos.spacing.sm),
+          Text(
+            'Maybe is not available for this invitation — please accept or decline.',
+            style: context.eosText.bodySmall,
+          ),
         ],
       ],
     );

@@ -8,6 +8,8 @@ import '../../../core/api/persistence_providers.dart';
 
 import '../../../core/api/vendors_api.dart';
 
+import '../../../core/providers/silent_refresh.dart';
+
 import '../../../features/organizer/models/organizer_models.dart';
 
 import '../../../features/organizer/providers/organizer_providers.dart';
@@ -79,7 +81,7 @@ final hubOrganizerEventsProvider = FutureProvider.autoDispose<List<CustomerEvent
 
   }
 
-  final session = ref.watch(authSessionProvider);
+  final session = ref.watchSignedInUser();
 
   if (session == null) return const [];
 

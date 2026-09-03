@@ -3,13 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/utils/money.dart';
+import '../../../../core/providers/silent_refresh.dart';
 import '../../../../core/utils/platform_message_guard.dart';
 import '../../../../eos/eos.dart';
 import '../../../../portals/customer/models/vendor_crm_models.dart';
 import '../../../../portals/customer/navigation/event_navigator.dart';
 import '../../../../portals/customer/providers/vendor_crm_providers.dart';
 import '../../../../portals/customer/router/event_route_registry.dart';
+import '../../../../portals/customer/widgets/vendor_crm/request_change_sheet.dart';
+import '../../../../portals/customer/widgets/vendor_crm/vendor_change_requests_panel.dart';
 import '../../../../portals/customer/widgets/vendor_crm/vendor_stage_badge.dart';
+import '../../../../portals/customer/models/vendor_change_request_models.dart';
 import '../../widgets/invite_vendor_sheet.dart';
 import '../widgets/cc_v3_health_cards.dart';
 
@@ -153,7 +157,7 @@ class VendorsTabV3 extends ConsumerWidget {
         );
 
     if (nestedInParentScroll) {
-      return crm.when(
+      return crm.whenStable(
         loading: () => const _VendorsSkeleton(),
         error: (e, _) => EosAttentionBanner(
           headline: 'Vendor CRM unavailable',
@@ -174,7 +178,7 @@ class VendorsTabV3 extends ConsumerWidget {
         refreshVendorCrm(ref);
         await ref.read(eventVendorCrmProvider(eventId).future);
       },
-      child: crm.when(
+      child: crm.whenStable(
         loading: () => const _VendorsSkeleton(),
         error: (e, _) => ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -389,6 +393,10 @@ class _CrmVendorCardState extends ConsumerState<_CrmVendorCard> {
               Text('Service: ${r.serviceLabel ?? 'Service'}'),
               Text('Event: ${r.eventTitle ?? widget.eventId}'),
               Text('Status: ${vendorCrmStageLabels[r.stage] ?? r.stage}'),
+              if (r.selectedCapabilities.isNotEmpty)
+                Text(
+                  'Requested: ${r.selectedCapabilities.map((c) => c.label).join(', ')}',
+                ),
               if (r.displayAmountMinor != null)
                 Text('Service price: ${formatRevenue(r.displayAmountMinor!)}'),
               if (r.message.trim().isNotEmpty) ...[
@@ -437,6 +445,11 @@ class _CrmVendorCardState extends ConsumerState<_CrmVendorCard> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+                    if (r.selectedCapabilities.isNotEmpty)
+                      Text(
+                        'Requested: ${r.selectedCapabilities.map((c) => c.label).join(', ')}',
+                        style: context.eosText.bodySmall,
+                      ),
                     SizedBox(height: context.eos.spacing.xs),
                     Wrap(
                       spacing: 6,
@@ -483,6 +496,11 @@ class _CrmVendorCardState extends ConsumerState<_CrmVendorCard> {
                 label: Text(_expanded ? 'Hide timeline' : 'Timeline'),
                 onPressed: () => setState(() => _expanded = !_expanded),
               ),
+              if (vendorRequestAllowsChangeRequests(r.stage))
+                ActionChip(
+                  label: const Text('Request a Change'),
+                  onPressed: () => showRequestChangeSheet(context, request: r),
+                ),
               if (r.canWithdraw)
                 ActionChip(
                   label: const Text('Withdraw Request'),
@@ -583,6 +601,16 @@ class _CrmVendorCardState extends ConsumerState<_CrmVendorCard> {
               ],
             ],
           ),
+          if (vendorRequestAllowsChangeRequests(r.stage)) ...[
+            SizedBox(height: context.eos.spacing.md),
+            Text('CHANGE REQUESTS', style: context.eosText.labelSmall),
+            SizedBox(height: context.eos.spacing.xs),
+            VendorChangeRequestsPanel(
+              request: r,
+              role: ChangeRequestPanelRole.organizer,
+              dense: true,
+            ),
+          ],
           if (_expanded) ...[
             SizedBox(height: context.eos.spacing.md),
             const Divider(),

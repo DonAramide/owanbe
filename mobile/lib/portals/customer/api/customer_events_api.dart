@@ -43,6 +43,20 @@ class CustomerEventsApi {
     return mapCustomerEvent(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
+  Future<CustomerEvent> patchEvent(
+    String eventId,
+    Map<String, dynamic> body, {
+    AuthSession? session,
+  }) async {
+    final res = await _http.patch(
+      _u('events/$eventId'),
+      headers: await _headers(session: session),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode >= 400) throw StateError('Failed to update event');
+    return mapCustomerEvent(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
   Future<CustomerEvent> publishEvent(String eventId, {AuthSession? session}) async {
     final res = await _http.post(_u('events/$eventId/publish'), headers: await _headers(session: session));
     if (res.statusCode >= 400) throw StateError('Failed to publish event');

@@ -79,6 +79,7 @@ flutter:
   assets:
     # Web-safe name: *.env assets are often blocked by browsers/dev servers (404).
     - assets/env/owanbe_config
+    - assets/env/owanbe_config.admin
     - assets/branding/owambe_logo.png
     - assets/branding/owambe_splash.jpg
     - assets/branding/owanbe_celebration_bg.jpg

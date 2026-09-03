@@ -1,11 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../auth/auth_notifier.dart';
-import '../../../auth/user_role.dart';
 import '../../../core/api/persistence_providers.dart';
-import '../../../identity/experience_navigation.dart';
+import '../../../core/providers/silent_refresh.dart';
 import '../../../identity/workspace_providers.dart';
-import '../../../router/portal_routes.dart';
 import '../api/customer_events_api.dart';
 import '../data/customer_event_dev_store.dart';
 import '../models/customer_event_models.dart';
@@ -20,7 +18,7 @@ void bumpCustomerEventRevision(WidgetRef ref) {
 
 final customerEventsProvider = FutureProvider.autoDispose<List<CustomerEvent>>((ref) async {
   ref.watch(customerEventRevisionProvider);
-  final session = ref.watch(authSessionProvider);
+  final session = ref.watchSignedInUser();
   if (session == null || !ref.watch(isOrganizerWorkspaceProvider)) {
     return const [];
   }
@@ -36,7 +34,7 @@ final customerEventsProvider = FutureProvider.autoDispose<List<CustomerEvent>>((
 final customerEventProvider = FutureProvider.autoDispose.family<CustomerEvent?, String>((ref, id) async {
   ref.watch(customerEventRevisionProvider);
   try {
-    final session = ref.watch(authSessionProvider);
+    final session = ref.watchSignedInUser();
     return await ref.read(customerEventsApiProvider).getEvent(id, session: session);
   } catch (_) {
     if (!allowMockPersistenceFallback()) rethrow;

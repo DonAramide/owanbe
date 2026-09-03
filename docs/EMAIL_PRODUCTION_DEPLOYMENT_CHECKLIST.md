@@ -32,7 +32,8 @@ Use this before allowing real customer email signup.
 
 ## Business mail smoke
 
-- [ ] Event invitation email (when applicable)
+- [ ] `PUBLIC_APP_BASE_URL` set to the user-facing app origin (not `PUBLIC_API_BASE_URL`) so invitation RSVP links are correct
+- [ ] Event invitation email (when applicable) — HTML invitation with Accept/Decline deep links
 - [ ] Ticket confirmation / resend (when applicable)
 
 ## Sign-off

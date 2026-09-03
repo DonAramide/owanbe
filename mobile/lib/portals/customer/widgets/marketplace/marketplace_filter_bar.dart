@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,7 +7,7 @@ import '../../../../core/utils/money.dart';
 import '../../../../eos/eos.dart';
 import '../../models/marketplace_filters.dart';
 
-class MarketplaceFilterBar extends ConsumerWidget {
+class MarketplaceFilterBar extends ConsumerStatefulWidget {
   const MarketplaceFilterBar({
     super.key,
     required this.categories,
@@ -16,8 +18,46 @@ class MarketplaceFilterBar extends ConsumerWidget {
   final List<String> cities;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MarketplaceFilterBar> createState() => _MarketplaceFilterBarState();
+}
+
+class _MarketplaceFilterBarState extends ConsumerState<MarketplaceFilterBar> {
+  late final TextEditingController _searchController;
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = ref.read(marketplaceFiltersProvider).query;
+    _searchController = TextEditingController(text: initial);
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      final filters = ref.read(marketplaceFiltersProvider);
+      ref.read(marketplaceFiltersProvider.notifier).state =
+          filters.copyWith(query: value);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final filters = ref.watch(marketplaceFiltersProvider);
+    if (_searchController.text != filters.query) {
+      _searchController.value = _searchController.value.copyWith(
+        text: filters.query,
+        selection: TextSelection.collapsed(offset: filters.query.length),
+      );
+    }
     final activeCount = [
       if (filters.minRating > 0) 1,
       if (filters.maxPriceMinor > 0) 1,
@@ -29,22 +69,22 @@ class MarketplaceFilterBar extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         TextField(
+          controller: _searchController,
           decoration: const InputDecoration(
             hintText: 'Search name, service, city, or keyword',
             prefixIcon: Icon(Icons.search),
           ),
-          onChanged: (v) => ref.read(marketplaceFiltersProvider.notifier).state =
-              filters.copyWith(query: v),
+          onChanged: _onSearchChanged,
         ),
         SizedBox(height: context.eos.spacing.sm),
         SizedBox(
           height: 40,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemCount: categories.length,
+            itemCount: widget.categories.length,
             separatorBuilder: (_, _) => SizedBox(width: context.eos.spacing.xs),
             itemBuilder: (context, index) {
-              final cat = categories[index];
+              final cat = widget.categories[index];
               return FilterChip(
                 label: Text(cat),
                 selected: filters.serviceCategory == cat,
@@ -62,7 +102,7 @@ class MarketplaceFilterBar extends ConsumerWidget {
             ActionChip(
               avatar: const Icon(Icons.tune, size: 18),
               label: Text(activeCount > 0 ? 'Filters ($activeCount)' : 'More filters'),
-              onPressed: () => _openSheet(context, ref, cities, filters),
+              onPressed: () => _openSheet(context, ref, widget.cities, filters),
             ),
             if (filters.minRating > 0)
               InputChip(

@@ -1,0 +1,15 @@
+# Customer Flutter — Cloudflare development tunnel (OPTIONAL).
+# Default local development uses assets/env/owanbe_config with:
+#   OWANBE_API_BASE=http://127.0.0.1:8080/v1
+#
+# Use this ONLY when the Cloudflare tunnel + DNS are available
+# (https://dev.owanbe.com). Do not copy this over owanbe_config for
+# normal `flutter run -d chrome --web-port=3000` local work.
+#
+# To opt in: set OWANBE_API_BASE in assets/env/owanbe_config to the
+# value below, then hot restart / re-run Customer. Restore the local
+# URL when returning to localhost-only development.
+#
+# See docs/DEV_TUNNEL_SETUP.md.
+
+OWANBE_API_BASE=https://dev.owanbe.com/v1

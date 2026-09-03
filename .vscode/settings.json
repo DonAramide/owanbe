@@ -1,0 +1,5 @@
+{
+  "terminal.integrated.env.windows": {
+    "CHROME_EXECUTABLE": "${workspaceFolder}/mobile/tools/flutter_chrome.cmd"
+  }
+}

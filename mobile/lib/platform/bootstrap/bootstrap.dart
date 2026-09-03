@@ -17,7 +17,10 @@ class SharedBootstrap {
     // Ensure dotenv is available for non-Supabase keys (API base, storage, etc.)
     // bootstrapSupabase already loaded the asset; dotenv.isInitialized covers re-entry.
     if (!dotenv.isInitialized) {
-      await dotenv.load(fileName: 'assets/env/owanbe_config');
+      final configFile = isAdmin
+          ? 'assets/env/owanbe_config.admin'
+          : 'assets/env/owanbe_config';
+      await dotenv.load(fileName: configFile);
     }
 
     // 3. Initialize all registered platform capabilities

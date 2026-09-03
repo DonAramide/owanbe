@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/utils/money.dart';
 import '../../../../eos/eos.dart';
+import '../../../../core/providers/silent_refresh.dart';
 import '../../models/ai_planner_models.dart';
 import '../../models/command_center_models.dart';
 import '../../models/customer_event_models.dart';
@@ -28,7 +29,7 @@ class EventPlanningCenter extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final workspace = ref.watch(eventPlanningWorkspaceProvider(eventId));
 
-    return workspace.when(
+    return workspace.whenStable(
       loading: () => _PlanningCenterBody(
         eventId: eventId,
         snapshot: fallbackSnapshot,

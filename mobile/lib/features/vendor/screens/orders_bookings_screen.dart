@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/money.dart';
+import '../../../core/providers/silent_refresh.dart';
 import '../../../eos/eos.dart';
 import '../../../portals/customer/models/vendor_crm_models.dart';
 import '../../../portals/customer/providers/vendor_crm_providers.dart';
@@ -44,12 +45,12 @@ class OrdersBookingsScreen extends ConsumerWidget {
             style: context.eosText.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
           ),
         ),
-        body: vendorIdAsync.when(
+        body: vendorIdAsync.whenStable(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('$e', style: const TextStyle(color: Colors.white70))),
           data: (vendorId) {
             final inbox = ref.watch(vendorInboxProvider(vendorId));
-            return inbox.when(
+            return inbox.whenStable(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => ListView(
                 padding: const EdgeInsets.all(16),

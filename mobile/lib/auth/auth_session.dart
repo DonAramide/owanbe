@@ -36,6 +36,54 @@ class AuthSession {
       email: email,
       onboardingComplete: onboardingComplete ?? this.onboardingComplete,
       signupPortal: signupPortal ?? this.signupPortal,
+      roles: roles,
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is AuthSession &&
+        other.userId == userId &&
+        other.displayName == displayName &&
+        other.role == role &&
+        other.email == email &&
+        other.onboardingComplete == onboardingComplete &&
+        other.signupPortal == signupPortal &&
+        _stringListEquals(other.roles, roles);
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        userId,
+        displayName,
+        role,
+        email,
+        onboardingComplete,
+        signupPortal,
+        Object.hashAll(roles),
+      );
+}
+
+/// JWT rotation must not replace API-enriched identity (roles, onboarding, name).
+bool shouldReplaceAuthSessionForSupabaseEvent({
+  required bool isTokenRefresh,
+  required bool isInitialSession,
+  required String? currentUserId,
+  required String incomingUserId,
+}) {
+  if (isTokenRefresh) return false;
+  if (isInitialSession && currentUserId != null && currentUserId == incomingUserId) {
+    return false;
+  }
+  return true;
+}
+
+bool _stringListEquals(List<String> a, List<String> b) {
+  if (identical(a, b)) return true;
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
 }

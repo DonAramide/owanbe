@@ -6,8 +6,10 @@ import 'package:http/http.dart' as http;
 
 import '../../../core/api/owambe_api_auth.dart';
 import '../../../core/api/persistence_providers.dart';
+import '../../../core/providers/silent_refresh.dart';
 import '../../../features/organizer/models/organizer_models.dart';
 import '../models/vendor_crm_models.dart';
+import '../models/vendor_change_request_models.dart';
 import '../providers/customer_event_providers.dart';
 
 class VendorCrmApi {
@@ -31,6 +33,25 @@ class VendorCrmApi {
       Uri.parse('$_base/events/$eventId/vendor-requests'),
       headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode(body),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return VendorCrmSnapshot.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<VendorCrmSnapshot> createVendorBuyerRequest(String eventId, Map<String, dynamic> body) async {
+    final res = await _http.post(
+      Uri.parse('$_base/events/$eventId/vendor-requests/vendor-buyer'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return VendorCrmSnapshot.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<VendorCrmSnapshot> listOutgoingForVendor(String vendorId) async {
+    final res = await _http.get(
+      Uri.parse('$_base/vendors/$vendorId/outgoing-vendor-requests'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
     );
     if (res.statusCode >= 400) _throw(res);
     return VendorCrmSnapshot.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -147,6 +168,61 @@ class VendorCrmApi {
     return VendorCrmSnapshot.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
+  Future<List<VendorChangeRequest>> listChangeRequests(String requestId) async {
+    final res = await _http.get(
+      Uri.parse('$_base/vendor-requests/$requestId/change-requests'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    final items = body['items'] as List<dynamic>? ?? const [];
+    return items
+        .whereType<Map>()
+        .map((e) => VendorChangeRequest.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+  }
+
+  Future<VendorChangeRequest> createChangeRequest(
+    String requestId,
+    Map<String, dynamic> body,
+  ) async {
+    final res = await _http.post(
+      Uri.parse('$_base/vendor-requests/$requestId/change-requests'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return VendorChangeRequest.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<VendorChangeRequest> acceptChangeRequest(String changeId) async {
+    final res = await _http.post(
+      Uri.parse('$_base/change-requests/$changeId/accept'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return VendorChangeRequest.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<VendorChangeRequest> declineChangeRequest(String changeId, {String? note}) async {
+    final res = await _http.post(
+      Uri.parse('$_base/change-requests/$changeId/decline'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      body: jsonEncode({if (note != null) 'note': note}),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return VendorChangeRequest.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<VendorChangeRequest> cancelChangeRequest(String changeId) async {
+    final res = await _http.post(
+      Uri.parse('$_base/change-requests/$changeId/cancel'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+    );
+    if (res.statusCode >= 400) _throw(res);
+    return VendorChangeRequest.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
   Future<VendorRequestTimeline> fetchTimeline(String requestId) async {
     final res = await _http.get(
       Uri.parse('$_base/vendor-requests/$requestId/timeline'),
@@ -186,6 +262,7 @@ class VendorCrmApi {
       headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
       body: jsonEncode({
         'kind': 'blackout',
+        'allDay': true,
         'startsAt': startsAt.toUtc().toIso8601String(),
         'endsAt': endsAt.toUtc().toIso8601String(),
         'reason': reason,
@@ -194,7 +271,51 @@ class VendorCrmApi {
     if (res.statusCode >= 400) _throw(res);
   }
 
+  Future<void> updateBlock(
+    String vendorId,
+    String blockId, {
+    required DateTime startsAt,
+    required DateTime endsAt,
+    required String reason,
+    bool allDay = true,
+  }) async {
+    final res = await _http.patch(
+      Uri.parse('$_base/vendors/$vendorId/calendar/blocks/$blockId'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+      body: jsonEncode({
+        'startsAt': startsAt.toUtc().toIso8601String(),
+        'endsAt': endsAt.toUtc().toIso8601String(),
+        'reason': reason,
+        'allDay': allDay,
+      }),
+    );
+    if (res.statusCode >= 400) _throw(res);
+  }
+
+  Future<void> deleteBlock(String vendorId, String blockId) async {
+    final res = await _http.delete(
+      Uri.parse('$_base/vendors/$vendorId/calendar/blocks/$blockId'),
+      headers: await OwambeApiAuth.authorizedHeaders(tenantId: _tenantId),
+    );
+    if (res.statusCode >= 400) _throw(res);
+  }
+
   void _throw(http.Response res) {
+    try {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map) {
+        final code = decoded['code']?.toString();
+        final message = decoded['message']?.toString();
+        if (code != null && code.isNotEmpty) {
+          throw Exception(message != null && message.isNotEmpty ? '$code: $message' : code);
+        }
+        if (message != null && message.isNotEmpty) {
+          throw Exception(message);
+        }
+      }
+    } catch (e) {
+      if (e is Exception && e.toString() != 'Exception') rethrow;
+    }
     throw Exception('Vendor CRM API ${res.statusCode}: ${res.body}');
   }
 }
@@ -214,13 +335,13 @@ final vendorCrmLiveTickProvider = StreamProvider.autoDispose<int>((ref) async* {
   }
 });
 
-void refreshVendorCrm(WidgetRef ref) {
+void refreshVendorCrm(dynamic ref) {
   ref.read(vendorCrmRefreshProvider.notifier).state++;
 }
 
 final eventVendorCrmProvider = FutureProvider.autoDispose.family<VendorCrmSnapshot, String>((ref, eventId) async {
   ref.watch(vendorCrmRefreshProvider);
-  ref.watch(vendorCrmLiveTickProvider);
+  refreshOnAsyncTick(ref, vendorCrmLiveTickProvider);
   try {
     return await ref.read(vendorCrmApiProvider).listForEvent(eventId);
   } catch (e) {
@@ -234,7 +355,7 @@ final eventVendorCrmProvider = FutureProvider.autoDispose.family<VendorCrmSnapsh
 
 final vendorInboxProvider = FutureProvider.autoDispose.family<VendorCrmSnapshot, String>((ref, vendorId) async {
   ref.watch(vendorCrmRefreshProvider);
-  ref.watch(vendorCrmLiveTickProvider);
+  refreshOnAsyncTick(ref, vendorCrmLiveTickProvider);
   try {
     return await ref.read(vendorCrmApiProvider).listForVendor(vendorId);
   } catch (e) {
@@ -246,24 +367,45 @@ final vendorInboxProvider = FutureProvider.autoDispose.family<VendorCrmSnapshot,
   }
 });
 
+final vendorOutgoingCrmProvider = FutureProvider.autoDispose.family<VendorCrmSnapshot, String>((ref, vendorId) async {
+  ref.watch(vendorCrmRefreshProvider);
+  try {
+    return await ref.read(vendorCrmApiProvider).listOutgoingForVendor(vendorId);
+  } catch (e) {
+    if (!allowMockPersistenceFallback()) rethrow;
+    return const VendorCrmSnapshot(items: [], stats: VendorPipelineStats());
+  }
+});
+
 final vendorRequestTimelineProvider =
     FutureProvider.autoDispose.family<VendorRequestTimeline, String>((ref, requestId) async {
   ref.watch(vendorCrmRefreshProvider);
-  ref.watch(vendorCrmLiveTickProvider);
+  refreshOnAsyncTick(ref, vendorCrmLiveTickProvider);
   return ref.read(vendorCrmApiProvider).fetchTimeline(requestId);
+});
+
+/// Phase 3D — change requests for a parent vendor_event_request (REST + SSE refresh).
+final vendorChangeRequestsProvider =
+    FutureProvider.autoDispose.family<List<VendorChangeRequest>, String>((ref, requestId) async {
+  ref.watch(vendorCrmRefreshProvider);
+  refreshOnAsyncTick(ref, vendorCrmLiveTickProvider);
+  return ref.read(vendorCrmApiProvider).listChangeRequests(requestId);
 });
 
 final eventVendorFundsProvider =
     FutureProvider.autoDispose.family<Map<String, dynamic>, String>((ref, eventId) async {
   ref.watch(vendorCrmRefreshProvider);
-  ref.watch(vendorCrmLiveTickProvider);
+  refreshOnAsyncTick(ref, vendorCrmLiveTickProvider);
   return ref.read(vendorCrmApiProvider).getEventFunds(eventId);
 });
 
 final organizerVendorCrmAlertsProvider =
     FutureProvider.autoDispose<List<OrganizerAttentionItem>>((ref) async {
   ref.watch(vendorCrmRefreshProvider);
-  ref.watch(vendorCrmLiveTickProvider);
+  // Do not watch vendorCrmLiveTickProvider here. Hub stays mounted under
+  // Marketplace (context.push), so a 5s tick would globally refetch every
+  // event's CRM and hitch/reset the UI. Live request/message polling remains
+  // on eventVendorCrmProvider / vendorInboxProvider / timeline.
   try {
     final events = await ref.watch(customerEventsProvider.future);
     final items = <OrganizerAttentionItem>[];

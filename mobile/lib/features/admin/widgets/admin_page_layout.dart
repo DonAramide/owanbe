@@ -11,6 +11,7 @@ class AdminPageLayout extends StatelessWidget {
     this.subtitle,
     this.actions,
     this.header,
+    this.footer,
   });
 
   final String title;
@@ -18,57 +19,66 @@ class AdminPageLayout extends StatelessWidget {
   final Widget body;
   final List<Widget>? actions;
   final Widget? header;
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
     // Scaffold provides Material for ListTile / InkWell when this layout is
     // opened as a standalone route (Control Tower push) outside AdminShell.
-    return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(EosSpacing.lg, EosSpacing.lg, EosSpacing.lg, EosSpacing.md),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(title, style: context.eosText.headlineMedium?.copyWith(fontWeight: FontWeight.w700)),
-                            if (subtitle != null) ...[
-                              SizedBox(height: context.eos.spacing.xs),
-                              Text(
-                                subtitle!,
-                                style: context.eosText.bodyLarge?.copyWith(
-                                  color: context.eosColors.onSurfaceVariant,
-                                ),
+    final scroll = CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(EosSpacing.lg, EosSpacing.lg, EosSpacing.lg, EosSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(title, style: context.eosText.headlineMedium?.copyWith(fontWeight: FontWeight.w700)),
+                          if (subtitle != null) ...[
+                            SizedBox(height: context.eos.spacing.xs),
+                            Text(
+                              subtitle!,
+                              style: context.eosText.bodyLarge?.copyWith(
+                                color: context.eosColors.onSurfaceVariant,
                               ),
-                            ],
+                            ),
                           ],
-                        ),
+                        ],
                       ),
-                      if (actions != null) ...actions!,
-                    ],
-                  ),
-                  if (header != null) ...[
-                    SizedBox(height: context.eos.spacing.lg),
-                    header!,
+                    ),
+                    if (actions != null) ...actions!,
                   ],
+                ),
+                if (header != null) ...[
+                  SizedBox(height: context.eos.spacing.lg),
+                  header!,
                 ],
-              ),
+              ],
             ),
           ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(EosSpacing.lg, 0, EosSpacing.lg, EosSpacing.xxl),
-            sliver: SliverToBoxAdapter(child: body),
-          ),
-        ],
-      ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(EosSpacing.lg, 0, EosSpacing.lg, EosSpacing.xxl),
+          sliver: SliverToBoxAdapter(child: body),
+        ),
+      ],
+    );
+    return Scaffold(
+      body: footer == null
+          ? scroll
+          : Column(
+              children: [
+                Expanded(child: scroll),
+                footer!,
+              ],
+            ),
     );
   }
 }

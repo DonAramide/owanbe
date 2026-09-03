@@ -114,12 +114,20 @@ class VendorCategoryConfig {
     required this.slug,
     required this.label,
     this.iconKey = 'storefront',
+    this.isActive = true,
+    this.offeringKind = 'unclassified',
+    this.parentId,
+    this.capabilities = const [],
   });
 
   final String id;
   final String slug;
   final String label;
   final String iconKey;
+  final bool isActive;
+  final String offeringKind;
+  final String? parentId;
+  final List<VendorCategoryCapability> capabilities;
 
   static List<VendorCategoryConfig> get fallbackDefaults => const [
         VendorCategoryConfig(id: 'venue', slug: 'venue', label: 'Venue', iconKey: 'apartment'),
@@ -150,6 +158,119 @@ class VendorCategoryConfig {
       slug: (json['slug'] ?? '').toString(),
       label: (json['label'] ?? '').toString(),
       iconKey: (json['iconKey'] ?? 'storefront').toString(),
+      isActive: json['isActive'] != false,
+      offeringKind: (json['offeringKind'] ?? json['offering_kind'] ?? 'unclassified').toString(),
+      parentId: json['parentId']?.toString() ?? json['parent_id']?.toString(),
+      capabilities: (json['capabilities'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map((e) => VendorCategoryCapability.fromJson(Map<String, dynamic>.from(e)))
+          .where((c) => c.key.isNotEmpty)
+          .toList(),
+    );
+  }
+}
+
+class VendorBusinessCapabilityConfig {
+  const VendorBusinessCapabilityConfig({
+    required this.id,
+    required this.capabilityKey,
+    required this.label,
+    this.description = '',
+    this.isActive = true,
+    this.sortOrder = 0,
+  });
+
+  final String id;
+  final String capabilityKey;
+  final String label;
+  final String description;
+  final bool isActive;
+  final int sortOrder;
+
+  factory VendorBusinessCapabilityConfig.fromJson(Map<String, dynamic> json) {
+    return VendorBusinessCapabilityConfig(
+      id: (json['id'] ?? '').toString(),
+      capabilityKey: (json['capabilityKey'] ?? json['capability_key'] ?? '').toString(),
+      label: (json['label'] ?? '').toString(),
+      description: (json['description'] ?? '').toString(),
+      isActive: json['isActive'] != false,
+      sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class VendorResourceCatalogItem {
+  const VendorResourceCatalogItem({
+    required this.id,
+    required this.slug,
+    required this.label,
+    this.description = '',
+    this.isActive = true,
+    this.sortOrder = 0,
+  });
+
+  final String id;
+  final String slug;
+  final String label;
+  final String description;
+  final bool isActive;
+  final int sortOrder;
+
+  factory VendorResourceCatalogItem.fromJson(Map<String, dynamic> json) {
+    return VendorResourceCatalogItem(
+      id: (json['id'] ?? '').toString(),
+      slug: (json['slug'] ?? '').toString(),
+      label: (json['label'] ?? '').toString(),
+      description: (json['description'] ?? '').toString(),
+      isActive: json['isActive'] != false,
+      sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class VendorCategoryCapability {
+  const VendorCategoryCapability({
+    required this.key,
+    required this.label,
+    this.enabled = true,
+    this.tier = 'core',
+  });
+
+  final String key;
+  final String label;
+  final bool enabled;
+  /// Admin-owned: `core` | `optional`.
+  final String tier;
+
+  bool get isCore => tier != 'optional';
+  bool get isOptional => tier == 'optional';
+
+  factory VendorCategoryCapability.fromJson(Map<String, dynamic> json) {
+    final rawTier = (json['tier'] ?? json['kind'] ?? 'core').toString().toLowerCase();
+    final tier = (rawTier == 'optional' || rawTier == 'additional' || rawTier == 'extra')
+        ? 'optional'
+        : 'core';
+    return VendorCategoryCapability(
+      key: (json['key'] ?? '').toString(),
+      label: (json['label'] ?? json['key'] ?? '').toString(),
+      enabled: json['enabled'] != false,
+      tier: tier,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'key': key,
+        'label': label,
+        'enabled': enabled,
+        'tier': tier,
+      };
+
+  VendorCategoryCapability copyWith({bool? enabled, String? tier, String? label}) {
+    return VendorCategoryCapability(
+      key: key,
+      label: label ?? this.label,
+      enabled: enabled ?? this.enabled,
+      tier: tier ?? this.tier,
     );
   }
 }
@@ -235,6 +356,166 @@ class EventConfigApi {
     final body = jsonDecode(res.body) as Map<String, dynamic>;
     return (body['items'] as List<dynamic>)
         .map((e) => VendorCategoryConfig.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<List<VendorCategoryConfig>> adminListVendorCategories() async {
+    final res = await _http.get(_u('admin/settings/vendor-categories'), headers: await _headers());
+    if (res.statusCode >= 400) throw EventConfigApiException(res.statusCode, res.body);
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return (body['items'] as List<dynamic>)
+        .map((e) => VendorCategoryConfig.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> adminSaveVendorCategoryCapabilities({
+    required String id,
+    required List<VendorCategoryCapability> capabilities,
+    bool? isActive,
+  }) async {
+    final res = await _http.post(
+      _u('admin/settings/vendor-categories'),
+      headers: {
+        ...await _headers(),
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'id': id,
+        'capabilities': [
+          for (final c in capabilities)
+            {'key': c.key, 'label': c.label, 'enabled': c.enabled, 'tier': c.tier},
+        ],
+        if (isActive != null) 'isActive': isActive,
+      }),
+    );
+    if (res.statusCode >= 400) throw EventConfigApiException(res.statusCode, res.body);
+  }
+
+  Future<List<VendorBusinessCapabilityConfig>> adminListBusinessCapabilities() async {
+    final res = await _http.get(_u('admin/settings/vendor-business-capabilities'), headers: await _headers());
+    if (res.statusCode >= 400) throw EventConfigApiException(res.statusCode, res.body);
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return (body['items'] as List<dynamic>)
+        .map((e) => VendorBusinessCapabilityConfig.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<VendorBusinessCapabilityConfig> adminPatchBusinessCapability({
+    required String capabilityKey,
+    required bool isActive,
+    String? label,
+    String? description,
+  }) async {
+    final res = await _http.post(
+      _u('admin/settings/vendor-business-capabilities'),
+      headers: {...await _headers(), 'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'capabilityKey': capabilityKey,
+        'isActive': isActive,
+        if (label != null) 'label': label,
+        if (description != null) 'description': description,
+      }),
+    );
+    if (res.statusCode >= 400) throw EventConfigApiException(res.statusCode, res.body);
+    return VendorBusinessCapabilityConfig.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<List<VendorCategoryConfig>> adminListOfferingCategories({String? kind}) async {
+    final q = kind == null || kind.isEmpty ? '' : '?kind=${Uri.encodeQueryComponent(kind)}';
+    final res = await _http.get(_u('admin/settings/vendor-offering-categories$q'), headers: await _headers());
+    if (res.statusCode >= 400) throw EventConfigApiException(res.statusCode, res.body);
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return (body['items'] as List<dynamic>)
+        .map((e) => VendorCategoryConfig.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<VendorCategoryConfig> adminUpsertOfferingCategory({
+    String? id,
+    required String label,
+    String? slug,
+    required String offeringKind,
+    bool isActive = true,
+    String? iconKey,
+    String? parentId,
+    int? sortOrder,
+  }) async {
+    final res = await _http.post(
+      _u('admin/settings/vendor-offering-categories'),
+      headers: {...await _headers(), 'Content-Type': 'application/json'},
+      body: jsonEncode({
+        if (id != null) 'id': id,
+        'label': label,
+        if (slug != null) 'slug': slug,
+        'offeringKind': offeringKind,
+        'isActive': isActive,
+        if (iconKey != null) 'iconKey': iconKey,
+        if (parentId != null) 'parentId': parentId,
+        if (sortOrder != null) 'sortOrder': sortOrder,
+      }),
+    );
+    if (res.statusCode >= 400) throw EventConfigApiException(res.statusCode, res.body);
+    return VendorCategoryConfig.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<List<VendorResourceCatalogItem>> adminListResourceCatalog() async {
+    final res = await _http.get(_u('admin/settings/vendor-resource-catalog'), headers: await _headers());
+    if (res.statusCode >= 400) throw EventConfigApiException(res.statusCode, res.body);
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return (body['items'] as List<dynamic>)
+        .map((e) => VendorResourceCatalogItem.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<VendorResourceCatalogItem> adminUpsertResource({
+    String? id,
+    required String label,
+    String? slug,
+    String? description,
+    bool isActive = true,
+    int? sortOrder,
+  }) async {
+    final res = await _http.post(
+      _u('admin/settings/vendor-resource-catalog'),
+      headers: {...await _headers(), 'Content-Type': 'application/json'},
+      body: jsonEncode({
+        if (id != null) 'id': id,
+        'label': label,
+        if (slug != null) 'slug': slug,
+        if (description != null) 'description': description,
+        'isActive': isActive,
+        if (sortOrder != null) 'sortOrder': sortOrder,
+      }),
+    );
+    if (res.statusCode >= 400) throw EventConfigApiException(res.statusCode, res.body);
+    return VendorResourceCatalogItem.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<List<VendorBusinessCapabilityConfig>> listPublicBusinessCapabilities() async {
+    final res = await _http.get(_u('event-config/vendor-business-capabilities'), headers: await _headers());
+    if (res.statusCode >= 400) throw EventConfigApiException(res.statusCode, res.body);
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return (body['items'] as List<dynamic>)
+        .map((e) => VendorBusinessCapabilityConfig.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<List<VendorCategoryConfig>> listPublicOfferingCategories({required String kind}) async {
+    final q = '?kind=${Uri.encodeQueryComponent(kind)}';
+    final res = await _http.get(_u('event-config/vendor-offering-categories$q'), headers: await _headers());
+    if (res.statusCode >= 400) throw EventConfigApiException(res.statusCode, res.body);
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return (body['items'] as List<dynamic>)
+        .map((e) => VendorCategoryConfig.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<List<VendorResourceCatalogItem>> listPublicResourceCatalog() async {
+    final res = await _http.get(_u('event-config/vendor-resource-catalog'), headers: await _headers());
+    if (res.statusCode >= 400) throw EventConfigApiException(res.statusCode, res.body);
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return (body['items'] as List<dynamic>)
+        .map((e) => VendorResourceCatalogItem.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 }

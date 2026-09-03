@@ -18,6 +18,13 @@ export const envValidationSchema = Joi.object({
   /** Fallback hours when booking.escrow_release_not_before is null (must align with tenant_finance_settings when possible). */
   PAYOUT_COOLDOWN_FALLBACK_HOURS: Joi.number().integer().min(0).max(168).default(36),
   PUBLIC_API_BASE_URL: Joi.string().uri().optional().allow(''),
+  /**
+   * User-facing web/app origin for invitation RSVP deep links (not the API host).
+   * Example: https://app.example.com — never use PUBLIC_API_BASE_URL here.
+   */
+  PUBLIC_APP_BASE_URL: Joi.string().uri().optional().allow(''),
+  /** @deprecated Prefer PUBLIC_APP_BASE_URL. Kept as alias for invitation links. */
+  APP_PUBLIC_URL: Joi.string().uri().optional().allow(''),
   ALERT_WEBHOOK_URL: Joi.string().uri().optional().allow(''),
   ALERT_EMAIL_TO: Joi.string().optional().allow(''),
   ALERT_DEDUPE_WINDOW_MS: Joi.number().integer().min(0).max(3_600_000).default(120_000),
@@ -70,6 +77,18 @@ export const envValidationSchema = Joi.object({
   SUPABASE_URL: Joi.string().uri().optional().allow(''),
   SUPABASE_SERVICE_ROLE_KEY: Joi.string().optional().allow(''),
   STORAGE_BUCKET: Joi.string().default('owanbe-media'),
+
+  /**
+   * Phase 3A — CRM realtime SSE (hybrid with existing REST + 5s polling).
+   * When false, API rejects GET /me/crm/stream and does not publish CRM SSE events.
+   * Polling/REST continue unchanged.
+   */
+  CRM_REALTIME_SSE: Joi.boolean().truthy('true', '1', 'yes').falsy('false', '0', 'no').default(true),
+  /**
+   * Fan-out across API instances. `pg_notify` uses PostgreSQL LISTEN/NOTIFY
+   * (preferred — Redis is not in this stack). `local` = in-process only (dev).
+   */
+  CRM_REALTIME_FANOUT: Joi.string().valid('pg_notify', 'local').default('pg_notify'),
 }).unknown(true);
 
 export type EnvVars = {
@@ -86,6 +105,8 @@ export type EnvVars = {
   PAYMENT_S2S_VERIFY_THRESHOLD_MINOR: number;
   PAYOUT_COOLDOWN_FALLBACK_HOURS: number;
   PUBLIC_API_BASE_URL: string;
+  PUBLIC_APP_BASE_URL: string;
+  APP_PUBLIC_URL: string;
   ALERT_WEBHOOK_URL: string;
   ALERT_EMAIL_TO: string;
   ALERT_DEDUPE_WINDOW_MS: number;
@@ -106,4 +127,6 @@ export type EnvVars = {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
   STORAGE_BUCKET: string;
+  CRM_REALTIME_SSE: boolean;
+  CRM_REALTIME_FANOUT: 'pg_notify' | 'local' | string;
 };

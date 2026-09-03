@@ -14,6 +14,7 @@ import '../providers/vendor_crm_providers.dart';
 import '../models/ai_planner_models.dart';
 import '../models/vendor_crm_models.dart';
 import '../planning/event_planning_workspace_provider.dart';
+import '../../../core/providers/silent_refresh.dart';
 import 'event_closing_actions.dart';
 import 'event_closing_models.dart';
 
@@ -50,7 +51,8 @@ final eventClosingWorkspaceProvider =
 
   VendorCrmSnapshot? crm;
   try {
-    crm = await ref.watch(eventVendorCrmProvider(eventId).future);
+    refreshWhenDataChanges(ref, eventVendorCrmProvider(eventId));
+    crm = await ref.read(eventVendorCrmProvider(eventId).future);
   } catch (_) {}
 
   BudgetDashboardSnapshot? budget;

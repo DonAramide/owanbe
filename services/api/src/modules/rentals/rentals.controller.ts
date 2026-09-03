@@ -220,6 +220,31 @@ export class RentalsController {
     return this.rentals.createBooking(tenantId, eventId, body, actor?.userId);
   }
 
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Post('events/:eventId/rentals/vendor-buyer-bookings')
+  async createVendorBuyerBooking(
+    @Param('eventId') eventId: string,
+    @Body() body: Record<string, unknown>,
+    @CommerceActorParam() actor: CommerceActor,
+  ) {
+    return this.rentals.createVendorBuyerBooking(actor!, eventId, body);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Get('me/rental-bookings')
+  async myRentalBookings(@CommerceActorParam() actor: CommerceActor) {
+    return this.rentals.listMyBookings(actor!);
+  }
+
+  @Public()
+  @UseGuards(CommerceAuthGuard)
+  @Get('me/rental-buyer-events')
+  async myRentalBuyerEvents(@CommerceActorParam() actor: CommerceActor) {
+    return this.rentals.listBuyerEligibleEvents(actor!);
+  }
+
   // —— Phase 9 attendee event services (event-scoped) ——
 
   @Public()

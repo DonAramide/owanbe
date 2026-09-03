@@ -277,4 +277,82 @@ export class VendorCalendarService {
     const conflicts = await this.findConflicts(actor.tenantId, vendorId, startsAt, endsAt);
     return { hasConflict: conflicts.length > 0, conflicts };
   }
+
+  private assertOwnsVendor(_actor: CommerceActor, vendorId: string, owned: string | null) {
+    if (owned !== vendorId) {
+      throw new NotFoundException({ code: 'VENDOR_NOT_FOUND', message: 'Vendor not found' });
+    }
+  }
+
+  private isUuid(value: string) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  }
+
+  /** Manual Block Dates rows: blackout with no CRM/rental source. Vacation rows stay settings-owned. */
+  private async loadManualBlackout(tenantId: string, vendorId: string, blockId: string) {
+    if (!this.isUuid(blockId)) return null;
+    const { rows } = await this.pool.query<{
+      id: string;
+      kind: string;
+      starts_at: Date;
+      ends_at: Date;
+      all_day: boolean;
+      source_type: string | null;
+      source_id: string | null;
+      reason: string | null;
+    }>(
+      `SELECT id, kind, starts_at, ends_at, all_day, source_type, source_id, reason
+       FROM vendor_calendar_blocks
+       WHERE id = $1 AND tenant_id = $2 AND vendor_id = $3
+         AND kind = 'blackout'
+         AND source_type IS NULL
+         AND source_id IS NULL`,
+      [blockId, tenantId, vendorId],
+    );
+    return rows[0] ?? null;
+  }
+
+  async updateBlock(actor: CommerceActor, vendorId: string, blockId: string, body: Record<string, unknown>) {
+    const owned = await this.access.resolveVendorId(actor.tenantId, actor.userId);
+    this.assertOwnsVendor(actor, vendorId, owned);
+    const existing = await this.loadManualBlackout(actor.tenantId, vendorId, blockId);
+    if (!existing) {
+      throw new NotFoundException({ code: 'BLOCK_NOT_FOUND', message: 'Block not found' });
+    }
+    const startsAt = body.startsAt != null ? new Date(String(body.startsAt)) : existing.starts_at;
+    const endsAt = body.endsAt != null ? new Date(String(body.endsAt)) : existing.ends_at;
+    if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) {
+      throw new BadRequestException({ code: 'INVALID_WINDOW', message: 'Invalid time window' });
+    }
+    const allDay = body.allDay != null ? Boolean(body.allDay) : existing.all_day;
+    const reason = body.reason != null ? (String(body.reason).trim() === '' ? null : String(body.reason)) : existing.reason;
+    await this.pool.query(
+      `UPDATE vendor_calendar_blocks
+       SET starts_at = $4, ends_at = $5, all_day = $6, reason = $7
+       WHERE id = $1 AND tenant_id = $2 AND vendor_id = $3
+         AND kind = 'blackout'
+         AND source_type IS NULL
+         AND source_id IS NULL`,
+      [blockId, actor.tenantId, vendorId, startsAt, endsAt, allDay, reason],
+    );
+    return { id: blockId };
+  }
+
+  async deleteBlock(actor: CommerceActor, vendorId: string, blockId: string) {
+    const owned = await this.access.resolveVendorId(actor.tenantId, actor.userId);
+    this.assertOwnsVendor(actor, vendorId, owned);
+    const existing = await this.loadManualBlackout(actor.tenantId, vendorId, blockId);
+    if (!existing) {
+      throw new NotFoundException({ code: 'BLOCK_NOT_FOUND', message: 'Block not found' });
+    }
+    await this.pool.query(
+      `DELETE FROM vendor_calendar_blocks
+       WHERE id = $1 AND tenant_id = $2 AND vendor_id = $3
+         AND kind = 'blackout'
+         AND source_type IS NULL
+         AND source_id IS NULL`,
+      [blockId, actor.tenantId, vendorId],
+    );
+    return { id: blockId, deleted: true };
+  }
 }

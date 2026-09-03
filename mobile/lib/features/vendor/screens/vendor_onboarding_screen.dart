@@ -5,8 +5,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../auth/auth_notifier.dart';
 import '../../../auth/user_role.dart';
+import '../../../core/api/event_config_api.dart';
 import '../../../core/api/identity_api.dart';
 import '../../../core/api/owanbe_api_auth.dart';
+import '../../../core/api/owambe_http_client.dart';
+import '../../../core/api/vendor_offerings_api.dart';
 import '../../../core/api/persistence_providers.dart';
 import '../../../eos/eos.dart';
 import '../../../features/auth/widgets/portal_access_guard.dart';
@@ -30,24 +33,6 @@ const _africanCountries = [
   'Morocco', 'Mozambique', 'Namibia', 'Niger', 'Nigeria', 'Rwanda', 'Sao Tome and Principe',
   'Senegal', 'Seychelles', 'Sierra Leone', 'Somalia', 'South Africa', 'South Sudan', 'Sudan',
   'Tanzania', 'Togo', 'Tunisia', 'Uganda', 'Zambia', 'Zimbabwe',
-];
-
-const _vendorCategories = <String>[
-  'Catering',
-  'Photography',
-  'Videography',
-  'DJ',
-  'MC',
-  'Décor',
-  'Security',
-  'Event Planner',
-  'Makeup',
-  'Fashion',
-  'Rentals',
-  'Logistics',
-  'Printing',
-  'Entertainment',
-  'Beauty',
 ];
 
 const _weekDays = <String>['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -78,6 +63,14 @@ class _VendorOnboardingScreenState extends ConsumerState<VendorOnboardingScreen>
 
   // Step 3 — categories
   final Set<String> _categories = {};
+
+  // Step 3 — capabilities + taxonomy (Phase 2)
+  final Set<String> _capabilityKeys = {};
+  List<VendorBusinessCapabilityConfig> _capabilityDefs = const [];
+  List<VendorCategoryConfig> _serviceCats = const [];
+  List<VendorCategoryConfig> _rentalCats = const [];
+  final Set<String> _serviceCategoryIds = {};
+  final Set<String> _rentalCategoryIds = {};
 
   // Step 4 — branding
   ProfileAvatarValue _logo = const ProfileAvatarValue();
@@ -119,7 +112,37 @@ class _VendorOnboardingScreenState extends ConsumerState<VendorOnboardingScreen>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _prefillFromSession());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _prefillFromSession();
+      _loadTaxonomy();
+    });
+  }
+
+  Future<void> _loadTaxonomy() async {
+    try {
+      final api = EventConfigApi(createOwambeHttpClient());
+      final caps = await api.listPublicBusinessCapabilities();
+      final services = await api.listPublicOfferingCategories(kind: 'service');
+      final rentals = await api.listPublicOfferingCategories(kind: 'rental');
+      if (!mounted) return;
+      setState(() {
+        _capabilityDefs = caps;
+        _serviceCats = services;
+        _rentalCats = rentals;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Could not load Super Admin vendor configuration. Check the API and migration 071.';
+      });
+    }
+  }
+
+  void _syncCategoryLabels() {
+    _categories
+      ..clear()
+      ..addAll(_serviceCats.where((c) => _serviceCategoryIds.contains(c.id)).map((c) => c.label))
+      ..addAll(_rentalCats.where((c) => _rentalCategoryIds.contains(c.id)).map((c) => c.label));
   }
 
   void _prefillFromSession() {
@@ -218,7 +241,7 @@ class _VendorOnboardingScreenState extends ConsumerState<VendorOnboardingScreen>
   String get _stepTitle => switch (_step) {
         0 => 'Welcome to Vendor OS',
         1 => 'Business information',
-        2 => 'Business category',
+        2 => 'Business type',
         3 => 'Business branding',
         4 => 'Business location',
         5 => 'Business contact',
@@ -265,8 +288,16 @@ class _VendorOnboardingScreenState extends ConsumerState<VendorOnboardingScreen>
         }
         return true;
       case 2:
-        if (_categories.isEmpty) {
-          setState(() => _error = 'Select at least one category.');
+        if (_capabilityKeys.isEmpty) {
+          setState(() => _error = 'Select at least one business type (Service Provider and/or Rental Provider).');
+          return false;
+        }
+        if (_capabilityKeys.contains('SERVICE_PROVIDER') && _serviceCategoryIds.isEmpty) {
+          setState(() => _error = 'Select at least one service category.');
+          return false;
+        }
+        if (_capabilityKeys.contains('RENTAL_PROVIDER') && _rentalCategoryIds.isEmpty) {
+          setState(() => _error = 'Select at least one rental category.');
           return false;
         }
         return true;
@@ -291,10 +322,12 @@ class _VendorOnboardingScreenState extends ConsumerState<VendorOnboardingScreen>
         }
         return true;
       case 7:
-        final named = _services.where((s) => s.name.text.trim().isNotEmpty).toList();
-        if (named.isEmpty) {
-          setState(() => _error = 'Add at least one service or package name.');
-          return false;
+        if (_capabilityKeys.contains('SERVICE_PROVIDER')) {
+          final named = _services.where((s) => s.name.text.trim().isNotEmpty).toList();
+          if (named.isEmpty) {
+            setState(() => _error = 'Add at least one service name.');
+            return false;
+          }
         }
         return true;
       default:
@@ -335,12 +368,13 @@ class _VendorOnboardingScreenState extends ConsumerState<VendorOnboardingScreen>
       _busy = true;
       _error = null;
     });
+    _syncCategoryLabels();
 
     final businessName = _businessName.text.trim();
     final displayName = _displayName.text.trim().isEmpty
         ? businessName
         : _displayName.text.trim();
-    final primaryCategory = _categories.first;
+    final primaryCategory = _categories.isNotEmpty ? _categories.first : 'vendor';
     final categoryCsv = _categories.join(', ');
     final city = _selectedCountry == 'Nigeria'
         ? (_selectedLga ?? _selectedState ?? '')
@@ -417,6 +451,23 @@ class _VendorOnboardingScreenState extends ConsumerState<VendorOnboardingScreen>
               availableForBookings: true,
             ),
           );
+
+      try {
+        final session = ref.read(authSessionProvider);
+        if (session != null) {
+          final vendorId = await ref.read(identityApiProvider).resolveVendorId(session);
+          if (vendorId != null && vendorId.isNotEmpty) {
+            final offerings = VendorOfferingsApi(createOwambeHttpClient());
+            await offerings.putCapabilities(vendorId, _capabilityKeys.toList());
+            await offerings.putCategories(vendorId, [
+              ..._serviceCategoryIds,
+              ..._rentalCategoryIds,
+            ]);
+          }
+        }
+      } catch (_) {
+        // Capability assignment is additive; profile save already succeeded.
+      }
 
       // Best-effort catalog seed for named services with prices.
       try {
@@ -762,37 +813,111 @@ class _VendorOnboardingScreenState extends ConsumerState<VendorOnboardingScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Select one or more categories that describe your business.',
+          'What type of vendor are you? You may select one or both.',
           style: TextStyle(color: Colors.white70),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
+        if (_capabilityDefs.isEmpty)
+          const Text(
+            'Loading Super Admin capability definitions…',
+            style: TextStyle(color: Colors.white54),
+          ),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
-            for (final c in _vendorCategories)
+            for (final cap in _capabilityDefs)
               FilterChip(
-                label: Text(c),
-                selected: _categories.contains(c),
+                label: Text(cap.label),
+                selected: _capabilityKeys.contains(cap.capabilityKey),
                 onSelected: (v) {
                   setState(() {
                     if (v) {
-                      _categories.add(c);
+                      _capabilityKeys.add(cap.capabilityKey);
                     } else {
-                      _categories.remove(c);
+                      _capabilityKeys.remove(cap.capabilityKey);
+                      if (cap.capabilityKey == 'SERVICE_PROVIDER') _serviceCategoryIds.clear();
+                      if (cap.capabilityKey == 'RENTAL_PROVIDER') _rentalCategoryIds.clear();
                     }
+                    _syncCategoryLabels();
                   });
                 },
                 selectedColor: EosColors.champagne.withValues(alpha: 0.35),
                 checkmarkColor: EosColors.champagne,
                 labelStyle: TextStyle(
-                  color: _categories.contains(c) ? Colors.white : Colors.white70,
+                  color: _capabilityKeys.contains(cap.capabilityKey) ? Colors.white : Colors.white70,
                 ),
                 backgroundColor: Colors.white10,
                 side: const BorderSide(color: Colors.white24),
               ),
           ],
         ),
+        if (_capabilityKeys.contains('SERVICE_PROVIDER')) ...[
+          const SizedBox(height: 20),
+          const Text('What services do you provide?', style: TextStyle(color: Colors.white70)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final c in _serviceCats)
+                FilterChip(
+                  label: Text(c.label),
+                  selected: _serviceCategoryIds.contains(c.id),
+                  onSelected: (v) {
+                    setState(() {
+                      if (v) {
+                        _serviceCategoryIds.add(c.id);
+                      } else {
+                        _serviceCategoryIds.remove(c.id);
+                      }
+                      _syncCategoryLabels();
+                    });
+                  },
+                  selectedColor: EosColors.champagne.withValues(alpha: 0.35),
+                  checkmarkColor: EosColors.champagne,
+                  labelStyle: TextStyle(
+                    color: _serviceCategoryIds.contains(c.id) ? Colors.white : Colors.white70,
+                  ),
+                  backgroundColor: Colors.white10,
+                  side: const BorderSide(color: Colors.white24),
+                ),
+            ],
+          ),
+        ],
+        if (_capabilityKeys.contains('RENTAL_PROVIDER')) ...[
+          const SizedBox(height: 20),
+          const Text('What rental categories do you provide?', style: TextStyle(color: Colors.white70)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final c in _rentalCats)
+                FilterChip(
+                  label: Text(c.label),
+                  selected: _rentalCategoryIds.contains(c.id),
+                  onSelected: (v) {
+                    setState(() {
+                      if (v) {
+                        _rentalCategoryIds.add(c.id);
+                      } else {
+                        _rentalCategoryIds.remove(c.id);
+                      }
+                      _syncCategoryLabels();
+                    });
+                  },
+                  selectedColor: EosColors.champagne.withValues(alpha: 0.35),
+                  checkmarkColor: EosColors.champagne,
+                  labelStyle: TextStyle(
+                    color: _rentalCategoryIds.contains(c.id) ? Colors.white : Colors.white70,
+                  ),
+                  backgroundColor: Colors.white10,
+                  side: const BorderSide(color: Colors.white24),
+                ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -1116,6 +1241,7 @@ class _VendorOnboardingScreenState extends ConsumerState<VendorOnboardingScreen>
         const SizedBox(height: 16),
         _reviewRow('Business', _businessName.text.trim()),
         _reviewRow('Display name', _displayName.text.trim().isEmpty ? '—' : _displayName.text.trim()),
+        _reviewRow('Business types', _capabilityKeys.join(', ')),
         _reviewRow('Categories', _categories.join(', ')),
         _reviewRow('Location', [
           _selectedCountry,

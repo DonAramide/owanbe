@@ -3,12 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../eos/eos.dart';
+import '../../../core/providers/silent_refresh.dart';
 import '../../../auth/auth_notifier.dart';
 import '../finance/admin_finance_providers.dart';
 import '../finance/finance_status_chip.dart';
 import '../widgets/admin_page_layout.dart';
 import 'admin_event_config_screen.dart';
-import 'admin_vendor_categories_screen.dart';
 import 'admin_vendor_pricing_screen.dart';
 
 class AdminSettingsScreen extends ConsumerWidget {
@@ -33,7 +33,7 @@ class AdminSettingsScreen extends ConsumerWidget {
               children: [
                 Text('Finance controls', style: context.eosText.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
                 SizedBox(height: context.eos.spacing.md),
-                financeState.when(
+                financeState.whenStable(
                   data: (state) => Row(
                     children: [
                       FinanceStatusChip(label: state),
@@ -108,10 +108,12 @@ class AdminSettingsScreen extends ConsumerWidget {
                     OutlinedButton(onPressed: null, child: const Text('Event tags')),
                     OutlinedButton(onPressed: null, child: const Text('Templates')),
                     OutlinedButton(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const AdminVendorCategoriesScreen()),
-                      ),
+                      onPressed: () => context.push('/super-admin/commerce/vendor-capabilities'),
                       child: const Text('Vendor categories'),
+                    ),
+                    OutlinedButton(
+                      onPressed: () => context.push('/super-admin/commerce/vendor-configuration'),
+                      child: const Text('Vendor configuration'),
                     ),
                     OutlinedButton(onPressed: null, child: const Text('Budget templates')),
                   ],

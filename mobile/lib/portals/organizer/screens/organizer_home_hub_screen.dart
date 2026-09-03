@@ -9,6 +9,7 @@ import '../../../features/organizer/providers/organizer_providers.dart';
 import '../../customer/navigation/event_navigator.dart';
 import '../../customer/providers/customer_home_providers.dart';
 import '../../customer/workspace/widgets/event_friendly_errors.dart';
+import '../../../core/providers/silent_refresh.dart';
 import '../../customer/workspace/widgets/event_loading_skeleton.dart';
 import '../../customer/widgets/empty_state_card.dart';
 import '../../customer/widgets/section_header.dart';
@@ -50,7 +51,7 @@ class _OrganizerHomeHubScreenState extends ConsumerState<OrganizerHomeHubScreen>
 
     return ColoredBox(
       color: context.eosCanvas,
-      child: homeAsync.when(
+      child: homeAsync.whenStable(
         loading: () => const EventLoadingSkeleton(variant: EventLoadingVariant.workspace),
         error: (_, _) => ListView(
           padding: EosSpacing.pagePadding,

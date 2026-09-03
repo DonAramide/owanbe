@@ -1,26 +1,33 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/admin_finance_api.dart';
+import '../../../core/providers/silent_refresh.dart';
 import 'admin_finance_models.dart';
 
 final adminFinanceApiProvider = Provider<AdminFinanceApi>(
   (ref) => AdminFinanceApi(),
 );
-final adminPollTickProvider = StreamProvider.autoDispose<int>(
-  (ref) => Stream<int>.periodic(const Duration(seconds: 15), (i) => i),
-);
+final adminPollTickProvider = StreamProvider.autoDispose<int>((ref) async* {
+  yield 0;
+  var n = 0;
+  while (true) {
+    await Future<void>.delayed(const Duration(seconds: 15));
+    n += 1;
+    yield n;
+  }
+});
 
 final adminSummaryProvider = FutureProvider.autoDispose<AdminFinanceSummary>((
   ref,
 ) async {
-  ref.watch(adminPollTickProvider);
+  refreshOnAsyncTick(ref, adminPollTickProvider);
   return ref.read(adminFinanceApiProvider).getSummary();
 });
 
 final adminAlertsProvider = FutureProvider.autoDispose<List<AdminAlertItem>>((
   ref,
 ) async {
-  ref.watch(adminPollTickProvider);
+  refreshOnAsyncTick(ref, adminPollTickProvider);
   final page = await ref.read(adminFinanceApiProvider).getAlerts(limit: 20);
   return page.items;
 });
@@ -147,7 +154,7 @@ final adminReconciliationProvider =
     });
 
 final financeStateProvider = FutureProvider.autoDispose<String>((ref) async {
-  ref.watch(adminPollTickProvider);
+  refreshOnAsyncTick(ref, adminPollTickProvider);
   return ref.read(adminFinanceApiProvider).getFinanceState();
 });
 

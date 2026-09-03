@@ -1,10 +1,9 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../auth/auth_notifier.dart';
-import '../../../auth/auth_session.dart';
-import '../../../auth/user_role.dart';
 import '../../../core/api/persistence_providers.dart';
+import '../../../core/providers/silent_refresh.dart';
+import '../../../auth/user_role.dart';
 import '../../../identity/owanbe_identity_config.dart';
 import '../../../identity/workspace_providers.dart';
 import '../../../router/portal_routes.dart';
@@ -26,11 +25,11 @@ bool _isVendorSession(Ref ref) {
     // Watch so vendor home rebuilds after identity refresh (read-only missed updates).
     if (ref.watch(isVendorWorkspaceProvider)) return true;
     // While identity is loading/refreshing, trust session role codes from /auth/me sync.
-    final session = ref.watch(authSessionProvider);
+    final session = ref.watchSignedInUser();
     return session != null &&
         (session.hasRoleCode('vendor') || session.hasRoleCode('vendor_pending'));
   }
-  final session = ref.watch(authSessionProvider);
+  final session = ref.watchSignedInUser();
   return session != null && PortalRoutes.canonicalRole(session) == UserRole.vendor;
 }
 
@@ -75,7 +74,7 @@ enum VendorOrdersViewMode { cards, table }
 /// Never substitutes the seed demo Vendor ID for a different authenticated user.
 final canonicalVendorIdProvider = FutureProvider.autoDispose<String>((ref) async {
   ref.watch(vendorRevisionProvider);
-  final session = ref.watch(authSessionProvider);
+  final session = ref.watchSignedInUser();
   if (session == null) {
     throw StateError('Vendor session required');
   }
@@ -154,7 +153,6 @@ final vendorProfileProvider = Provider<VendorProfile>((ref) {
 final vendorParticipationsProvider = FutureProvider.autoDispose<List<VendorEventParticipation>>((ref) async {
   ref.watch(vendorRevisionProvider);
   ref.watch(organizerRevisionProvider);
-  final session = ref.watch(authSessionProvider);
   if (!_isVendorSession(ref)) return const [];
   try {
     return await ref.read(vendorEventsApiProvider).listEvents();
@@ -168,7 +166,6 @@ final vendorParticipationsByLifecycleProvider =
     FutureProvider.autoDispose.family<List<VendorEventParticipation>, ParticipationLifecycle>((ref, stage) async {
   ref.watch(vendorRevisionProvider);
   ref.watch(organizerRevisionProvider);
-  final session = ref.watch(authSessionProvider);
   if (!_isVendorSession(ref)) return const [];
   List<VendorEventParticipation> all;
   try {
@@ -186,7 +183,6 @@ final vendorParticipationsByLifecycleProvider =
 final vendorDiscoverableEventsProvider = FutureProvider.autoDispose<List<VendorEventParticipation>>((ref) async {
   ref.watch(vendorRevisionProvider);
   ref.watch(organizerRevisionProvider);
-  final session = ref.watch(authSessionProvider);
   if (!_isVendorSession(ref)) return const [];
   try {
     final all = await ref.read(vendorEventsApiProvider).listEvents();
@@ -199,7 +195,6 @@ final vendorDiscoverableEventsProvider = FutureProvider.autoDispose<List<VendorE
 
 final vendorCatalogProvider = FutureProvider.autoDispose<List<VendorCatalogItem>>((ref) async {
   ref.watch(vendorRevisionProvider);
-  final session = ref.watch(authSessionProvider);
   if (!_isVendorSession(ref)) return const [];
   try {
     return await ref.read(vendorCatalogApiProvider).listPackages();
@@ -211,7 +206,6 @@ final vendorCatalogProvider = FutureProvider.autoDispose<List<VendorCatalogItem>
 
 final vendorOrdersProvider = FutureProvider.autoDispose<List<VendorOrder>>((ref) async {
   ref.watch(vendorRevisionProvider);
-  final session = ref.watch(authSessionProvider);
   if (!_isVendorSession(ref)) return const [];
   try {
     return await ref.read(vendorBookingsApiProvider).listOrders();
@@ -223,7 +217,6 @@ final vendorOrdersProvider = FutureProvider.autoDispose<List<VendorOrder>>((ref)
 
 final vendorWalletProvider = FutureProvider.autoDispose<VendorWalletSnapshot>((ref) async {
   ref.watch(vendorRevisionProvider);
-  final session = ref.watch(authSessionProvider);
   if (!_isVendorSession(ref)) {
     throw StateError('Vendor portal access required');
   }
@@ -245,7 +238,6 @@ final vendorWalletProvider = FutureProvider.autoDispose<VendorWalletSnapshot>((r
 
 final vendorWalletEntriesProvider = FutureProvider.autoDispose<List<VendorWalletEntry>>((ref) async {
   ref.watch(vendorRevisionProvider);
-  final session = ref.watch(authSessionProvider);
   if (!_isVendorSession(ref)) return const [];
   try {
     final txs = await ref.read(vendorFinanceApiProvider).getTransactions(limit: 100);
@@ -274,7 +266,6 @@ final vendorWalletEntriesProvider = FutureProvider.autoDispose<List<VendorWallet
 
 final vendorPayoutsProvider = FutureProvider.autoDispose<List<VendorPayoutRequest>>((ref) async {
   ref.watch(vendorRevisionProvider);
-  final session = ref.watch(authSessionProvider);
   if (!_isVendorSession(ref)) return const [];
   try {
     final txs = await ref.read(vendorFinanceApiProvider).getTransactions(limit: 100);
@@ -307,7 +298,6 @@ VendorPayoutStatus _mapPayoutStatus(String status) => switch (status) {
 
 final vendorAnalyticsProvider = FutureProvider.autoDispose<VendorAnalyticsSnapshot>((ref) async {
   ref.watch(vendorRevisionProvider);
-  final session = ref.watch(authSessionProvider);
   if (!_isVendorSession(ref)) {
     throw StateError('Vendor portal access required');
   }
@@ -331,7 +321,6 @@ final vendorAnalyticsProvider = FutureProvider.autoDispose<VendorAnalyticsSnapsh
 
 final vendorDashboardStatsProvider = FutureProvider.autoDispose<VendorDashboardStats>((ref) async {
   ref.watch(vendorRevisionProvider);
-  final session = ref.watch(authSessionProvider);
   if (!_isVendorSession(ref)) {
     throw StateError('Vendor portal access required');
   }

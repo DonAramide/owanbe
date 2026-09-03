@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../eos/eos.dart';
+import '../../../core/providers/silent_refresh.dart';
 import '../navigation/event_navigator.dart';
 import '../models/vendor_crm_models.dart';
 import '../providers/vendor_crm_providers.dart';
@@ -10,6 +11,9 @@ import '../workspace/event_module_scaffold.dart';
 import '../workspace/widgets/event_error_view.dart';
 import '../workspace/widgets/event_loading_skeleton.dart';
 import '../widgets/vendor_crm/vendor_stage_badge.dart';
+import '../widgets/vendor_crm/request_change_sheet.dart';
+import '../widgets/vendor_crm/vendor_change_requests_panel.dart';
+import '../models/vendor_change_request_models.dart';
 import '../../../core/utils/money.dart';
 
 /// Vendor CRM pipeline at `/events/:eventId/vendor-pipeline`.
@@ -50,7 +54,7 @@ class _CustomerEventVendorPipelineScreenState extends ConsumerState<CustomerEven
       eventId: widget.eventId,
       title: 'Vendor pipeline',
       subtitle: 'Requests through day-of arrival',
-      body: crm.when(
+      body: crm.whenStable(
         loading: () => const EventLoadingSkeleton(),
         error: (_, _) => ListView(
           padding: EosSpacing.pagePadding,
@@ -110,14 +114,14 @@ class _PipelineStatsRow extends StatelessWidget {
   }
 }
 
-class _RequestCard extends StatelessWidget {
+class _RequestCard extends ConsumerWidget {
   const _RequestCard({required this.request, required this.onStage});
 
   final VendorRequest request;
   final ValueChanged<String> onStage;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Card(
       margin: EdgeInsets.only(bottom: context.eos.spacing.md),
       child: Padding(
@@ -138,6 +142,11 @@ class _RequestCard extends StatelessWidget {
             ),
             if (request.serviceLabel != null)
               Text(request.serviceLabel!, style: Theme.of(context).textTheme.bodySmall),
+            if (request.selectedCapabilities.isNotEmpty)
+              Text(
+                'Requested: ${request.selectedCapabilities.map((c) => c.label).join(', ')}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
             SizedBox(height: context.eos.spacing.xs),
             Wrap(
               spacing: 6,
@@ -169,6 +178,11 @@ class _RequestCard extends StatelessWidget {
                   label: const Text('View Request'),
                   onPressed: () => _showHonestContractDialog(context, request),
                 ),
+                if (vendorRequestAllowsChangeRequests(request.stage))
+                  ActionChip(
+                    label: const Text('Request a Change'),
+                    onPressed: () => showRequestChangeSheet(context, request: request),
+                  ),
                 if (request.canWithdraw)
                   ActionChip(
                     label: const Text('Withdraw Request'),
@@ -182,6 +196,15 @@ class _RequestCard extends StatelessWidget {
                   ActionChip(label: const Text('Complete'), onPressed: () => onStage('completed')),
               ],
             ),
+            if (vendorRequestAllowsChangeRequests(request.stage)) ...[
+              SizedBox(height: context.eos.spacing.sm),
+              Text('CHANGE REQUESTS', style: Theme.of(context).textTheme.labelSmall),
+              VendorChangeRequestsPanel(
+                request: request,
+                role: ChangeRequestPanelRole.organizer,
+                dense: true,
+              ),
+            ],
           ],
         ),
       ),
@@ -203,6 +226,10 @@ class _RequestCard extends StatelessWidget {
             Text('Status: $status'),
             Text('Contract: ${vendorCrmContractLabels[req.contractStatus] ?? req.contractStatus}'),
             Text('Assignment: ${vendorCrmAssignmentLabels[req.assignmentStatus] ?? req.assignmentStatus}'),
+            if (req.selectedCapabilities.isNotEmpty)
+              Text(
+                'Requested: ${req.selectedCapabilities.map((c) => c.label).join(', ')}',
+              ),
             if (amount != null) Text('Service price: ${formatRevenue(amount)}'),
             if (req.message.trim().isNotEmpty) ...[
               const SizedBox(height: 8),

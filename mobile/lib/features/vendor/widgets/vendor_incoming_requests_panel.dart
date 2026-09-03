@@ -223,9 +223,17 @@ class _RequestCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Organizer: ${request.organizerName ?? 'Organizer'}',
+            'Organizer: ${request.displayBuyerName}',
             style: const TextStyle(color: Colors.white60, fontSize: 12),
           ),
+          if (['accepted', 'scheduled', 'arrived'].contains(request.stage))
+            const Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: Text(
+                'Change requests · open detail to review Accept / Decline',
+                style: TextStyle(color: EosColors.champagne, fontSize: 11),
+              ),
+            ),
           Text(
             'Service: ${request.serviceLabel ?? 'Service'}',
             style: const TextStyle(color: Colors.white70, fontSize: 12),
@@ -250,11 +258,19 @@ class _RequestCard extends StatelessWidget {
               '$payoutLabel: ${formatRevenue(price)}',
               style: const TextStyle(color: EosColors.champagne, fontSize: 12, fontWeight: FontWeight.w600),
             ),
+          if (request.selectedCapabilities.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Requested: ${request.selectedCapabilities.map((c) => c.label).join(', ')}',
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ),
           if (request.message.trim().isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
-                'Requirements: ${request.message}',
+                'Message: ${request.message}',
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(color: Colors.white54, fontSize: 12),

@@ -126,6 +126,10 @@ class CustomerEvent {
     this.venueLongitude,
     this.googlePlaceId,
     this.celebrantImageUrl,
+    this.updatedAt,
+    this.state = '',
+    this.lga = '',
+    this.organizerContactEmail,
   });
 
   final String id;
@@ -162,6 +166,10 @@ class CustomerEvent {
   final double? venueLongitude;
   final String? googlePlaceId;
   final String? celebrantImageUrl;
+  final DateTime? updatedAt;
+  final String state;
+  final String lga;
+  final String? organizerContactEmail;
 
   bool get isPrivateCelebration => eventAccessMode == EventAccessMode.privateInvitation;
 
@@ -221,6 +229,10 @@ class CustomerEvent {
       venueLongitude: venueLongitude,
       googlePlaceId: googlePlaceId,
       celebrantImageUrl: celebrantImageUrl,
+      updatedAt: updatedAt,
+      state: state,
+      lga: lga,
+      organizerContactEmail: organizerContactEmail,
     );
   }
 }

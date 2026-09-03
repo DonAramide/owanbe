@@ -1,3 +1,17 @@
+class SelectedCapability {
+  const SelectedCapability({required this.key, required this.label});
+
+  final String key;
+  final String label;
+
+  factory SelectedCapability.fromJson(Map<String, dynamic> json) => SelectedCapability(
+        key: (json['key'] ?? json['id'] ?? '').toString(),
+        label: (json['label'] ?? json['name'] ?? json['key'] ?? '').toString(),
+      );
+
+  Map<String, dynamic> toJson() => {'key': key, 'label': label};
+}
+
 class VendorRequest {
   const VendorRequest({
     required this.id,
@@ -36,6 +50,10 @@ class VendorRequest {
     this.requiredServices,
     this.venueName,
     this.venueAddress,
+    this.selectedCapabilities = const [],
+    this.buyerKind = 'organizer',
+    this.buyerVendorId,
+    this.buyerVendorName,
   });
 
   final String id;
@@ -79,12 +97,28 @@ class VendorRequest {
   final List<String>? requiredServices;
   final String? venueName;
   final String? venueAddress;
+  /// Frozen organizer selection from request metadata (never live-edited).
+  final List<SelectedCapability> selectedCapabilities;
+  final String buyerKind;
+  final String? buyerVendorId;
+  final String? buyerVendorName;
+
+  String get displayBuyerName =>
+      buyerKind == 'vendor' ? (buyerVendorName ?? 'Vendor') : (organizerName ?? 'Organizer');
 
   /// Party-appropriate amount for display.
   int? get displayAmountMinor => servicePriceMinor ?? vendorPayoutMinor ?? latestOfferMinor;
 
   /// Pending vendor decision (organizer waits; no conversation yet).
   bool get isAwaitingVendor => stage == 'new' || stage == 'negotiating';
+
+  /// Confirmed booking stages — matches VendorAvailabilityService.loadBookedRanges.
+  bool get isConfirmedBooking =>
+      stage == 'accepted' || stage == 'scheduled' || stage == 'arrived' || stage == 'completed';
+
+  DateTime get scheduleStartsAt => eventStartsAt ?? scheduledAt ?? updatedAt;
+
+  DateTime? get scheduleEndsAt => eventEndsAt ?? scheduledEnd;
 
   /// Active service relationship after vendor accept (messaging allowed).
   bool get canMessage =>
@@ -135,6 +169,14 @@ class VendorRequest {
         requiredServices: (json['requiredServices'] as List?)?.map((e) => e.toString()).toList(),
         venueName: json['venueName'] as String?,
         venueAddress: json['venueAddress'] as String?,
+        selectedCapabilities: (json['selectedCapabilities'] as List<dynamic>? ?? const [])
+            .whereType<Map>()
+            .map((e) => SelectedCapability.fromJson(Map<String, dynamic>.from(e)))
+            .where((c) => c.key.isNotEmpty)
+            .toList(),
+        buyerKind: (json['buyerKind'] as String?) ?? 'organizer',
+        buyerVendorId: json['buyerVendorId'] as String?,
+        buyerVendorName: json['buyerVendorName'] as String?,
       );
 
   static String _fallbackContract(String stage) => switch (stage) {
@@ -414,6 +456,8 @@ class VendorCalendarBlock {
     required this.endsAt,
     required this.allDay,
     this.reason,
+    this.sourceType,
+    this.sourceId,
   });
 
   final String id;
@@ -422,6 +466,16 @@ class VendorCalendarBlock {
   final DateTime endsAt;
   final bool allDay;
   final String? reason;
+  final String? sourceType;
+  final String? sourceId;
+
+  /// Manual Block Dates rows. Vacation and CRM/rental-sourced rows stay read-only.
+  bool get isManualBlackout {
+    if (kind != 'blackout') return false;
+    final source = sourceType?.trim();
+    final sourceKey = sourceId?.trim();
+    return (source == null || source.isEmpty) && (sourceKey == null || sourceKey.isEmpty);
+  }
 
   factory VendorCalendarBlock.fromJson(Map<String, dynamic> json) => VendorCalendarBlock(
         id: json['id'] as String,
@@ -430,6 +484,8 @@ class VendorCalendarBlock {
         endsAt: DateTime.parse(json['endsAt'] as String).toLocal(),
         allDay: json['allDay'] as bool? ?? false,
         reason: json['reason'] as String?,
+        sourceType: json['sourceType']?.toString(),
+        sourceId: json['sourceId']?.toString(),
       );
 }
 

@@ -20,4 +20,18 @@ class VendorProfileRepositoryImpl extends VendorProfileRepository {
     final json = await _api.updateVendorWorkspaceProfileRaw(update.toJson());
     return VendorWorkspaceProfile.fromJson(json);
   }
+
+  Future<void> patchService(
+    String serviceId, {
+    String? status,
+    List<Map<String, dynamic>>? capabilities,
+    List<Map<String, dynamic>>? customExtras,
+  }) {
+    return _api.patchVendorService(
+      serviceId,
+      status: status,
+      capabilities: capabilities,
+      customExtras: customExtras,
+    );
+  }
 }

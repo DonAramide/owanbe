@@ -7,18 +7,20 @@ import '../../../core/api/owambe_http_client.dart';
 import '../../../eos/eos.dart';
 import '../widgets/admin_page_layout.dart';
 
-// Provider lives here (admin-only, not shared) — uses production HTTP client.
 final adminVendorCategoriesProvider = FutureProvider.autoDispose<List<VendorCategoryConfig>>((ref) async {
   try {
     final api = EventConfigApi(createOwambeHttpClient());
-    return await api.listVendorCategories();
+    return await api.adminListVendorCategories();
   } catch (_) {
-    // Return static fallback when API is unreachable — no mock store dependency.
-    return VendorCategoryConfig.fallbackDefaults;
+    try {
+      return await EventConfigApi(createOwambeHttpClient()).listVendorCategories();
+    } catch (_) {
+      return VendorCategoryConfig.fallbackDefaults;
+    }
   }
 });
 
-/// Admin-managed vendor service categories (Settings → Vendor categories).
+/// Admin list of marketplace service categories. Open a row to edit capabilities.
 class AdminVendorCategoriesScreen extends ConsumerWidget {
   const AdminVendorCategoriesScreen({super.key});
 
@@ -27,8 +29,11 @@ class AdminVendorCategoriesScreen extends ConsumerWidget {
     final categories = ref.watch(adminVendorCategoriesProvider);
 
     return AdminPageLayout(
-      title: 'Vendor service categories',
-      subtitle: 'Services used in marketplace filters and the event creation wizard',
+      title: 'Service Categories & Capability Catalogue',
+      subtitle:
+          'Admin defines marketplace categories and capability catalogues. '
+          'Vendors select what they provide. Organizers request from that intersection. '
+          'This does not change pricing or past requests.',
       actions: [
         TextButton.icon(
           onPressed: () {
@@ -51,7 +56,8 @@ class AdminVendorCategoriesScreen extends ConsumerWidget {
             EosSurfaceCard(
               elevated: true,
               child: Text(
-                '${items.length} service categories configured for this tenant.',
+                '${items.length} marketplace service categories. Open a category to manage '
+                'its capability catalogue and Marketplace visibility.',
                 style: context.eosText.bodyMedium,
               ),
             ),
@@ -61,16 +67,25 @@ class AdminVendorCategoriesScreen extends ConsumerWidget {
                 padding: EdgeInsets.only(bottom: context.eos.spacing.sm),
                 child: EosSurfaceCard(
                   child: ListTile(
+                    contentPadding: EdgeInsets.zero,
                     leading: Icon(Icons.storefront_outlined, color: EosColors.plum),
                     title: Text(cat.label),
-                    subtitle: Text(cat.slug),
+                    subtitle: Text(
+                      [
+                        cat.slug,
+                        cat.isActive ? 'Active' : 'Inactive',
+                        cat.capabilities.isEmpty
+                            ? 'No capabilities configured'
+                            : '${cat.capabilities.where((c) => c.enabled).length} enabled · ${cat.capabilities.length} total',
+                      ].join(' · '),
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.push(
+                      '/super-admin/commerce/vendor-capabilities/${cat.id}',
+                    ),
                   ),
                 ),
               ),
-            Text(
-              'Categories auto-seed on first API call. Manage via POST /admin/settings/vendor-categories or Supabase tenant_vendor_categories.',
-              style: context.eosText.bodySmall?.copyWith(color: EosColors.slate500),
-            ),
           ],
         ),
       ),

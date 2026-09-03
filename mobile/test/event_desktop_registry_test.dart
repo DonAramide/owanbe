@@ -129,6 +129,10 @@ void main() {
       expect(PortalRoutes.isPublicPath('/events/evt_phase2/tickets/manage'), isFalse);
     });
 
+    test('token RSVP deep link is public without auth', () {
+      expect(PortalRoutes.isPublicPath('/events/evt_phase2/rsvp'), isTrue);
+    });
+
     test('event module paths include tickets/manage', () {
       expect(
         EventRouteRegistry.isEventModulePath('/events/evt_phase2/tickets/manage'),

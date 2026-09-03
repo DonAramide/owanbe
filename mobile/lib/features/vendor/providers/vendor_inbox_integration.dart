@@ -59,12 +59,13 @@ List<String> vendorInboxNotifications(VendorCrmSnapshot snapshot) {
   final notes = <String>[];
   for (final r in snapshot.items.take(8)) {
     final event = r.eventTitle ?? 'Event';
+    final organizer = r.organizerName ?? 'Organizer';
     final label = switch (r.stage) {
-      'new' => 'Incoming request: $event',
-      'negotiating' => 'Pending request: $event',
-      'accepted' => 'Accepted job: $event',
-      'declined' => 'Declined: $event',
-      'completed' => 'Completed: $event',
+      'new' => 'New booking request from $organizer · $event',
+      'negotiating' => 'Pending booking request · $event',
+      'accepted' => 'You accepted · $event — open detail for change requests',
+      'declined' => 'You declined · $event',
+      'completed' => 'Completed · $event',
       _ => 'Update: $event · ${r.stage}',
     };
     notes.add(label);
