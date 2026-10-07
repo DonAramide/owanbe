@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/auth_notifier.dart';
 import '../auth/auth_session.dart';
+import '../auth/password_recovery.dart';
 import '../core/bootstrap/app_bootstrap.dart';
 import '../core/bootstrap/app_boot_state.dart';
 import '../identity/identity_provider.dart';
@@ -34,6 +35,9 @@ final class RouterNotifier extends ChangeNotifier {
     });
     _ref.listen<String?>(pendingDeepLinkProvider, (prev, next) {
       if (next != null) notifyListeners();
+    });
+    _ref.listen<bool>(passwordRecoveryActiveProvider, (prev, next) {
+      if (prev != next) notifyListeners();
     });
   }
 

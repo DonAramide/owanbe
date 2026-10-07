@@ -36,6 +36,12 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="io.supabase.owambe" android:host="login-callback" />
             </intent-filter>
+            <intent-filter android:label="supabase_password_recovery">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="io.supabase.owambe" android:host="password-recovery" />
+            </intent-filter>
             <intent-filter android:label="owambe_portal">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

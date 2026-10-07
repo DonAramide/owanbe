@@ -8,6 +8,10 @@ abstract final class ExperienceRoutes {
   static const hub = '/hub';
   /// Customer Flutter login (Unified Identity customer entry).
   static const auth = '/auth';
+  /// Customer password-reset request. Public while logged out.
+  static const forgotPassword = '/auth/forgot-password';
+  /// Customer new-password screen. Reachable only in recovery mode.
+  static const passwordRecovery = '/auth/recovery';
   /// Admin Flutter login — never reused by Customer Flutter.
   static const adminAuth = '/auth/admin';
   /// Admin Flutter landing — Super Admin dashboard.

@@ -277,6 +277,15 @@ class _UniversalAuthScreenState extends ConsumerState<UniversalAuthScreen> {
                         style: TextStyle(color: context.eosColors.onSurface.withValues(alpha: 0.5)),
                       ),
                     ),
+                    if (!_isSignUp) ...[
+                      const SizedBox(height: 4),
+                      TextButton(
+                        onPressed: _busy
+                            ? null
+                            : () => context.go(ExperienceRoutes.forgotPassword),
+                        child: const Text('Forgot password?'),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     TextButton(
                       onPressed: () => setState(() {

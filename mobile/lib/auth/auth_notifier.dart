@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'auth_session.dart';
 import 'app_entrypoint.dart';
+import 'password_recovery.dart';
 import 'portal_role.dart';
 import 'user_role.dart';
 import '../core/api/identity_api.dart';
@@ -43,6 +44,12 @@ class AuthNotifier extends Notifier<AuthSession?> {
     _authSub?.cancel();
     _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((event) async {
       if (_signOutInProgress) return;
+
+      if (PasswordRecovery.eventActivatesRecovery(event.event)) {
+        ref.read(passwordRecoveryActiveProvider.notifier).state = true;
+        state = null;
+        return;
+      }
 
       final session = event.session;
       if (session == null) {
@@ -113,6 +120,8 @@ class AuthNotifier extends Notifier<AuthSession?> {
       }
     });
     ref.onDispose(() => _authSub?.cancel());
+
+    if (ref.read(passwordRecoveryActiveProvider)) return null;
 
     final existing = Supabase.instance.client.auth.currentSession;
     return existing != null ? _sessionFromSupabase(existing) : null;
@@ -573,13 +582,35 @@ class AuthNotifier extends Notifier<AuthSession?> {
     }
   }
 
-  Future<void> resetPassword(String email) async {
-    final redirectTo = Uri.base.origin;
-    await Supabase.instance.client.auth.resetPasswordForEmail(
-      email.trim(),
-      redirectTo: redirectTo.isEmpty ? null : redirectTo,
+  Future<void> resetPassword(String email) {
+    return sendRecoveryEmail(
+      email: email,
+      isWeb: kIsWeb,
+      webOrigin: Uri.base.origin,
+      resetPasswordForEmail: (trimmed, {required redirectTo}) {
+        return Supabase.instance.client.auth.resetPasswordForEmail(
+          trimmed,
+          redirectTo: redirectTo,
+        );
+      },
     );
   }
+
+  /// Sets a new password only when recovery mode and a Supabase session exist.
+  Future<void> updateRecoveryPassword(String password) async {
+    final client = Supabase.instance.client.auth;
+    await applyRecoveryPasswordUpdate(
+      recoveryActive: ref.read(passwordRecoveryActiveProvider),
+      hasSession: client.currentSession != null,
+      password: password,
+      updatePassword: (next) async {
+        await client.updateUser(UserAttributes(password: next));
+      },
+    );
+  }
+
+  /// Ends the recovery session without opening a workspace.
+  Future<void> endRecoverySession() => signOut();
 
   Future<void> signUpStaff({
     required String email,

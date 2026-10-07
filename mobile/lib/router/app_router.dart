@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../auth/auth_notifier.dart';
 import '../auth/auth_session.dart';
+import '../auth/password_recovery.dart';
 import '../auth/user_role.dart';
 import '../platform/bootstrap/bootstrap.dart';
 import '../features/super_admin/screens/platform_configuration_screen.dart';
@@ -59,7 +60,9 @@ import '../features/public/screens/supabase_diagnostics_route.dart';
 import '../features/public/screens/walkthrough_screen.dart';
 import '../features/public/screens/payment_success_screen.dart';
 import '../features/public/screens/ticket_select_screen.dart';
+import '../features/identity/screens/forgot_password_screen.dart';
 import '../features/identity/screens/organizer_onboarding_screen.dart';
+import '../features/identity/screens/recovery_password_screen.dart';
 import '../features/organizer/screens/organizer_home_screen.dart';
 import '../features/organizer/wizard_v2/event_create_wizard_v2_screen.dart';
 import '../features/organizer/screens/event_workspace_screen.dart';
@@ -87,7 +90,19 @@ String? _unifiedIdentityRedirect({
   required String loc,
   String? pendingDeepLink,
   OwanbeUserIdentity? identity,
+  bool recoveryActive = false,
 }) {
+  final recoveryDecision = passwordRecoveryRedirect(
+    isAdminApp: SharedBootstrap.isAdmin,
+    recoveryActive: recoveryActive,
+    hasAuthSession: session != null,
+    location: loc,
+  );
+  if (recoveryDecision.kind == RecoveryRedirectKind.allow) return null;
+  if (recoveryDecision.kind == RecoveryRedirectKind.go) {
+    return recoveryDecision.location;
+  }
+
   if (pendingDeepLink != null && loc != pendingDeepLink && loc != '/') {
     return pendingDeepLink;
   }
@@ -192,6 +207,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               loc: loc,
               pendingDeepLink: pendingDeepLink,
               identity: ref.read(userIdentityProvider).valueOrNull,
+              recoveryActive: ref.read(passwordRecoveryActiveProvider),
             );
       if (pendingDeepLink != null && redirectLoc == pendingDeepLink) {
         ref.read(pendingDeepLinkProvider.notifier).state = null;
@@ -210,6 +226,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SupabaseDiagnosticsScreen(),
       ),
       GoRoute(path: ExperienceRoutes.auth, builder: (context, state) => const UniversalAuthScreen()),
+      GoRoute(
+        path: ExperienceRoutes.forgotPassword,
+        builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: ExperienceRoutes.passwordRecovery,
+        builder: (context, state) => const RecoveryPasswordScreen(),
+      ),
       GoRoute(path: ExperienceRoutes.adminAuth, builder: (context, state) => const AdminAuthScreen()),
       GoRoute(path: ExperienceRoutes.hub, builder: (context, state) => const OwanbeHomeScreen()),
       GoRoute(
