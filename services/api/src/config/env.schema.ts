@@ -89,6 +89,25 @@ export const envValidationSchema = Joi.object({
    * (preferred — Redis is not in this stack). `local` = in-process only (dev).
    */
   CRM_REALTIME_FANOUT: Joi.string().valid('pg_notify', 'local').default('pg_notify'),
+
+  /**
+   * Quasar sandbox. QUASAR_ENVIRONMENT must be test.
+   * QUASAR_LIVE_ENABLED=true or environment live fails closed at boot.
+   * Missing QUASAR_CLIENT_SECRET does not fake a payment. PAYMENT_MOCK_MODE must be explicit.
+   */
+  QUASAR_BASE_URL: Joi.string().uri().optional().allow('').default(''),
+  QUASAR_ENVIRONMENT: Joi.string().valid('test').default('test'),
+  QUASAR_CLIENT_ID: Joi.string().default('OWANBE'),
+  QUASAR_CLIENT_SECRET: Joi.string().allow('').default(''),
+  QUASAR_SERVICE_ID: Joi.string().allow('').default(''),
+  QUASAR_SERVICE_SECRET: Joi.string().allow('').default(''),
+  QUASAR_LIVE_ENABLED: Joi.boolean()
+    .truthy('true', '1', 'yes')
+    .falsy('false', '0', 'no')
+    .valid(false)
+    .default(false),
+  QUASAR_RECONCILE_MS: Joi.number().integer().min(0).max(3_600_000).default(60_000),
+  PAYMENT_MOCK_MODE: Joi.boolean().truthy('true', '1', 'yes').falsy('false', '0', 'no').default(false),
 }).unknown(true);
 
 export type EnvVars = {
@@ -129,4 +148,13 @@ export type EnvVars = {
   STORAGE_BUCKET: string;
   CRM_REALTIME_SSE: boolean;
   CRM_REALTIME_FANOUT: 'pg_notify' | 'local' | string;
+  QUASAR_BASE_URL: string;
+  QUASAR_ENVIRONMENT: 'test';
+  QUASAR_CLIENT_ID: string;
+  QUASAR_CLIENT_SECRET: string;
+  QUASAR_SERVICE_ID: string;
+  QUASAR_SERVICE_SECRET: string;
+  QUASAR_LIVE_ENABLED: boolean;
+  QUASAR_RECONCILE_MS: number;
+  PAYMENT_MOCK_MODE: boolean;
 };

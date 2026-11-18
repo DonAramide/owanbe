@@ -134,6 +134,7 @@ class TicketPaymentResponse {
     this.ticketOrderId,
     this.clientActionUrl,
     this.quaserReference,
+    this.transferInstructions,
   });
 
   final String paymentId;
@@ -142,10 +143,14 @@ class TicketPaymentResponse {
   final String? ticketOrderId;
   final String? clientActionUrl;
   final String? quaserReference;
+  final QuasarTransferInstructions? transferInstructions;
 
   bool get isCaptured => status.toLowerCase() == 'captured';
   bool get needsHostedPayment =>
-      !isCaptured && clientActionUrl != null && clientActionUrl!.trim().isNotEmpty;
+      transferInstructions == null &&
+      !isCaptured &&
+      clientActionUrl != null &&
+      clientActionUrl!.trim().isNotEmpty;
 
   factory TicketPaymentResponse.fromJson(Map<String, dynamic> json) {
     final payment = (json['payment'] as Map<String, dynamic>?) ?? const {};
@@ -160,9 +165,41 @@ class TicketPaymentResponse {
       ticketOrderId: payment['ticketOrderId']?.toString(),
       quaserReference: payment['quaserReference']?.toString(),
       clientActionUrl: quaser['clientActionUrl']?.toString() ?? quaser['client_action_url']?.toString(),
+      transferInstructions: QuasarTransferInstructions.fromPaymentJson(json),
       entitlements: ents,
     );
   }
+}
+
+class QuasarTransferInstructions {
+  const QuasarTransferInstructions({
+    required this.accountNumber,
+    required this.bankName,
+    required this.currency,
+  });
+
+  final String accountNumber;
+  final String bankName;
+  final String currency;
+
+  static QuasarTransferInstructions? fromPaymentJson(Map<String, dynamic> json) {
+    final quasar = json['quasar'];
+    if (quasar is! Map) return null;
+    final account = quasar['virtualAccount'];
+    if (account is! Map) return null;
+    final number = (account['accountNumber'] ?? '').toString().trim();
+    final bank = (account['bankName'] ?? '').toString().trim();
+    final currency = (account['currency'] ?? 'NGN').toString().trim();
+    if (number.isEmpty || bank.isEmpty || _isQuasarSecret(number) || _isQuasarSecret(bank)) {
+      return null;
+    }
+    return QuasarTransferInstructions(accountNumber: number, bankName: bank, currency: currency);
+  }
+}
+
+bool _isQuasarSecret(String value) {
+  final v = value.trim();
+  return v.startsWith('sk_') || v.startsWith('qps_') || v.startsWith('qpc_');
 }
 
 class TicketEntitlementResponse {

@@ -4,6 +4,7 @@ import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../common/decorators/public.decorator';
 import { OrganizerFinanceService } from './organizer-finance.service';
 import { OrganizerPayoutService } from './organizer-payout.service';
+import { RequestOrganizerPayoutDto } from './dto/request-organizer-payout.dto';
 import { TicketRefundService, type TicketRefundAction } from './ticket-refund.service';
 import { FinanceExportService } from './finance-export.service';
 import { CommerceAuthGuard } from './commerce-auth.guard';
@@ -119,7 +120,16 @@ export class OrganizerFinanceController {
     @Param('organizerId') organizerId: string,
     @CommerceActorParam() actor: CommerceActor,
     @Query('amountMinor') amountMinor: string,
+    @Body() body?: RequestOrganizerPayoutDto,
   ) {
-    return this.payouts.requestPayout(actor!, organizerId, amountMinor);
+    const destination =
+      body?.accountNumber && body.bankCode && body.accountName
+        ? {
+            accountNumber: body.accountNumber,
+            bankCode: body.bankCode,
+            accountName: body.accountName,
+          }
+        : undefined;
+    return this.payouts.requestPayout(actor!, organizerId, amountMinor, destination);
   }
 }

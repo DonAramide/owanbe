@@ -42,6 +42,7 @@ import { IdentityModule } from './modules/identity/identity.module';
 import { OrganizerMarketingModule } from './modules/organizer-marketing/organizer-marketing.module';
 import { ControlPlaneModule } from './modules/control-plane/control-plane.module';
 import { IdentitySecurityModule } from './modules/identity-security/identity-security.module';
+import { QuasarModule } from './modules/quasar/quasar.module';
 
 @Module({
   imports: [
@@ -89,6 +90,7 @@ import { IdentitySecurityModule } from './modules/identity-security/identity-sec
     OrganizerMarketingModule,
     ControlPlaneModule,
     IdentitySecurityModule,
+    QuasarModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

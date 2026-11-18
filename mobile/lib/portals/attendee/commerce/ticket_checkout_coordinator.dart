@@ -15,6 +15,7 @@ import 'purchase_notifications_provider.dart';
 enum TicketCheckoutPhase {
   captured,
   awaitingHostedPayment,
+  awaitingBankTransfer,
   awaitingCapture,
   failed,
 }
@@ -25,6 +26,8 @@ class TicketCheckoutResult {
     required this.orderId,
     this.paymentId,
     this.clientActionUrl,
+    this.accountNumber,
+    this.bankName,
     this.idempotencyKey,
     this.paymentIdempotencyKey,
     this.message,
@@ -34,6 +37,8 @@ class TicketCheckoutResult {
   final String orderId;
   final String? paymentId;
   final String? clientActionUrl;
+  final String? accountNumber;
+  final String? bankName;
   final String? idempotencyKey;
   final String? paymentIdempotencyKey;
   final String? message;
@@ -108,6 +113,28 @@ class TicketCheckoutCoordinator {
         paymentId: payment.paymentId,
         idempotencyKey: orderIdem,
         paymentIdempotencyKey: payIdem,
+      );
+    }
+
+    if (payment.transferInstructions != null) {
+      final instructions = payment.transferInstructions!;
+      ref.read(purchaseNotificationsProvider.notifier).push(
+            PurchaseNotification(
+              type: PurchaseNotificationType.paymentPending,
+              title: 'Transfer to pay',
+              body: 'The ticket stays unpaid until the bank transfer is confirmed.',
+              orderId: order.orderId,
+            ),
+          );
+      return TicketCheckoutResult(
+        phase: TicketCheckoutPhase.awaitingBankTransfer,
+        orderId: order.orderId,
+        paymentId: payment.paymentId,
+        accountNumber: instructions.accountNumber,
+        bankName: instructions.bankName,
+        idempotencyKey: orderIdem,
+        paymentIdempotencyKey: payIdem,
+        message: 'Transfer the ticket amount to the account shown. The ticket stays unpaid until Quasar confirms the transfer.',
       );
     }
 

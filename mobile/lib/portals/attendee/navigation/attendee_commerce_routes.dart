@@ -137,6 +137,8 @@ List<RouteBase> attendeeCommerceRoutes() => [
           return AttendeePaymentPendingScreen(
             orderId: q['orderId'] ?? '',
             clientActionUrl: q['payUrl'],
+            accountNumber: q['accountNumber'],
+            bankName: q['bankName'],
             orderIdempotencyKey: q['orderIdem'],
             paymentIdempotencyKey: q['payIdem'],
           );

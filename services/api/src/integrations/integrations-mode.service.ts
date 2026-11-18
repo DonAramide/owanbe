@@ -15,9 +15,15 @@ export class IntegrationsModeService {
     return Boolean(this.config.get('QUASER_ROUTER_BASE_URL', { infer: true }).trim());
   }
 
-  /** Dev auto-capture / auto-complete only when not in production mode. */
+  /**
+   * Fake payment capture is opt-in. A missing Quasar or Quaser credential
+   * does not turn this on.
+   */
   allowPaymentStubs(): boolean {
-    return !this.isProduction() && !this.isQuaserConfigured();
+    return (
+      !this.isProduction() &&
+      this.config.get('PAYMENT_MOCK_MODE', { infer: true }) === true
+    );
   }
 
   requireProductionConfig(): void {

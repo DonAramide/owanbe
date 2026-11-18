@@ -130,10 +130,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         case TicketCheckoutPhase.captured:
           context.go('/payment/success?orderId=${result.orderId}');
         case TicketCheckoutPhase.awaitingHostedPayment:
+        case TicketCheckoutPhase.awaitingBankTransfer:
         case TicketCheckoutPhase.awaitingCapture:
           final q = <String, String>{
             'orderId': result.orderId,
             if (result.clientActionUrl != null) 'payUrl': result.clientActionUrl!,
+            if (result.accountNumber != null) 'accountNumber': result.accountNumber!,
+            if (result.bankName != null) 'bankName': result.bankName!,
             if (result.idempotencyKey != null) 'orderIdem': result.idempotencyKey!,
             if (result.paymentIdempotencyKey != null) 'payIdem': result.paymentIdempotencyKey!,
           };

@@ -37,6 +37,7 @@ async function bootstrap() {
       { path: 'health', method: RequestMethod.GET },
       { path: 'metrics', method: RequestMethod.GET },
       { path: 'webhooks/quaser', method: RequestMethod.POST },
+      { path: 'webhooks/quasar/:quasarTenantId', method: RequestMethod.POST },
     ],
   });
   app.useGlobalPipes(new SanitizeInputPipe(), new ValidationPipe({

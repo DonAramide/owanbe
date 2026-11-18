@@ -70,13 +70,21 @@ class OrganizerPayoutController extends Notifier<OrganizerPayoutState> {
   Future<void> submit({
     required String organizerId,
     required String amountMinor,
+    String? accountNumber,
+    String? bankCode,
+    String? accountName,
     AuthSession? session,
   }) async {
     state = state.copyWith(loading: true, error: null);
     try {
-      final out = await ref
-          .read(organizerFinanceApiProvider)
-          .createPayout(organizerId: organizerId, amountMinor: amountMinor, session: session);
+      final out = await ref.read(organizerFinanceApiProvider).createPayout(
+            organizerId: organizerId,
+            amountMinor: amountMinor,
+            accountNumber: accountNumber,
+            bankCode: bankCode,
+            accountName: accountName,
+            session: session,
+          );
       state = state.copyWith(loading: false, lastSuccess: out, error: null);
     } on OrganizerFinanceApiException catch (e) {
       state = state.copyWith(loading: false, error: e.message);

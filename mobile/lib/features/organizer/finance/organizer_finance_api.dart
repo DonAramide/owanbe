@@ -398,11 +398,22 @@ class OrganizerFinanceApi {
   Future<OrganizerPayoutResult> createPayout({
     required String organizerId,
     required String amountMinor,
+    String? accountNumber,
+    String? bankCode,
+    String? accountName,
     AuthSession? session,
   }) async {
     final res = await _http.post(
       _u('organizers/$organizerId/payouts').replace(queryParameters: {'amountMinor': amountMinor}),
-      headers: await _headers(session),
+      headers: {
+        ...await _headers(session),
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        if (accountNumber != null && accountNumber.isNotEmpty) 'accountNumber': accountNumber,
+        if (bankCode != null && bankCode.isNotEmpty) 'bankCode': bankCode,
+        if (accountName != null && accountName.isNotEmpty) 'accountName': accountName,
+      }),
     );
     if (res.statusCode >= 400) _throw(res);
     return OrganizerPayoutResult.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -436,17 +447,20 @@ class OrganizerPayoutLine {
     required this.payoutId,
     required this.ticketOrderId,
     required this.amountMinor,
+    this.quasarStatus,
   });
 
   final String payoutId;
   final String ticketOrderId;
   final String amountMinor;
+  final String? quasarStatus;
 
   factory OrganizerPayoutLine.fromJson(Map<String, dynamic> json) {
     return OrganizerPayoutLine(
       payoutId: (json['payoutId'] ?? '').toString(),
       ticketOrderId: (json['ticketOrderId'] ?? '').toString(),
       amountMinor: (json['amountMinor'] ?? '0').toString(),
+      quasarStatus: json['quasarStatus']?.toString(),
     );
   }
 }

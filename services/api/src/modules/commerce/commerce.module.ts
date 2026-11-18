@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { EventsModule } from '../events/events.module';
+import { QuasarModule } from '../quasar/quasar.module';
 import { TenantFinancePolicyService } from './tenant-finance-policy.service';
 import { TicketOrdersService } from './ticket-orders.service';
 import { TicketPaymentsService } from './ticket-payments.service';
@@ -19,7 +20,7 @@ import { FinanceExportService } from './finance-export.service';
 import { FinanceExportController } from './finance-export.controller';
 
 @Module({
-  imports: [DatabaseModule, forwardRef(() => PaymentsModule), forwardRef(() => EventsModule)],
+  imports: [DatabaseModule, forwardRef(() => PaymentsModule), forwardRef(() => EventsModule), forwardRef(() => QuasarModule)],
   controllers: [
     TicketCommerceController,
     OrganizerFinanceController,

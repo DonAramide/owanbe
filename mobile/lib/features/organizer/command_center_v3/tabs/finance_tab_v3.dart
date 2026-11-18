@@ -427,19 +427,76 @@ class _PayoutsSection extends ConsumerWidget {
     WidgetRef ref,
     OrganizerEventFinanceSummary fin,
   ) async {
+    final bank = await _askWithdrawalAccount(context);
+    if (bank == null || !context.mounted) return;
     final available = int.tryParse(fin.availableForPayoutMinor) ?? 0;
     final session = ref.read(authSessionProvider);
     await ref.read(organizerPayoutControllerProvider.notifier).submit(
           organizerId: fin.organizerId,
           amountMinor: available.toString(),
+          accountNumber: bank.accountNumber,
+          bankCode: bank.bankCode,
+          accountName: bank.accountName,
           session: session,
         );
-    final err = ref.read(organizerPayoutControllerProvider).error;
+    final state = ref.read(organizerPayoutControllerProvider);
     invalidateEventFinance(ref, eventId);
     if (!context.mounted) return;
+    String? quasarStatus;
+    for (final payout in state.lastSuccess?.payouts ?? const <OrganizerPayoutLine>[]) {
+      final status = payout.quasarStatus;
+      if (status != null && status.isNotEmpty) {
+        quasarStatus = status;
+        break;
+      }
+    }
+    final message = state.error ??
+        (quasarStatus == null
+            ? 'Payout requested'
+            : 'Withdrawal submitted ($quasarStatus). It is not paid until Quasar confirms the transfer.');
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(err ?? 'Payout requested')),
+      SnackBar(content: Text(message)),
     );
+  }
+
+  Future<({String accountNumber, String bankCode, String accountName})?> _askWithdrawalAccount(
+    BuildContext context,
+  ) async {
+    final account = TextEditingController();
+    final bank = TextEditingController();
+    final name = TextEditingController();
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Withdrawal account'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: account, decoration: const InputDecoration(labelText: 'Account number'), keyboardType: TextInputType.number),
+            TextField(controller: bank, decoration: const InputDecoration(labelText: 'Bank code')),
+            TextField(controller: name, decoration: const InputDecoration(labelText: 'Account name')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Submit withdrawal')),
+        ],
+      ),
+    );
+    final result = accepted == true
+        ? (accountNumber: account.text.trim(), bankCode: bank.text.trim(), accountName: name.text.trim())
+        : null;
+    account.dispose();
+    bank.dispose();
+    name.dispose();
+    if (result == null) return null;
+    if (result.accountNumber.isEmpty || result.bankCode.isEmpty || result.accountName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Account number, bank code, and account name are required.')),
+      );
+      return null;
+    }
+    return result;
   }
 }
 

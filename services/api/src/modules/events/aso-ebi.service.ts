@@ -558,7 +558,7 @@ export class AsoEbiService {
     if (!this.integrations.allowPaymentStubs()) {
       throw new UnprocessableEntityException({
         code: 'PAYMENT_REQUIRED',
-        message: 'Complete payment through checkout; direct pay is disabled in production',
+        message: 'Complete payment through checkout. Direct pay requires PAYMENT_MOCK_MODE=true',
       });
     }
     const { rows } = await this.pool.query<{

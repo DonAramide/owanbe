@@ -2,9 +2,9 @@ import {
   Injectable,
   Inject,
   Logger,
-  ForbiddenException,
   NotFoundException,
   UnprocessableEntityException,
+  forwardRef,
 } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import { randomUUID } from 'crypto';
@@ -18,6 +18,10 @@ import { AlertsService } from '../payments/alerts.service';
 import type { CommerceActor } from './commerce-auth.service';
 import { OrganizerFinanceService } from './organizer-finance.service';
 import { IntegrationsModeService } from '../../integrations/integrations-mode.service';
+import { QuasarModeService } from '../quasar/quasar-mode.service';
+import { QuasarTransferService } from '../quasar/quasar-transfer.service';
+import type { QuasarBankDestination } from '../quasar/quasar.types';
+import { payoutStateFromCreateResponse } from '../quasar/quasar-state';
 
 export interface EligibleOrganizerPayoutRow {
   ticket_order_id: string;
@@ -40,6 +44,10 @@ export class OrganizerPayoutService {
     private readonly alerts: AlertsService,
     private readonly organizerFinance: OrganizerFinanceService,
     private readonly integrations: IntegrationsModeService,
+    @Inject(forwardRef(() => QuasarModeService))
+    private readonly quasarMode: QuasarModeService,
+    @Inject(forwardRef(() => QuasarTransferService))
+    private readonly quasarTransfers: QuasarTransferService,
   ) {}
 
   private publicWebhookUrl() {
@@ -98,7 +106,12 @@ export class OrganizerPayoutService {
     actor: CommerceActor,
     organizerId: string,
     amountMinor: string,
-  ): Promise<{ ok: boolean; requestedMinor: string; payouts: Array<{ payoutId: string; ticketOrderId: string; amountMinor: string }> }> {
+    destination?: QuasarBankDestination,
+  ): Promise<{
+    ok: boolean;
+    requestedMinor: string;
+    payouts: Array<{ payoutId: string; ticketOrderId: string; amountMinor: string; quasarStatus?: string }>;
+  }> {
     await this.organizerFinance.assertOrganizerAccess(actor, organizerId);
     await this.financeState.ensurePayoutsAllowed();
 
@@ -127,18 +140,26 @@ export class OrganizerPayoutService {
       });
     }
 
+    if (this.quasarMode.isConfigured() && !destination) {
+      throw new UnprocessableEntityException({
+        code: 'QUASAR_DESTINATION_REQUIRED',
+        message: 'Bank account number, bank code, and account name are required for a Quasar withdrawal',
+      });
+    }
+
     let remaining = requested;
-    const created: Array<{ payoutId: string; ticketOrderId: string; amountMinor: string }> = [];
+    const created: Array<{ payoutId: string; ticketOrderId: string; amountMinor: string; quasarStatus?: string }> = [];
 
     for (const row of eligible) {
       const rowAmount = BigInt(row.subtotal_minor);
       if (rowAmount > remaining) continue;
-      const out = await this.enqueuePayout(row);
+      const out = await this.enqueuePayout(row, destination);
       if ('payoutId' in out) {
         created.push({
           payoutId: out.payoutId,
           ticketOrderId: row.ticket_order_id,
           amountMinor: row.subtotal_minor,
+          quasarStatus: out.quasarStatus,
         });
         remaining -= rowAmount;
       }
@@ -157,8 +178,12 @@ export class OrganizerPayoutService {
 
   async enqueuePayout(
     row: EligibleOrganizerPayoutRow,
-  ): Promise<{ payoutId: string } | { skipped: true }> {
+    destination?: QuasarBankDestination,
+  ): Promise<{ payoutId: string; quasarStatus?: string } | { skipped: true }> {
     await this.financeState.ensurePayoutsAllowed();
+    if (this.quasarMode.isConfigured()) {
+      return this.enqueueQuasarWithdrawal(row, destination);
+    }
     const webhookUrl = this.publicWebhookUrl();
     if (!webhookUrl && !this.isQuaserStub()) {
       this.logger.warn('PUBLIC_API_BASE_URL missing; skip organizer payout');
@@ -319,6 +344,127 @@ export class OrganizerPayoutService {
       throw e;
     } finally {
       client.release();
+    }
+  }
+
+  async markTransferFailed(
+    payoutId: string,
+    metadata: Record<string, unknown> = {},
+    failureCode = 'QUASAR_TRANSFER_FAILED',
+  ): Promise<{ ok: boolean; reason?: string }> {
+    const updated = await this.pool.query<{ id: string }>(
+      `UPDATE organizer_payouts
+       SET status = 'failed',
+           failure_code = $3,
+           failure_message = 'Quasar reported the transfer was not successful',
+           metadata = metadata || $2::jsonb,
+           updated_at = now()
+       WHERE id = $1
+         AND status::text IN ('pending', 'processing')
+       RETURNING id`,
+      [payoutId, JSON.stringify({ ...metadata, failed_at: new Date().toISOString() }), failureCode],
+    );
+    if (updated.rows[0]) return { ok: true, reason: 'payout_failed' };
+    const existing = await this.pool.query<{ status: string }>(
+      `SELECT status::text FROM organizer_payouts WHERE id = $1`,
+      [payoutId],
+    );
+    if (!existing.rows[0]) return { ok: false, reason: 'not_found' };
+    if (existing.rows[0].status === 'completed') return { ok: false, reason: 'already_completed' };
+    return { ok: true, reason: 'already_failed' };
+  }
+
+  private async enqueueQuasarWithdrawal(
+    row: EligibleOrganizerPayoutRow,
+    destination?: QuasarBankDestination,
+  ): Promise<{ payoutId: string; quasarStatus: string } | { skipped: true }> {
+    if (!destination) {
+      throw new UnprocessableEntityException({
+        code: 'QUASAR_DESTINATION_REQUIRED',
+        message: 'Bank account number, bank code, and account name are required for a Quasar withdrawal',
+      });
+    }
+
+    const idempotencyKey = `org_payout:${row.ticket_order_id}:${randomUUID()}`;
+    let payoutId: string;
+    try {
+      const ins = await this.pool.query<{ id: string }>(
+        `INSERT INTO organizer_payouts (
+           tenant_id, organizer_id, ticket_order_id, currency, amount_minor, idempotency_key, status, metadata
+         ) VALUES ($1, $2, $3, $4, $5::bigint, $6, 'pending', $7::jsonb)
+         RETURNING id`,
+        [
+          row.tenant_id,
+          row.organizer_id,
+          row.ticket_order_id,
+          row.currency.toUpperCase(),
+          row.subtotal_minor,
+          idempotencyKey,
+          JSON.stringify({ source: 'quasar_withdrawal' }),
+        ],
+      );
+      const id = ins.rows[0]?.id;
+      if (!id) return { skipped: true };
+      payoutId = id;
+    } catch (e: unknown) {
+      const err = e as { code?: string };
+      if (err.code === '23505') return { skipped: true };
+      throw e;
+    }
+
+    try {
+      const transfer = await this.quasarTransfers.createOrganizerWithdrawal({
+        owanbeTenantId: row.tenant_id,
+        organizerId: row.organizer_id,
+        payoutId,
+        amountMinor: row.subtotal_minor,
+        currency: row.currency,
+        destination,
+      });
+      const readState = payoutStateFromCreateResponse(transfer.status);
+      if (readState === 'failed' || readState === 'rejected') {
+        await this.markTransferFailed(
+          payoutId,
+          { quasarStatus: transfer.status, quasarEnvironment: transfer.environment },
+          readState === 'rejected' ? 'QUASAR_TRANSFER_REJECTED' : 'QUASAR_TRANSFER_FAILED',
+        );
+        return { payoutId, quasarStatus: transfer.status };
+      }
+      await this.pool.query(
+        `UPDATE organizer_payouts
+         SET status = 'processing',
+             quaser_reference = $2,
+             metadata = metadata || $3::jsonb,
+             updated_at = now()
+         WHERE id = $1`,
+        [
+          payoutId,
+          transfer.reference,
+          JSON.stringify({
+            quasarStatus: transfer.status,
+            quasarReadState: readState,
+            quasarEnvironment: transfer.environment,
+          }),
+        ],
+      );
+      return { payoutId, quasarStatus: transfer.status };
+    } catch (e) {
+      await this.pool.query(
+        `UPDATE organizer_payouts
+         SET status = 'failed',
+             under_review = TRUE,
+             failure_code = 'QUASAR_INIT',
+             failure_message = $2,
+             updated_at = now()
+         WHERE id = $1`,
+        [payoutId, String((e as Error).message).slice(0, 500)],
+      );
+      await this.alerts.trigger(
+        'payout_failure',
+        { payoutId, error: String((e as Error).message).slice(0, 500) },
+        'CRITICAL',
+      );
+      throw e;
     }
   }
 }

@@ -48,7 +48,7 @@ dependencies:
   image_picker: ^1.1.2
   share_plus: ^13.3.0
   url_launcher: ^6.3.2
-  video_player: ^2.13.0
+  video_player: 2.11.1
   connectivity_plus: ^7.3.1
   qr_flutter: ^4.1.0
 

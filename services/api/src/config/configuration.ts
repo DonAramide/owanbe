@@ -50,4 +50,28 @@ export default (): EnvVars => ({
   CRM_REALTIME_FANOUT: (process.env.CRM_REALTIME_FANOUT ?? 'pg_notify') as
     | 'pg_notify'
     | 'local',
+  QUASAR_BASE_URL: process.env.QUASAR_BASE_URL ?? '',
+  QUASAR_ENVIRONMENT: (() => {
+    const selected = (process.env.QUASAR_ENVIRONMENT ?? 'test').trim().toLowerCase();
+    const liveEnabled = ['true', '1', 'yes'].includes(
+      String(process.env.QUASAR_LIVE_ENABLED ?? 'false').toLowerCase(),
+    );
+    if (liveEnabled || selected === 'live' || selected === 'production' || selected !== 'test') {
+      throw new Error(
+        'Quasar live is disabled. Set QUASAR_ENVIRONMENT=test and QUASAR_LIVE_ENABLED=false',
+      );
+    }
+    return 'test' as const;
+  })(),
+  QUASAR_CLIENT_ID: process.env.QUASAR_CLIENT_ID ?? 'OWANBE',
+  QUASAR_CLIENT_SECRET: process.env.QUASAR_CLIENT_SECRET ?? '',
+  QUASAR_SERVICE_ID: process.env.QUASAR_SERVICE_ID ?? '',
+  QUASAR_SERVICE_SECRET: process.env.QUASAR_SERVICE_SECRET ?? '',
+  QUASAR_LIVE_ENABLED: ['true', '1', 'yes'].includes(
+    String(process.env.QUASAR_LIVE_ENABLED ?? 'false').toLowerCase(),
+  ),
+  QUASAR_RECONCILE_MS: parseInt(process.env.QUASAR_RECONCILE_MS ?? '60000', 10),
+  PAYMENT_MOCK_MODE: ['true', '1', 'yes'].includes(
+    String(process.env.PAYMENT_MOCK_MODE ?? 'false').toLowerCase(),
+  ),
 });

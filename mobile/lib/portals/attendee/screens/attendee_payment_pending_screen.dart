@@ -21,12 +21,16 @@ class AttendeePaymentPendingScreen extends ConsumerStatefulWidget {
     super.key,
     required this.orderId,
     this.clientActionUrl,
+    this.accountNumber,
+    this.bankName,
     this.orderIdempotencyKey,
     this.paymentIdempotencyKey,
   });
 
   final String orderId;
   final String? clientActionUrl;
+  final String? accountNumber;
+  final String? bankName;
   final String? orderIdempotencyKey;
   final String? paymentIdempotencyKey;
 
@@ -208,7 +212,9 @@ class _AttendeePaymentPendingScreenState extends ConsumerState<AttendeePaymentPe
                   Text('Confirming payment', style: context.eosText.headlineSmall, textAlign: TextAlign.center),
                   SizedBox(height: context.eos.spacing.xs),
                   Text(
-                    'Order ${widget.orderId}\nStatus: $_status',
+                    widget.accountNumber == null
+                        ? 'Order ${widget.orderId}\nStatus: $_status'
+                        : 'Transfer the ticket amount to the account below. This ticket stays unpaid until the bank transfer is confirmed.\n\n${widget.bankName ?? 'Bank'}\n${widget.accountNumber}\n\nOrder ${widget.orderId}\nStatus: $_status',
                     style: context.eosText.bodyMedium,
                     textAlign: TextAlign.center,
                   ),
@@ -232,14 +238,21 @@ class _AttendeePaymentPendingScreenState extends ConsumerState<AttendeePaymentPe
                       label: const Text('Reopen Quaser checkout'),
                     ),
                   SizedBox(height: context.eos.spacing.sm),
-                  FilledButton(
-                    onPressed: _busy ? null : _retryPayment,
-                    child: const Text('Retry payment'),
-                  ),
-                  TextButton(
-                    onPressed: _busy ? null : _pollOnce,
-                    child: const Text('Check status now'),
-                  ),
+                  if (widget.accountNumber == null)
+                    FilledButton(
+                      onPressed: _busy ? null : _retryPayment,
+                      child: const Text('Retry payment'),
+                    )
+                  else
+                    FilledButton(
+                      onPressed: _busy ? null : _pollOnce,
+                      child: const Text('Check transfer status'),
+                    ),
+                  if (widget.accountNumber == null)
+                    TextButton(
+                      onPressed: _busy ? null : _pollOnce,
+                      child: const Text('Check status now'),
+                    ),
                 ],
               ),
             ),
